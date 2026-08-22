@@ -1,0 +1,122 @@
+project:
+  name: Noode-CG V2
+  # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
+  target_domain: jackoyu.dpdns.org
+  user_agent: Noode-CG/2.0
+
+paths:
+  locations: data/locations.json
+  checkpoints: data/checkpoints
+  output: output
+
+sources:
+  local:
+    - data/input/ALL-2026-08-22.txt
+    - data/input/ip.zip
+  # This required source is refreshed on every run. All valid entries are kept
+  # in the scan pool before official ranges fill the pool to 50,000 unique IPs.
+  # If the service is temporarily unavailable, the last committed cache is used.
+  remote:
+    - name: zip.cm.edu.kg/all.txt
+      url: https://zip.cm.edu.kg/all.txt
+      required: true
+      min_records: 10000
+      min_ratio_to_cache: 0.80
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/zip-cm-edu-kg-all.txt
+  max_download_bytes: 20971520
+  cloudflare_ranges:
+    enabled: true
+    refresh: true
+    ipv4_url: https://www.cloudflare.com/ips-v4/
+    ipv4_fallback: data/cloudflare-ipv4.txt
+    include_ipv6: false
+    ipv6_url: https://www.cloudflare.com/ips-v6/
+    ipv6_fallback: data/cloudflare-ipv6.txt
+    target_pool: 50000
+    ports: [443]
+    deterministic_seed: 20260822
+
+pipeline:
+  # These are observable quality gates, not promises. A run never fabricates
+  # unverified endpoints merely to hit a count.
+  min_pool: 50000
+  min_tcp_alive: 30000
+  min_tls_valid: 100
+  min_http_valid: 50
+  fail_on_quality_gate: false
+
+  tcp:
+    concurrency: 800
+    timeout_seconds: 1.5
+    attempts: 1
+
+  tls:
+    concurrency: 300
+    timeout_seconds: 4.0
+    verify_certificate: true
+    minimum_version: TLSv1.2
+
+  http:
+    concurrency: 250
+    timeout_seconds: 5.0
+    path: /cdn-cgi/trace
+    require_trace_fields: true
+    accepted_statuses: [200]
+
+  websocket:
+    # Enable only after setting the exact path used by your Worker.
+    enabled: false
+    path: /
+    concurrency: 100
+    timeout_seconds: 5.0
+
+  speed:
+    enabled: true
+    domain: speed.cloudflare.com
+    path: /__down?bytes=262144
+    bytes_per_test: 262144
+    candidates: 600
+    concurrency: 8
+    timeout_seconds: 8.0
+
+score:
+  weights:
+    latency: 0.35
+    jitter: 0.10
+    loss: 0.10
+    speed: 0.25
+    region: 0.10
+    protocol: 0.10
+  caps:
+    latency_ms: 500
+    jitter_ms: 150
+    speed_mbps: 100
+  region_priority:
+    JP: 1.00
+    KR: 0.95
+    SG: 0.95
+    HK: 0.85
+    TW: 0.80
+    US: 0.60
+  default_region_score: 0.50
+
+output:
+  top_nodes: 300
+  minimum_publish: 50
+  preserve_last_good: true
+  max_per_country: 80
+  max_per_ipv4_24: 4
+  max_per_ipv6_48: 4
+  node_label: country
+  write_compatibility_zip: true
+
+vantage:
+  # A GitHub-hosted runner is only one network vantage point. For genuine
+  # CT/CU/CM measurements, run the same command on self-hosted runners and
+  # merge their data under data/probes/.
+  name: ${NOODE_VANTAGE:-github-general}
+  probe_files: []

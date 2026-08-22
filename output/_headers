@@ -1,0 +1,16 @@
+/*
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+
+/nodes.txt
+  Cache-Control: public, max-age=60
+
+/nodes.json
+  Cache-Control: public, max-age=60
+
+/api.json
+  Cache-Control: public, max-age=60
+
+/health.json
+  Cache-Control: no-cache
+

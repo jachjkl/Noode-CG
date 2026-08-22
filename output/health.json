@@ -1,0 +1,48 @@
+{
+  "status": "degraded",
+  "started_at": "2026-08-22T16:59:44.653754+00:00",
+  "target_domain": "jackoyu.dpdns.org",
+  "vantage": "github-general",
+  "counts": {
+    "pool_endpoints": 53384,
+    "pool_unique_ips": 50000,
+    "tcp_alive": 15904,
+    "tls_valid": 3809,
+    "http_valid": 3623
+  },
+  "gates": [
+    {
+      "name": "pool_unique_ips",
+      "actual": 50000,
+      "minimum": 50000,
+      "passed": true
+    },
+    {
+      "name": "tcp_alive",
+      "actual": 15904,
+      "minimum": 30000,
+      "passed": false
+    },
+    {
+      "name": "tls_valid",
+      "actual": 3809,
+      "minimum": 100,
+      "passed": true
+    },
+    {
+      "name": "http_valid",
+      "actual": 3623,
+      "minimum": 50,
+      "passed": true
+    }
+  ],
+  "warnings": [
+    "刷新 Cloudflare IPV4 网段失败，使用内置快照: <urlopen error _ssl.c:983: The handshake operation timed out>"
+  ],
+  "duration_seconds": 492.936,
+  "generated_at": "2026-08-22T17:07:57.590343+00:00",
+  "selected": 300,
+  "minimum_publish": 50,
+  "published": true,
+  "preserved_previous_output": false
+}
