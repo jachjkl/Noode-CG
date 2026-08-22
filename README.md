@@ -1,12 +1,8 @@
 # Noode-CG V2
 
-Noode-CG V2 从本地种子、ZIP 数据和 Cloudflare 官方网段构建候选池，通过 TCP、目标域名 TLS/SNI、Cloudflare HTTP trace、可选 WebSocket 与小样本下载测速分层过滤，最后生成 edgetunnel 可读取的 TOP300 地址列表。
-
-## 已实现
-
-- 解析 `IP:端口#国家`、纯 IP、空格分隔、CSV、JSON。
-- 解析 `端口/国家.txt` 结构的 ZIP；与你提供的 `ip.zip` 兼容。
-- 从 Cloudflare 官方 IPv4/IPv6 网段确定性采样，把候选池扩展到配置规模。
+-  获取`IP:端口#国家`、纯 IP、空格分隔、CSV、JSON。
+-  获取`端口/国家.txt` 结构的 ZIP；与你提供的 `ip.zip` 兼容。
+-  获取网段确定性采样，把候选池扩展到配置规模。
 - TCP、受信任证书、SNI、HTTP Host、`/cdn-cgi/trace` 和可选 WebSocket Upgrade 验证。
 - 延迟、抖动、丢包、速度、地区、协议完整性评分。
 - 国家和 IPv4 `/24` / IPv6 `/48` 去集中，避免 TOP300 被同一小网段占满。
@@ -14,12 +10,6 @@ Noode-CG V2 从本地种子、ZIP 数据和 Cloudflare 官方网段构建候选�
 - 生成 `nodes.txt`、`nodes.json`、`nodes.csv`、`api.json`、兼容结构 `ip.zip`。
 - 每 6 小时执行的 GitHub Actions、CI、只读 HTTP API 和 Docker 配置。
 - Cloudflare Pages Functions 路由，可直接提供 `/api/nodes` 与 `/api/health`。
-
-## 重要说明
-
-`output/nodes.txt` 是 edgetunnel 的优选地址源，不是可以直接导入 Clash/V2Ray 的完整节点订阅。真实客户端订阅仍由 edgetunnel 根据 UUID、WS 路径、Host、SNI 和 TLS 参数生成。
-
-“5 万候选、3 万 TCP 可用”是质量门槛，不是可以无视网络现实的固定产量。运行地点不同，结果一定不同；GitHub Runner 的结果也不等于你本地运营商的结果。
 
 ## 快速开始
 
