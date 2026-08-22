@@ -11,58 +11,9 @@
 - 每 6 小时执行的 GitHub Actions、CI、只读 HTTP API 和 Docker 配置。
 - Cloudflare Pages Functions 路由，可直接提供 `/api/nodes` 与 `/api/health`。
 
-## 快速开始
-
-```powershell
-python -m pip install -r requirements.txt
-python main.py validate
-python main.py run
-```
-
-首次运行前至少检查：
-
-```yaml
-project:
-  target_domain: jackoyu.dpdns.org
-```
-
-如果这不是你当前绑定 edgetunnel Worker 的域名，请替换它。
-
-输出地址：
-
-```text
-https://raw.githubusercontent.com/<owner>/<repo>/main/output/nodes.txt
-```
-
-如果按共享方案使用仓库 `jachjkl/Noode-CG`，可直接填写：
-
-```text
-https://raw.githubusercontent.com/jachjkl/Noode-CG/refs/heads/main/output/nodes.txt
-```
-
-完整部署见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)，判定逻辑见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。Cloudflare 官方网段在运行时从 [IPv4](https://www.cloudflare.com/ips-v4/) 和 [IPv6](https://www.cloudflare.com/ips-v6/) 刷新，失败时回退到仓库快照。
-
-## 配置重点
-
-- `sources.local`：本地 TXT/CSV/JSON/ZIP 种子。
-- `sources.remote`：每次运行强制刷新 `https://zip.cm.edu.kg/all.txt`；全部有效条目优先进入候选，失败时回退仓库缓存。
-- `pipeline.*`：各检测阶段并发、超时与质量门槛。
-- `pipeline.websocket`：只有知道真实 Worker 路径后才开启。
-- `score.*`：评分权重和上限。
-- `output.*`：TOP 数量、发布下限、国家和网段去集中。
-- `vantage.probe_files`：合并自托管运营商探针数据。
-
-### 强制候选源
-
-`zip.cm.edu.kg/all.txt` 中解析成功的全部 `IP:端口` 每次都会先加入检测池，再用 Cloudflare 官方网段补足 50,000 个不同 IP。`30,000` 是 TCP 通过数量的质量门槛；远程源中未通过本次 TCP/TLS/HTTP 检测的地址不会被强行发布。每次在线数据同时写入 `data/sources/zip-cm-edu-kg-all.txt`，Actions 会提交该缓存，保证服务临时不可用时仍有上一版数据。为防止服务器返回截断列表，在线结果少于 10,000 条或低于上一缓存的 80% 时不会覆盖完整缓存。
-
-## 合规和负载
-
 ⚠️ 免责声明
 本项目（"Noode-CG"）仅供教育、科学研究及个人安全测试之目的。
 使用者在下载或使用本项目代码时，必须严格遵守所在地区的法律法规。
 作者jachjkl对任何滥用本项目代码导致的行为或后果均不承担任何责任。
 本项目不对因使用代码引起的任何直接或间接损害负责。
 建议在测试完成后 24 小时内删除本项目相关部署。
-
-只测试你有权测试的域名与网络。默认候选来自 Cloudflare 公布的共享代理网段，程序带有并发、超时和下载字节上限；仍应根据自己的网络和适用规则降低负载。项目不包含第三方 CFData 可执行文件，也不接受在仓库内保存 Token。
