@@ -1,28 +1,32 @@
 {
-  "status": "degraded",
-  "started_at": "2026-08-23T08:12:52.069759+00:00",
+  "status": "ok",
+  "started_at": "2026-08-23T10:23:08.756348+00:00",
   "target_domain": "jackoyu.dpdns.org",
-  "vantage": "local-unknown",
+  "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 53388,
-    "pool_unique_ips": 50000,
+    "pool_endpoints": 103388,
+    "pool_unique_ips": 100000,
     "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 17766
+      "zip.cm.edu.kg/all.txt": 17766,
+      "vps789-three-network": 0
     },
-    "tcp_alive": 20330,
-    "tls_valid": 19863,
-    "http_valid": 18784,
+    "scan_endpoints": 50000,
+    "scan_unique_ips": 46636,
+    "tcp_alive": 33398,
+    "tls_valid": 32384,
+    "http_valid": 31675,
     "stability_assessed": 2000,
-    "stability_tcp_valid": 1444,
-    "stable_valid": 1233,
-    "speed_tested": 500,
-    "speed_qualified": 375
+    "stability_tcp_valid": 1997,
+    "stable_valid": 1993,
+    "platform_verified": 0,
+    "speed_tested": 400,
+    "speed_qualified": 394
   },
   "gates": [
     {
       "name": "pool_unique_ips",
-      "actual": 50000,
-      "minimum": 50000,
+      "actual": 100000,
+      "minimum": 100000,
       "passed": true
     },
     {
@@ -33,44 +37,55 @@
     },
     {
       "name": "tcp_alive",
-      "actual": 20330,
+      "actual": 33398,
       "minimum": 30000,
-      "passed": false
+      "passed": true
     },
     {
       "name": "tls_valid",
-      "actual": 19863,
+      "actual": 32384,
       "minimum": 100,
       "passed": true
     },
     {
       "name": "http_valid",
-      "actual": 18784,
+      "actual": 31675,
       "minimum": 50,
       "passed": true
     },
     {
       "name": "stable_valid",
-      "actual": 1233,
+      "actual": 1993,
       "minimum": 50,
       "passed": true
     },
     {
       "name": "speed_qualified",
-      "actual": 375,
+      "actual": 394,
       "minimum": 50,
       "passed": true
     }
   ],
-  "warnings": [],
+  "warnings": [
+    "远程源 vps789-three-network 不可用；第 1 次: VPS789 最新测速数据已过期 8.3 天（上限 7 天）；第 2 次: VPS789 最新测速数据已过期 11.6 天（上限 7 天）"
+  ],
+  "scan": {
+    "pool": 103388,
+    "selected": 50000,
+    "mandatory": 17766,
+    "shard_index": 1,
+    "shard_count": 3,
+    "limit": 50000,
+    "window_hours": 6
+  },
   "history": {
-    "tracked": 500,
-    "assessed": 500,
-    "passed": 375,
+    "tracked": 400,
+    "assessed": 400,
+    "passed": 394,
     "window_runs": 28
   },
-  "duration_seconds": 1373.527,
-  "generated_at": "2026-08-23T08:35:45.599500+00:00",
+  "duration_seconds": 558.122,
+  "generated_at": "2026-08-23T10:32:26.878758+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
