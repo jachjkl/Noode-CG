@@ -19,41 +19,26 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "ip": node.ip,
         "port": node.port,
         "ip_port": node.ip_port,
-        "country": node.endpoint_country,
-        "probe_country": node.country or "XX",
+        "country": node.country or node.country_hint or "XX",
         "colo": node.colo,
         "region": node.region,
         "city": node.city,
         "tcp_latency_ms": node.tcp_latency_ms,
-        "tcp_p95_latency_ms": node.tcp_p95_latency_ms,
         "tls_latency_ms": node.tls_latency_ms,
         "http_latency_ms": node.http_latency_ms,
-        "http_p95_latency_ms": node.http_p95_latency_ms,
-        "http_success_rate": node.http_success_rate,
         "jitter_ms": node.tcp_jitter_ms,
         "loss_rate": node.tcp_loss_rate,
-        "speed_tested": node.speed_tested,
-        "speed_ok": node.speed_ok,
         "speed_mbps": node.speed_mbps,
-        "speed_completion_rate": node.speed_completion_rate,
-        "speed_test_bytes": node.speed_test_bytes,
-        "speed_test_seconds": node.speed_test_seconds,
-        "history_runs": node.history_runs,
-        "history_success_rate": node.history_success_rate,
-        "history_consecutive_successes": node.history_consecutive_successes,
-        "history_score": node.history_score,
         "tls_version": node.tls_version,
         "websocket_ok": node.websocket_ok,
         "score": node.score,
         "probe_results": node.probe_results,
-        "platform_results": node.platform_results,
-        "platform_score": node.platform_score,
-        "platform_ok": node.platform_ok,
     }
 
 
 def _node_line(node: NodeResult) -> str:
-    return f"{node.ip_port}#{node.endpoint_country}"
+    country = (node.country or node.country_hint or "XX").upper()
+    return f"{node.ip_port}#{country}"
 
 
 def _write_zip(path: Path, records: list[NodeResult]) -> None:
@@ -61,7 +46,7 @@ def _write_zip(path: Path, records: list[NodeResult]) -> None:
     grouped: dict[tuple[int, str], list[str]] = defaultdict(list)
     by_port: dict[int, list[str]] = defaultdict(list)
     for node in records:
-        country = node.endpoint_country
+        country = (node.country or node.country_hint or "XX").upper()
         grouped[(node.port, country)].append(node.ip)
         by_port[node.port].append(node.ip)
 
@@ -92,19 +77,11 @@ def _csv_text(records: list[NodeResult]) -> str:
         "region",
         "city",
         "tcp_latency_ms",
-        "tcp_p95_latency_ms",
         "tls_latency_ms",
         "http_latency_ms",
-        "http_p95_latency_ms",
-        "http_success_rate",
         "jitter_ms",
         "loss_rate",
-        "speed_tested",
-        "speed_ok",
         "speed_mbps",
-        "speed_completion_rate",
-        "history_runs",
-        "history_success_rate",
         "tls_version",
         "score",
     ]
@@ -129,9 +106,7 @@ def publish_outputs(
     existing_good = (destination / "nodes.txt").is_file() and bool(
         (destination / "nodes.txt").read_text(encoding="utf-8").strip()
     )
-    base_publish = len(records) >= minimum or not preserve or not existing_good
-    quality_allowed = not options.get("require_quality_gates", False) or report.get("status") == "ok"
-    should_publish = base_publish and quality_allowed
+    should_publish = len(records) >= minimum or not preserve or not existing_good
     generated_at = datetime.now(UTC).isoformat()
 
     report = dict(report)
@@ -153,7 +128,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V2.3",
+                "project": "Noode-CG V2-JP10",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

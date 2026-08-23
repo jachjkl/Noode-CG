@@ -13,7 +13,6 @@ class NodeResult:
 
     tcp_ok: bool = False
     tcp_latency_ms: float | None = None
-    tcp_p95_latency_ms: float | None = None
     tcp_jitter_ms: float | None = None
     tcp_loss_rate: float = 1.0
 
@@ -25,31 +24,16 @@ class NodeResult:
     http_ok: bool = False
     http_status: int | None = None
     http_latency_ms: float | None = None
-    http_p95_latency_ms: float | None = None
-    http_success_rate: float = 0.0
     cf_ray: str = ""
     colo: str = ""
     country: str = ""
-    colo_country: str = ""
     region: str = ""
     city: str = ""
 
     websocket_ok: bool | None = None
-    speed_tested: bool = False
-    speed_ok: bool = False
     speed_mbps: float | None = None
-    speed_completion_rate: float = 0.0
-    speed_test_bytes: int = 0
-    speed_test_seconds: float | None = None
-    history_runs: int = 0
-    history_success_rate: float = 0.5
-    history_consecutive_successes: int = 0
-    history_score: float = 0.5
     score: float = 0.0
     probe_results: dict[str, Any] = field(default_factory=dict)
-    platform_results: dict[str, bool | None] = field(default_factory=dict)
-    platform_score: float = 0.0
-    platform_ok: bool | None = None
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -63,15 +47,6 @@ class NodeResult:
     @property
     def ip_port(self) -> str:
         return f"{self.display_host}:{self.port}"
-
-    @property
-    def endpoint_country(self) -> str:
-        """Best available country for the ingress endpoint, not the probe runner."""
-        return (self.colo_country or self.country_hint or self.country or "XX").upper()
-
-    @property
-    def official_only(self) -> bool:
-        return bool(self.sources) and all(source.startswith("cloudflare-official-") for source in self.sources)
 
     def add_source(self, source: str) -> None:
         if source and source not in self.sources:
@@ -89,3 +64,4 @@ class NodeResult:
     def from_dict(cls, value: dict[str, Any]) -> NodeResult:
         known = {field.name for field in __import__("dataclasses").fields(cls)}
         return cls(**{key: val for key, val in value.items() if key in known})
+

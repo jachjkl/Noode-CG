@@ -1,13 +1,12 @@
 project:
-  name: Noode-CG V2.3
+  name: Noode-CG V2-JP10
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/2.3
+  user_agent: Noode-CG/2.0-jp10
 
 paths:
   locations: data/locations.json
   checkpoints: data/checkpoints
-  history: data/stability-history.json
   output: output
 
 sources:
@@ -15,7 +14,7 @@ sources:
     - data/input/ALL-2026-08-22.txt
     - data/input/ip.zip
   # This required source is refreshed on every run. All valid entries are kept
-  # in every scan batch before official ranges fill the logical pool to 100,000 IPs.
+  # in the scan pool before official ranges fill the pool to 100,000 unique IPs.
   # If the service is temporarily unavailable, the last committed cache is used.
   remote:
     - name: zip.cm.edu.kg/all.txt
@@ -28,19 +27,6 @@ sources:
       timeout_seconds: 30
       default_port: 443
       cache_path: data/sources/zip-cm-edu-kg-all.txt
-    # Privacy-safe, optional three-network reference. It sends no domain, UUID,
-    # path or subscription data. Stale/unavailable data is skipped automatically.
-    - name: vps789-three-network
-      url: https://vps789.com/public/sum/cfIpApi
-      format: vps789
-      required: false
-      max_age_days: 7
-      min_records: 1
-      retries: 2
-      retry_delay_seconds: 2
-      timeout_seconds: 20
-      default_port: 443
-      cache_path: data/sources/vps789-cfip.json
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
@@ -61,67 +47,25 @@ pipeline:
   min_tcp_alive: 30000
   min_tls_valid: 100
   min_http_valid: 50
-  min_stable_valid: 50
-  min_speed_qualified: 50
   fail_on_quality_gate: false
 
-  # GitHub scans 50,000 endpoints per scheduled run. Required sources and nodes
-  # with history are always included; official-range samples rotate across three
-  # deterministic shards, covering the 100,000 pool within at most 18 hours.
-  scan:
-    limit: 50000
-    shards: 3
-    window_hours: 6
-
   tcp:
-    # Broad pass: only reject closed/unreachable endpoints. Accuracy comes from
-    # the low-concurrency stability pass below.
-    concurrency: 400
+    concurrency: 800
     timeout_seconds: 1.5
     attempts: 1
 
   tls:
-    concurrency: 200
+    concurrency: 300
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
 
   http:
-    concurrency: 150
+    concurrency: 250
     timeout_seconds: 5.0
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
-
-  stability:
-    enabled: true
-    # Same idea as CFData's result limit: only precisely re-test the best
-    # initial HTTP results so the scheduled job stays within its time budget.
-    candidates: 2000
-    minimum_per_colo: {NRT: 120, ICN: 80, HKG: 80, SIN: 40}
-    max_official_generated: 200
-    max_per_colo: 250
-    tcp:
-      concurrency: 120
-      timeout_seconds: 2.0
-      attempts: 5
-      minimum_success_ratio: 0.80
-      maximum_p95_ms: 500
-    http:
-      concurrency: 60
-      timeout_seconds: 6.0
-      attempts: 3
-      minimum_success_ratio: 1.0
-      maximum_p95_ms: 1500
-      path: /cdn-cgi/trace
-      require_trace_fields: true
-      accepted_statuses: [200]
-
-  history:
-    # 4 runs/day * 7 days. New nodes start near neutral and earn trust across runs.
-    window_runs: 28
-    neutral_prior_runs: 4
-    max_missed_runs: 56
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -132,40 +76,30 @@ pipeline:
 
   speed:
     enabled: true
-    require_for_publish: true
     domain: speed.cloudflare.com
-    path: /__down?bytes=2097152
-    bytes_per_test: 2097152
+    # A full 1 MiB response is required before speed affects ranking. Partial
+    # downloads remain usable nodes; they simply receive no speed bonus.
+    path: /__down?bytes=1048576
+    bytes_per_test: 1048576
+    minimum_completion_ratio: 0.95
     candidates: 600
-    minimum_per_colo: {NRT: 40, ICN: 30}
-    max_official_generated: 60
-    max_per_colo: 80
-    batch_size: 100
-    target_qualified: 330
-    # CFData recommends very low concurrency for accurate speed tests. Three
-    # workers keep GitHub Actions within its time budget without 8-way contention.
-    concurrency: 3
+    minimum_per_country:
+      JP: 30
+    concurrency: 6
     timeout_seconds: 10.0
-    minimum_mbps: 4.0
-    minimum_completion_ratio: 0.98
 
 score:
   weights:
-    latency: 0.18
-    p95: 0.13
-    jitter: 0.09
-    loss: 0.14
-    speed: 0.15
-    completion: 0.10
-    history: 0.10
-    protocol: 0.05
-    region: 0.03
-    external: 0.03
+    latency: 0.35
+    jitter: 0.10
+    loss: 0.10
+    speed: 0.25
+    region: 0.10
+    protocol: 0.10
   caps:
     latency_ms: 500
-    p95_latency_ms: 800
     jitter_ms: 150
-    speed_mbps: 80
+    speed_mbps: 100
   region_priority:
     JP: 1.00
     KR: 0.95
@@ -177,15 +111,13 @@ score:
 
 output:
   top_nodes: 300
+  # Only Japan has a hard reservation. Korea and all other regions compete by
+  # the original V2 score/diversity rules.
+  minimum_per_country:
+    JP: 10
   minimum_publish: 50
   preserve_last_good: true
-  require_quality_gates: true
-  minimum_per_colo: {NRT: 10, ICN: 10}
-  minimum_per_country: {JP: 10, KR: 10}
-  max_official_generated: 30
   max_per_country: 80
-  max_per_region: 120
-  max_per_colo: 30
   max_per_ipv4_24: 4
   max_per_ipv6_48: 4
   node_label: country
@@ -195,13 +127,5 @@ vantage:
   # A GitHub-hosted runner is only one network vantage point. For genuine
   # CT/CU/CM measurements, run the same command on self-hosted runners and
   # merge their data under data/probes/.
-  name: ${NOODE_VANTAGE:-local-unknown}
+  name: ${NOODE_VANTAGE:-github-general}
   probe_files: []
-
-platform_compatibility:
-  # GitHub cannot prove access through your private Worker/Clash chain without
-  # its credentials. Anonymous local probe files can enable this strict gate.
-  required: false
-  minimum_nodes: 50
-  minimum_vantages: 1
-  required_platforms: [x, telegram, youtube, huggingface, github, google, chatgpt, civitai]

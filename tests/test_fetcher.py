@@ -1,49 +1,13 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from core.fetcher import collect_candidates, parse_vps789_payload, sample_ranges
+from core.fetcher import collect_candidates, sample_ranges
 
 
 class FetcherTests(unittest.TestCase):
-    def test_vps789_payload_becomes_anonymous_three_network_probes(self) -> None:
-        now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-        row = {
-            "ip": "104.16.1.1",
-            "ydLatencyAvg": 80,
-            "ydPkgLostRateAvg": 1,
-            "ltLatencyAvg": 90,
-            "ltPkgLostRateAvg": 2,
-            "dxLatencyAvg": 70,
-            "dxPkgLostRateAvg": 0,
-            "createdTime": now,
-        }
-        payload = json.dumps({"code": 0, "data": {"CT": [row]}}).encode()
-        records = parse_vps789_payload(payload, source="vps789", max_age_days=7)
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].probe_results["vps789-CT"]["latency_ms"], 70)
-        self.assertEqual(records[0].probe_results["vps789-CM"]["loss_rate"], 0.01)
-
-    def test_vps789_stale_payload_is_rejected(self) -> None:
-        stale = (datetime.now(UTC) - timedelta(days=8)).strftime("%Y-%m-%d %H:%M:%S")
-        row = {
-            "ip": "104.16.1.1",
-            "ydLatencyAvg": 80,
-            "ydPkgLostRateAvg": 1,
-            "ltLatencyAvg": 90,
-            "ltPkgLostRateAvg": 2,
-            "dxLatencyAvg": 70,
-            "dxPkgLostRateAvg": 0,
-            "createdTime": stale,
-        }
-        payload = json.dumps({"code": 0, "data": {"CT": [row]}}).encode()
-        with self.assertRaisesRegex(ValueError, "过期"):
-            parse_vps789_payload(payload, source="vps789", max_age_days=7)
-
     def test_sampling_is_deterministic_and_unique(self) -> None:
         first = sample_ranges(
             ["104.16.0.0/20", "172.64.0.0/20"],
@@ -128,3 +92,4 @@ class FetcherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

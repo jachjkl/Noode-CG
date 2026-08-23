@@ -3,10 +3,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
-import math
 import os
 import ssl
-import statistics
 import time
 from typing import Any
 
@@ -115,61 +113,35 @@ async def check_http(
     accepted = {int(value) for value in options.get("accepted_statuses", [200])}
     require_trace = bool(options.get("require_trace_fields", True))
     path = str(options.get("path", "/cdn-cgi/trace"))
-    attempts = max(1, int(options.get("attempts", 1)))
-    minimum_success_ratio = max(0.0, min(1.0, float(options.get("minimum_success_ratio", 0.0))))
-    maximum_p95_ms = float(options.get("maximum_p95_ms", 0.0))
     ws = websocket_options or {}
 
     async def worker(node: NodeResult) -> NodeResult:
-        successful_latencies: list[float] = []
-        last_status: int | None = None
-        for _ in range(attempts):
-            try:
-                status, headers, body, latency = await _request(
-                    node,
-                    domain=domain,
-                    path=path,
-                    context=context,
-                    timeout=timeout,
-                    user_agent=user_agent,
-                )
-                trace = _parse_trace(body)
-                colo = trace.get("colo", "").upper()
-                country = trace.get("loc", "").upper()
-                cloudflare_evidence = bool(colo and country) or (
-                    headers.get("server", "").lower() == "cloudflare" and bool(headers.get("cf-ray", ""))
-                )
-                valid = status in accepted and cloudflare_evidence
-                if require_trace:
-                    valid = valid and bool(colo and country)
-                last_status = status
-                if valid:
-                    successful_latencies.append(latency)
-                    node.http_status = status
-                    node.cf_ray = headers.get("cf-ray", "")
-                    node.colo = colo or node.colo
-                    node.country = country or node.country
-                else:
-                    node.add_error("http", f"status={status}, colo={colo or '-'}, loc={country or '-'}")
-            except Exception as exc:
-                node.add_error("http", exc)
-
-        node.http_success_rate = round(len(successful_latencies) / attempts, 4)
-        if successful_latencies:
-            node.http_latency_ms = round(statistics.median(successful_latencies), 3)
-            ordered = sorted(successful_latencies)
-            p95_index = max(0, math.ceil(0.95 * len(ordered)) - 1)
-            node.http_p95_latency_ms = round(ordered[p95_index], 3)
-        ratio_ok = bool(successful_latencies) and node.http_success_rate >= minimum_success_ratio
-        latency_ok = not maximum_p95_ms or (
-            node.http_p95_latency_ms is not None and node.http_p95_latency_ms <= maximum_p95_ms
-        )
-        node.http_ok = ratio_ok and latency_ok
-        if not node.http_ok:
-            node.add_error(
-                "http-stability",
-                f"success={len(successful_latencies)}/{attempts}, p95={node.http_p95_latency_ms}, status={last_status}",
+        try:
+            status, headers, body, latency = await _request(
+                node,
+                domain=domain,
+                path=path,
+                context=context,
+                timeout=timeout,
+                user_agent=user_agent,
             )
+            trace = _parse_trace(body)
+            node.http_status = status
+            node.http_latency_ms = round(latency, 3)
+            node.cf_ray = headers.get("cf-ray", "")
+            node.colo = trace.get("colo", "").upper()
+            node.country = trace.get("loc", "").upper()
+            cloudflare_evidence = bool(node.colo and node.country) or (
+                headers.get("server", "").lower() == "cloudflare" and bool(node.cf_ray)
+            )
+            node.http_ok = status in accepted and cloudflare_evidence
+            if require_trace:
+                node.http_ok = node.http_ok and bool(node.colo and node.country)
+            if not node.http_ok:
+                node.add_error("http", f"status={status}, colo={node.colo or '-'}, loc={node.country or '-'}")
+        except Exception as exc:
+            node.http_ok = False
+            node.add_error("http", exc)
 
         if node.http_ok and ws.get("enabled", False):
             node.websocket_ok = await _check_websocket(

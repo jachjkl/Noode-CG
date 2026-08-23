@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Any
 
@@ -8,13 +9,10 @@ from .colo_detect import enrich_locations, load_locations
 from .config import resolve_path
 from .exporter import publish_outputs
 from .fetcher import collect_candidates
-from .history import enrich_history, update_history
 from .http_check import check_http
-from .io_utils import read_json, write_checkpoint
-from .isp_test import apply_platform_policy, merge_probe_files
+from .io_utils import write_checkpoint
+from .isp_test import merge_probe_files
 from .scorer import score_nodes, select_diverse
-from .selection import reserve_candidates
-from .sharding import select_scan_batch
 from .speed_test import test_speed
 from .tcp_scan import scan_tcp
 from .tls_check import check_tls
@@ -55,35 +53,12 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         if entry.get("required", False):
             report["gates"].append(_gate(f"required_source:{label}", count, int(entry.get("min_records", 1))))
     report["counts"]["remote_sources"] = source_counts
-    required_sources = {
-        str(entry.get("name") or entry.get("url") or "remote")
-        for configured in config["sources"].get("remote", [])
-        for entry in [{"url": configured} if isinstance(configured, str) else configured]
-        if entry.get("required", False)
-    }
-    history_path = resolve_path(config, config["paths"].get("history", "data/stability-history.json"))
-    history_state = read_json(history_path, default={})
-    history_nodes = history_state.get("nodes", {}) if isinstance(history_state, dict) else {}
-    scan_options = dict(pipeline.get("scan", {}))
-    scan_options["required_sources"] = sorted(required_sources)
-    scan_candidates, scan_metadata = select_scan_batch(
-        candidates,
-        scan_options,
-        history_keys=set(history_nodes) if isinstance(history_nodes, dict) else set(),
-    )
-    report["scan"] = scan_metadata
-    report["counts"]["scan_endpoints"] = len(scan_candidates)
-    report["counts"]["scan_unique_ips"] = len({node.ip for node in scan_candidates})
-    write_checkpoint(checkpoint_dir / "01-pool.json", scan_candidates)
-    print(
-        f"逻辑候选池: {unique_pool} 个 IP / 本轮扫描: {len(scan_candidates)} 个端点 "
-        f"(分片 {scan_metadata['shard_index'] + 1}/{scan_metadata['shard_count']})",
-        flush=True,
-    )
+    write_checkpoint(checkpoint_dir / "01-pool.json", candidates)
+    print(f"候选池: {unique_pool} 个 IP / {len(candidates)} 个 IP:端口", flush=True)
     for label, count in source_counts.items():
         print(f"远程源: {label} = {count} 条", flush=True)
 
-    tcp_alive = asyncio.run(scan_tcp(scan_candidates, pipeline["tcp"]))
+    tcp_alive = asyncio.run(scan_tcp(candidates, pipeline["tcp"]))
     report["counts"]["tcp_alive"] = len(tcp_alive)
     report["gates"].append(_gate("tcp_alive", len(tcp_alive), int(pipeline["min_tcp_alive"])))
     write_checkpoint(checkpoint_dir / "02-tcp.json", tcp_alive)
@@ -111,87 +86,26 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     write_checkpoint(checkpoint_dir / "04-http.json", http_valid)
     print(f"HTTP/Cloudflare 通过: {len(http_valid)}", flush=True)
 
-    history_options = pipeline.get("history", {})
-    enrich_history(history_path, http_valid, history_options)
-    stability = pipeline.get("stability", {})
-    stability_limit = min(len(http_valid), int(stability.get("candidates", len(http_valid))))
-    stability_ordered = sorted(
-        http_valid,
-        key=lambda node: (
-            -node.history_score,
-            node.http_latency_ms or 999999,
-            node.tls_latency_ms or 999999,
-        ),
-    )
-    stability_assessed = reserve_candidates(stability_ordered, stability_limit, stability)
-    report["counts"]["stability_assessed"] = len(stability_assessed)
-    if stability.get("enabled", True):
-        stable_tcp = asyncio.run(scan_tcp(stability_assessed, stability.get("tcp", {})))
-        report["counts"]["stability_tcp_valid"] = len(stable_tcp)
-        stable_http = asyncio.run(
-            check_http(
-                stable_tcp,
-                domain,
-                stability.get("http", {}),
-                pipeline.get("websocket", {}),
-                user_agent=str(config["project"].get("user_agent", "Noode-CG/2.3")),
-            )
-        )
-        enrich_locations(stable_http, locations)
-    else:
-        stable_http = stability_assessed
-    report["counts"]["stable_valid"] = len(stable_http)
-    report["gates"].append(
-        _gate("stable_valid", len(stable_http), int(pipeline.get("min_stable_valid", pipeline["min_http_valid"])))
-    )
-    write_checkpoint(checkpoint_dir / "05-stable.json", stable_http)
-    print(f"重复稳定性复测通过: {len(stable_http)}", flush=True)
-
     probe_paths = [resolve_path(config, path) for path in config.get("vantage", {}).get("probe_files", [])]
-    merge_probe_files(stable_http, probe_paths)
-    platform_options = config.get("platform_compatibility", {})
-    platform_assessed = apply_platform_policy(stable_http, platform_options)
-    report["counts"]["platform_verified"] = sum(node.platform_ok is True for node in stable_http)
-    if platform_options.get("required", False):
-        report["gates"].append(_gate("platform_verified", len(platform_assessed), int(platform_options.get("minimum_nodes", 50))))
+    merge_probe_files(http_valid, probe_paths)
     tested = asyncio.run(
         test_speed(
-            platform_assessed,
+            http_valid,
             pipeline.get("speed", {}),
-            user_agent=str(config["project"].get("user_agent", "Noode-CG/2.3")),
+            user_agent=str(config["project"].get("user_agent", "Noode-CG/2.0")),
         )
     )
-    speed_options = pipeline.get("speed", {})
-    speed_required = bool(speed_options.get("enabled", True) and speed_options.get("require_for_publish", True))
-    speed_assessed = [node for node in tested if node.speed_tested]
-    qualified = [node for node in tested if node.speed_ok] if speed_required else tested
-    report["counts"]["speed_tested"] = len(speed_assessed)
-    report["counts"]["speed_qualified"] = len(qualified)
-    if speed_required:
-        report["gates"].append(
-            _gate(
-                "speed_qualified",
-                len(qualified),
-                int(pipeline.get("min_speed_qualified", pipeline["min_http_valid"])),
-            )
-        )
-    history_assessed = speed_assessed if speed_required else stability_assessed
-    history_passed = qualified if speed_required else stable_http
-    report["history"] = update_history(history_path, history_assessed, history_passed, history_options)
-    ranked = score_nodes(qualified, config["score"])
+    ranked = score_nodes(tested, config["score"])
     selected = select_diverse(ranked, config["output"])
-    selected_colos = {colo: sum(node.colo == colo for node in selected) for colo in config["output"].get("minimum_per_colo", {})}
-    selected_countries = {
-        country: sum(node.endpoint_country == country.upper() for node in selected)
-        for country in config["output"].get("minimum_per_country", {})
-    }
-    report["counts"]["selected_colos"] = selected_colos
-    report["counts"]["selected_countries"] = selected_countries
-    for colo, minimum in config["output"].get("minimum_per_colo", {}).items():
-        report["gates"].append(_gate(f"selected_colo:{colo}", selected_colos[colo], int(minimum)))
+    selected_countries = Counter((node.country or node.country_hint or "XX").upper() for node in selected)
+    report["counts"]["selected_countries"] = dict(sorted(selected_countries.items()))
     for country, minimum in config["output"].get("minimum_per_country", {}).items():
-        report["gates"].append(_gate(f"selected_country:{country}", selected_countries[country], int(minimum)))
-    write_checkpoint(checkpoint_dir / "06-ranked.json", ranked)
+        actual = selected_countries[str(country).upper()]
+        if actual < int(minimum):
+            report["warnings"].append(
+                f"{str(country).upper()} 可用节点不足: 需要 {int(minimum)}，实际 {actual}；已保留正常可用输出"
+            )
+    write_checkpoint(checkpoint_dir / "05-ranked.json", ranked)
 
     gates_passed = all(item["passed"] for item in report["gates"])
     report["status"] = "ok" if gates_passed else "degraded"

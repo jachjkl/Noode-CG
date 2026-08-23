@@ -1,125 +1,34 @@
 {
-  "status": "ok",
-  "started_at": "2026-08-23T11:06:35.072489+00:00",
+  "status": "packaged-last-known-good",
   "target_domain": "jackoyu.dpdns.org",
-  "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 103388,
-    "pool_unique_ips": 100000,
-    "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 17766,
-      "vps789-three-network": 0
-    },
-    "scan_endpoints": 50000,
-    "scan_unique_ips": 46636,
-    "tcp_alive": 33387,
-    "tls_valid": 32384,
-    "http_valid": 31685,
-    "stability_assessed": 2000,
-    "stability_tcp_valid": 1995,
-    "stable_valid": 1987,
-    "platform_verified": 0,
-    "speed_tested": 400,
-    "speed_qualified": 398,
-    "selected_colos": {
-      "NRT": 30,
-      "ICN": 30
-    },
+    "selected": 300,
     "selected_countries": {
-      "JP": 30,
-      "KR": 30
+      "AT": 1,
+      "AU": 1,
+      "CH": 3,
+      "CN": 67,
+      "DE": 80,
+      "FR": 3,
+      "GB": 6,
+      "HK": 5,
+      "JP": 16,
+      "KR": 15,
+      "NL": 12,
+      "PL": 1,
+      "RU": 2,
+      "SG": 5,
+      "TR": 1,
+      "TW": 2,
+      "US": 80
     }
   },
-  "gates": [
-    {
-      "name": "pool_unique_ips",
-      "actual": 100000,
-      "minimum": 100000,
-      "passed": true
-    },
-    {
-      "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 17766,
-      "minimum": 10000,
-      "passed": true
-    },
-    {
-      "name": "tcp_alive",
-      "actual": 33387,
-      "minimum": 30000,
-      "passed": true
-    },
-    {
-      "name": "tls_valid",
-      "actual": 32384,
-      "minimum": 100,
-      "passed": true
-    },
-    {
-      "name": "http_valid",
-      "actual": 31685,
-      "minimum": 50,
-      "passed": true
-    },
-    {
-      "name": "stable_valid",
-      "actual": 1987,
-      "minimum": 50,
-      "passed": true
-    },
-    {
-      "name": "speed_qualified",
-      "actual": 398,
-      "minimum": 50,
-      "passed": true
-    },
-    {
-      "name": "selected_colo:NRT",
-      "actual": 30,
-      "minimum": 10,
-      "passed": true
-    },
-    {
-      "name": "selected_colo:ICN",
-      "actual": 30,
-      "minimum": 10,
-      "passed": true
-    },
-    {
-      "name": "selected_country:JP",
-      "actual": 30,
-      "minimum": 10,
-      "passed": true
-    },
-    {
-      "name": "selected_country:KR",
-      "actual": 30,
-      "minimum": 10,
-      "passed": true
-    }
-  ],
   "warnings": [
-    "远程源 vps789-three-network 不可用；第 1 次: VPS789 最新测速数据已过期 17.6 天（上限 7 天）；第 2 次: VPS789 最新测速数据已过期 11.6 天（上限 7 天）"
+    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V2-JP10 的最新结果。"
   ],
-  "scan": {
-    "pool": 103388,
-    "selected": 50000,
-    "mandatory": 17766,
-    "shard_index": 1,
-    "shard_count": 3,
-    "limit": 50000,
-    "window_hours": 6
-  },
-  "history": {
-    "tracked": 400,
-    "assessed": 400,
-    "passed": 398,
-    "window_runs": 28
-  },
-  "duration_seconds": 661.297,
-  "generated_at": "2026-08-23T11:17:36.369424+00:00",
-  "selected": 180,
+  "snapshot_generated_at": "2026-08-23T08:35:45.599500+00:00",
+  "selected": 300,
   "minimum_publish": 50,
   "published": true,
-  "preserved_previous_output": false
+  "preserved_previous_output": true
 }

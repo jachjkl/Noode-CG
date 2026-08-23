@@ -63,14 +63,7 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ConfigError("project.target_domain 必须是纯域名，不能包含协议或路径")
 
     pipeline = config["pipeline"]
-    for name in (
-        "min_pool",
-        "min_tcp_alive",
-        "min_tls_valid",
-        "min_http_valid",
-        "min_stable_valid",
-        "min_speed_qualified",
-    ):
+    for name in ("min_pool", "min_tcp_alive", "min_tls_valid", "min_http_valid"):
         _positive_number(pipeline.get(name), f"pipeline.{name}", allow_zero=name != "min_pool")
     for stage in ("tcp", "tls", "http"):
         block = pipeline.get(stage)
@@ -79,34 +72,6 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
 
-    scan = pipeline.get("scan")
-    if not isinstance(scan, dict):
-        raise ConfigError("缺少 pipeline.scan")
-    for name in ("limit", "shards", "window_hours"):
-        _positive_number(scan.get(name), f"pipeline.scan.{name}")
-
-    stability = pipeline.get("stability", {})
-    if stability.get("enabled", True):
-        _positive_number(stability.get("candidates"), "pipeline.stability.candidates")
-        for stage in ("tcp", "http"):
-            block = stability.get(stage)
-            if not isinstance(block, dict):
-                raise ConfigError(f"缺少 pipeline.stability.{stage}")
-            _positive_number(block.get("concurrency"), f"pipeline.stability.{stage}.concurrency")
-            _positive_number(block.get("timeout_seconds"), f"pipeline.stability.{stage}.timeout_seconds")
-            _positive_number(block.get("attempts"), f"pipeline.stability.{stage}.attempts")
-            ratio = float(block.get("minimum_success_ratio", 0.0))
-            if not 0 <= ratio <= 1:
-                raise ConfigError(f"pipeline.stability.{stage}.minimum_success_ratio 必须在 0 到 1 之间")
-
-    speed = pipeline.get("speed", {})
-    if speed.get("enabled", True):
-        for name in ("concurrency", "timeout_seconds", "bytes_per_test", "candidates", "batch_size"):
-            _positive_number(speed.get(name), f"pipeline.speed.{name}")
-        completion = float(speed.get("minimum_completion_ratio", 0.0))
-        if not 0 <= completion <= 1:
-            raise ConfigError("pipeline.speed.minimum_completion_ratio 必须在 0 到 1 之间")
-
     weights = config["score"].get("weights", {})
     if not weights or abs(sum(float(v) for v in weights.values()) - 1.0) > 0.0001:
         raise ConfigError("score.weights 权重之和必须等于 1")
@@ -114,11 +79,3 @@ def validate_config(config: dict[str, Any]) -> None:
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")
 
-    platform = config.get("platform_compatibility", {})
-    if not isinstance(platform, dict):
-        raise ConfigError("platform_compatibility 必须是对象")
-    if platform.get("required", False):
-        _positive_number(platform.get("minimum_nodes"), "platform_compatibility.minimum_nodes")
-        _positive_number(platform.get("minimum_vantages"), "platform_compatibility.minimum_vantages")
-        if not platform.get("required_platforms"):
-            raise ConfigError("严格平台验证必须配置 required_platforms")

@@ -1,103 +1,54 @@
-# GitHub 部署
+# GitHub 部署指南
 
-1. 创建空仓库，把本项目根目录全部上传到默认分支。
-2. 修改 `config.yaml` 的 `project.target_domain`，必须是绑定到 edgetunnel Worker 的纯域名。
-3. 在仓库的 **Settings → Actions → General → Workflow permissions** 中允许 GitHub Actions 写入仓库内容。
-4. 打开 **Actions → Refresh verified endpoints → Run workflow** 做首次运行。
-5. 在 `output/health.json` 确认 `stable_valid`、`speed_qualified`、`selected_colo:NRT`、`selected_colo:ICN` 和 `published`，再把下面地址填到 edgetunnel 的优选 IP 订阅：
+## 1. 上传
 
-   ```text
-   https://raw.githubusercontent.com/<owner>/<repo>/main/output/nodes.txt
-   ```
+解压发布包，将解压后 `Noode-CG` 文件夹内的全部内容上传到 GitHub 仓库根目录。根目录应直接出现：
 
-   共享方案中的固定地址是：
-
-   ```text
-   https://raw.githubusercontent.com/jachjkl/Noode-CG/refs/heads/main/output/nodes.txt
-   ```
-
-计划任务每 6 小时运行一次，在每个周期的第 17 分钟触发。GitHub 的 cron 默认使用 UTC；避开第 0 分钟可降低高峰期排队或丢任务的概率。
-
-每次任务都会先刷新 `https://zip.cm.edu.kg/all.txt`，将其中全部有效地址加入候选，并把最新副本保存到 `data/sources/zip-cm-edu-kg-all.txt`。如果该站暂时无法访问，任务使用仓库缓存；远程源和缓存同时不可用时任务会失败并保留旧订阅。
-
-逻辑池会补足到 100,000 个 IP，但每轮只扫描 50,000 个端点。必选源和历史节点每轮都在，Cloudflare 官方样本分三片轮换。VPS789 公开接口只提供匿名三网参考；数据超过 7 天或接口失败时自动跳过，不影响主流程。机器人可能提交 `data/sources/vps789-cfip.json`，该文件只有公开测速数据，没有账号或代理参数。
-
-Actions 还会提交 `data/stability-history.json`。它保存最近 28 次测试的稳定性，不含账号或密钥，请保留在仓库中。第一次升级运行时历史为空，连续运行几次后稳定度排序会更有区分度。
-
-V2.3 的发布保护要求最终至少包含 10 个 NRT/JP 和 10 个 ICN/KR。任一数量不足时，本轮 `health.json` 会显示 `degraded` 且 `published: false`，旧的非空 `nodes.txt` 不会被覆盖。纯 Cloudflare 官方随机样本最多 30 个，避免美国 Runner 再次生成几乎全是 LAX/US 的订阅。
-
-## GitHub Actions 机器人规则
-
-- 工作流只使用仓库自带的 `GITHUB_TOKEN`，权限限定为 `contents: write`，不需要 PAT。
-- 官方 `checkout` 和 `setup-python` Action 固定到完整提交 SHA。
-- 同一仓库同一时间只允许一个刷新任务，单次最多运行 50 分钟。
-- 机器人只提交 `output/`、远程源缓存和稳定性历史；没有变化时不提交。
-- 机器人提交不会递归启动下一轮刷新，并在提交信息中附带 `[skip ci]`。
-- 公共仓库如果连续 60 天没有仓库活动，GitHub 可能自动停用定时工作流；届时在 Actions 页面重新启用即可。
-
-## 本机运行
-
-Windows PowerShell：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run-local.ps1
+```text
+.github/
+core/
+data/
+output/
+config.yaml
+main.py
+requirements.txt
 ```
 
-手动命令：
+## 2. 检查目标域名
 
-```powershell
-python -m pip install -r requirements.txt
-python main.py validate
-python main.py run
-python main.py serve --host 127.0.0.1 --port 8080
+打开 `config.yaml`，确认 `project.target_domain` 是绑定到你自己 Worker/edgetunnel 的公开域名。这个项目不需要 UUID、WS 路径、订阅内容或 GitHub Secret。
+
+## 3. 允许运行工作流
+
+仓库进入 **Actions**。如果 GitHub 首次提示启用工作流，点击启用。选择 **Refresh verified endpoints**，点击 **Run workflow**。
+
+工作流会：
+
+1. 更新 `zip.cm.edu.kg/all.txt` 缓存；
+2. 读取仓库内的 TXT 和 ZIP 种子；
+3. 从 Cloudflare 官方 IPv4 网段补足 100,000 个不同 IP；
+4. 扫描、验证、测速并选择 TOP 300；
+5. 自动提交 `output/` 和 `data/sources/` 的变化。
+
+工作流使用 GitHub 机器人账户提交，权限只包含当前仓库的 `contents: write`。默认超时 75 分钟，同一仓库不会同时运行两份刷新任务。
+
+## 4. 获取地址
+
+```text
+https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 ```
 
-API 路由：
+检查 `output/health.json`：
 
-- `/api/nodes`
-- `/api/health`
-- `/nodes.txt`
-- `/nodes.json`
-- `/nodes.csv`
-- `/ip.zip`
+- `status` 为 `ok` 表示配置的基础数量门槛通过；
+- `published` 表示本轮是否写入新列表；
+- `counts.selected_countries.JP` 应至少为 10（前提是本轮确有 10 个合格日本节点）；
+- `warnings` 会说明数据源回退或日本节点不足。
 
-## Cloudflare Pages API
+## 常见问题
 
-项目包含 `functions/api/`，可把静态结果映射成 `/api/nodes` 和 `/api/health`：
+如果 Actions 无法推送，进入仓库 **Settings → Actions → General → Workflow permissions**，允许工作流读写仓库内容。
 
-1. 在 Cloudflare **Workers & Pages** 中连接同一个 GitHub 仓库。
-2. Framework preset 选 None，Build command 填 `exit 0`，Build output directory 填 `output`。
-3. 部署后可访问 `https://<你的 Pages 域名>/api/nodes`。
+如果本轮网络异常导致结果不足，程序会保留上一版非空订阅，不会用空文件覆盖。测速只参与评分，单次下载未完成不会让所有节点失效。
 
-Pages/API 域名应与 edgetunnel Worker 的 `project.target_domain` 分开。例如 `data.example.com` 给 Pages，`proxy.example.com` 给 tunnel，避免静态站点抢占 WebSocket 路由。
-
-## WebSocket 实测
-
-基础验证默认检查证书、SNI、Host 与 Cloudflare trace。若要验证 edgetunnel 的真实 WebSocket 路径：
-
-```yaml
-pipeline:
-  websocket:
-    enabled: true
-    path: /你的实际路径
-```
-
-路径不正确会导致所有节点失败，因此不要保留示例值后直接开启。
-
-## 匿名平台探针
-
-如果要把 X、Telegram、YouTube、Hugging Face、GitHub、Google、ChatGPT 和 Civitai 设为硬门槛，先在真实 Clash/Worker 链路上生成与 [platform-probe.example.json](platform-probe.example.json) 相同结构的数据，保存到 `data/probes/`，并在 `vantage.probe_files` 中列出。该目录的 JSON 默认被 `.gitignore` 忽略，建议只在你确认文件不含隐私后再显式上传。
-
-探针覆盖足够多候选后才设置：
-
-```yaml
-platform_compatibility:
-  required: true
-  minimum_nodes: 50
-```
-
-如果没有匿名探针，保持 `required: false`。GitHub Runner 可以测试公开网站本身，但不能在不知道私人 Worker 协议参数的情况下把结果对应到每个优选 IP。
-
-## CFData 可选预筛
-
-`integrations/cfdata-config.example.json` 是按 v1.7.7 字段整理的非标 TLS/HTTPing 配置。不要把本地 EXE、GitHub Token 或真实 `cfdata-config.json` 提交进仓库。CFData 可做预筛，但最终发布仍以 Noode-CG 对 `target_domain` 的独立验证为准。
+GitHub 托管 Runner 的网络位置与本地宽带不同，因此排名也会不同。若需要真实三网表现，应在对应运营商网络运行同一程序；GitHub 结果不能等同于电信、联通、移动本地结果。

@@ -238,5 +238,5 @@ def deduplicate(records: Iterable[NodeResult]) -> list[NodeResult]:
             current.add_source(source)
         if not current.country_hint and record.country_hint:
             current.country_hint = record.country_hint
-        current.probe_results.update(record.probe_results)
     return list(unique.values())
+

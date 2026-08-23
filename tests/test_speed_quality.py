@@ -1,44 +1,41 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import AsyncMock, patch
 
 from core.models import NodeResult
-from core.speed_test import test_speed
+from core.speed_test import _accepted_speed_mbps, _select_speed_targets
 
 
-class SpeedQualityTests(unittest.IsolatedAsyncioTestCase):
-    async def test_partial_download_is_not_qualified(self) -> None:
-        complete = NodeResult(ip="104.16.1.1", http_latency_ms=10)
-        partial = NodeResult(ip="104.16.1.2", http_latency_ms=20)
-        wanted = 1024 * 1024
-        with patch(
-            "core.speed_test._probe_speed",
-            new=AsyncMock(side_effect=[(wanted, 1.0), (wanted // 2, 1.0)]),
-        ):
-            records = await test_speed(
-                [complete, partial],
-                {
-                    "enabled": True,
-                    "domain": "speed.cloudflare.com",
-                    "path": f"/__down?bytes={wanted}",
-                    "bytes_per_test": wanted,
-                    "candidates": 2,
-                    "batch_size": 2,
-                    "target_qualified": 2,
-                    "concurrency": 1,
-                    "timeout_seconds": 5,
-                    "minimum_mbps": 1,
-                    "minimum_completion_ratio": 0.95,
-                },
-                user_agent="test",
-            )
+def node(ip: str, *, country: str, latency: float) -> NodeResult:
+    value = NodeResult(ip=ip, country=country)
+    value.http_latency_ms = latency
+    value.tcp_latency_ms = latency
+    return value
 
-        self.assertEqual(records, [complete, partial])
-        self.assertTrue(complete.speed_ok)
-        self.assertEqual(complete.speed_completion_rate, 1.0)
-        self.assertFalse(partial.speed_ok)
-        self.assertEqual(partial.speed_completion_rate, 0.5)
+
+class SpeedQualityTests(unittest.TestCase):
+    def test_speed_targets_reserve_japanese_candidates(self) -> None:
+        records = [
+            node(f"104.16.{index // 250}.{index % 250 + 1}", country="US", latency=index + 1)
+            for index in range(20)
+        ]
+        records.extend(
+            node(f"172.64.{index}.1", country="JP", latency=200 + index)
+            for index in range(8)
+        )
+
+        targets = _select_speed_targets(
+            records,
+            20,
+            {"minimum_per_country": {"JP": 6}},
+        )
+
+        self.assertEqual(len(targets), 20)
+        self.assertGreaterEqual(sum(item.country == "JP" for item in targets), 6)
+
+    def test_partial_download_does_not_receive_a_speed_score(self) -> None:
+        self.assertIsNone(_accepted_speed_mbps(900, 1000, 1.0, 0.95))
+        self.assertAlmostEqual(_accepted_speed_mbps(1000, 1000, 1.0, 0.95), 0.008)
 
 
 if __name__ == "__main__":
