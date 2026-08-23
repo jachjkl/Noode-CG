@@ -14,7 +14,14 @@ class ExporterTests(unittest.TestCase):
     def test_writes_edgetunnel_feed_and_zip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            node = NodeResult(ip="104.16.1.2", port=443, country="JP", colo="NRT", score=900)
+            node = NodeResult(
+                ip="104.16.1.2",
+                port=443,
+                country="US",
+                colo="NRT",
+                colo_country="JP",
+                score=900,
+            )
             report = publish_outputs(
                 output,
                 [node],
@@ -39,6 +46,23 @@ class ExporterTests(unittest.TestCase):
             )
             self.assertFalse(report["published"])
             self.assertEqual((output / "nodes.txt").read_text(encoding="utf-8"), "1.1.1.1:443#US\n")
+
+    def test_quality_gate_failure_cannot_overwrite_previous_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "nodes.txt").write_text("1.1.1.1:443#JP\n", encoding="utf-8")
+            report = publish_outputs(
+                output,
+                [NodeResult(ip="104.16.1.1")],
+                {"status": "degraded"},
+                {
+                    "minimum_publish": 1,
+                    "preserve_last_good": True,
+                    "require_quality_gates": True,
+                },
+            )
+            self.assertFalse(report["published"])
+            self.assertEqual((output / "nodes.txt").read_text(encoding="utf-8"), "1.1.1.1:443#JP\n")
 
 
 if __name__ == "__main__":

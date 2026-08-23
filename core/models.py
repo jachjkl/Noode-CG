@@ -30,6 +30,7 @@ class NodeResult:
     cf_ray: str = ""
     colo: str = ""
     country: str = ""
+    colo_country: str = ""
     region: str = ""
     city: str = ""
 
@@ -62,6 +63,15 @@ class NodeResult:
     @property
     def ip_port(self) -> str:
         return f"{self.display_host}:{self.port}"
+
+    @property
+    def endpoint_country(self) -> str:
+        """Best available country for the ingress endpoint, not the probe runner."""
+        return (self.colo_country or self.country_hint or self.country or "XX").upper()
+
+    @property
+    def official_only(self) -> bool:
+        return bool(self.sources) and all(source.startswith("cloudflare-official-") for source in self.sources)
 
     def add_source(self, source: str) -> None:
         if source and source not in self.sources:

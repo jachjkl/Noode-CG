@@ -6,6 +6,7 @@ from typing import Any
 
 from .async_utils import run_worker_pool
 from .models import NodeResult
+from .selection import reserve_candidates
 from .tls_check import make_ssl_context
 
 
@@ -22,7 +23,7 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
             node.tcp_p95_latency_ms or node.tcp_latency_ms or 999999,
         ),
     )
-    targets = ordered[:count]
+    targets = reserve_candidates(ordered, count, options)
     domain = str(options.get("domain", "speed.cloudflare.com"))
     path = str(options.get("path", "/__down?bytes=1048576"))
     wanted = max(1, int(options.get("bytes_per_test", 1024 * 1024)))

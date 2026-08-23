@@ -4,7 +4,7 @@
 2. 修改 `config.yaml` 的 `project.target_domain`，必须是绑定到 edgetunnel Worker 的纯域名。
 3. 在仓库的 **Settings → Actions → General → Workflow permissions** 中允许 GitHub Actions 写入仓库内容。
 4. 打开 **Actions → Refresh verified endpoints → Run workflow** 做首次运行。
-5. 在 `output/health.json` 确认 `stable_valid`、`speed_qualified` 和 `published`，再把下面地址填到 edgetunnel 的优选 IP 订阅：
+5. 在 `output/health.json` 确认 `stable_valid`、`speed_qualified`、`selected_colo:NRT`、`selected_colo:ICN` 和 `published`，再把下面地址填到 edgetunnel 的优选 IP 订阅：
 
    ```text
    https://raw.githubusercontent.com/<owner>/<repo>/main/output/nodes.txt
@@ -23,6 +23,8 @@
 逻辑池会补足到 100,000 个 IP，但每轮只扫描 50,000 个端点。必选源和历史节点每轮都在，Cloudflare 官方样本分三片轮换。VPS789 公开接口只提供匿名三网参考；数据超过 7 天或接口失败时自动跳过，不影响主流程。机器人可能提交 `data/sources/vps789-cfip.json`，该文件只有公开测速数据，没有账号或代理参数。
 
 Actions 还会提交 `data/stability-history.json`。它保存最近 28 次测试的稳定性，不含账号或密钥，请保留在仓库中。第一次升级运行时历史为空，连续运行几次后稳定度排序会更有区分度。
+
+V2.3 的发布保护要求最终至少包含 10 个 NRT/JP 和 10 个 ICN/KR。任一数量不足时，本轮 `health.json` 会显示 `degraded` 且 `published: false`，旧的非空 `nodes.txt` 不会被覆盖。纯 Cloudflare 官方随机样本最多 30 个，避免美国 Runner 再次生成几乎全是 LAX/US 的订阅。
 
 ## GitHub Actions 机器人规则
 

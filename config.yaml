@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V2.2
+  name: Noode-CG V2.3
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/2.2
+  user_agent: Noode-CG/2.3
 
 paths:
   locations: data/locations.json
@@ -98,6 +98,9 @@ pipeline:
     # Same idea as CFData's result limit: only precisely re-test the best
     # initial HTTP results so the scheduled job stays within its time budget.
     candidates: 2000
+    minimum_per_colo: {NRT: 120, ICN: 80, HKG: 80, SIN: 40}
+    max_official_generated: 200
+    max_per_colo: 250
     tcp:
       concurrency: 120
       timeout_seconds: 2.0
@@ -134,6 +137,9 @@ pipeline:
     path: /__down?bytes=2097152
     bytes_per_test: 2097152
     candidates: 600
+    minimum_per_colo: {NRT: 40, ICN: 30}
+    max_official_generated: 60
+    max_per_colo: 80
     batch_size: 100
     target_qualified: 330
     # CFData recommends very low concurrency for accurate speed tests. Three
@@ -173,6 +179,10 @@ output:
   top_nodes: 300
   minimum_publish: 50
   preserve_last_good: true
+  require_quality_gates: true
+  minimum_per_colo: {NRT: 10, ICN: 10}
+  minimum_per_country: {JP: 10, KR: 10}
+  max_official_generated: 30
   max_per_country: 80
   max_per_region: 120
   max_per_colo: 30

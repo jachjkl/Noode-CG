@@ -19,6 +19,7 @@ def load_locations(path: str | Path) -> dict[str, dict[str, Any]]:
 def enrich_locations(records: list[NodeResult], locations: dict[str, dict[str, Any]]) -> list[NodeResult]:
     for node in records:
         location = locations.get(node.colo, {})
+        node.colo_country = str(location.get("cca2") or "").upper()
         if not node.country:
             node.country = str(location.get("cca2") or node.country_hint or "").upper()
         node.region = str(location.get("region") or "")

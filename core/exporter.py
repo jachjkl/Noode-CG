@@ -19,7 +19,8 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "ip": node.ip,
         "port": node.port,
         "ip_port": node.ip_port,
-        "country": node.country or node.country_hint or "XX",
+        "country": node.endpoint_country,
+        "probe_country": node.country or "XX",
         "colo": node.colo,
         "region": node.region,
         "city": node.city,
@@ -52,8 +53,7 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
 
 
 def _node_line(node: NodeResult) -> str:
-    country = (node.country or node.country_hint or "XX").upper()
-    return f"{node.ip_port}#{country}"
+    return f"{node.ip_port}#{node.endpoint_country}"
 
 
 def _write_zip(path: Path, records: list[NodeResult]) -> None:
@@ -61,7 +61,7 @@ def _write_zip(path: Path, records: list[NodeResult]) -> None:
     grouped: dict[tuple[int, str], list[str]] = defaultdict(list)
     by_port: dict[int, list[str]] = defaultdict(list)
     for node in records:
-        country = (node.country or node.country_hint or "XX").upper()
+        country = node.endpoint_country
         grouped[(node.port, country)].append(node.ip)
         by_port[node.port].append(node.ip)
 
@@ -129,7 +129,9 @@ def publish_outputs(
     existing_good = (destination / "nodes.txt").is_file() and bool(
         (destination / "nodes.txt").read_text(encoding="utf-8").strip()
     )
-    should_publish = len(records) >= minimum or not preserve or not existing_good
+    base_publish = len(records) >= minimum or not preserve or not existing_good
+    quality_allowed = not options.get("require_quality_gates", False) or report.get("status") == "ok"
+    should_publish = base_publish and quality_allowed
     generated_at = datetime.now(UTC).isoformat()
 
     report = dict(report)
@@ -151,7 +153,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V2.2",
+                "project": "Noode-CG V2.3",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

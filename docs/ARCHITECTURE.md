@@ -1,6 +1,6 @@
 # 架构与判定边界
 
-Noode-CG V2.2 的目标不是找“端口打开的 IP”，而是找从当前运行网络看，能持续完成 Cloudflare TLS、HTTP 和受控下载请求的边缘入口。
+Noode-CG V2.3 的目标不是找“端口打开的 IP”，而是找能持续完成 Cloudflare TLS、HTTP 和受控下载请求，同时保留亚洲落地方向的边缘入口。
 
 ```text
 必选 zip.cm.edu.kg 源 + 本地种子 + Cloudflare 官方网段 + VPS789 可选参考
@@ -21,7 +21,7 @@ Noode-CG V2.2 的目标不是找“端口打开的 IP”，而是找从当前运
   Host=target_domain 的 /cdn-cgi/trace 验证
                  |
                  v
-   5 次 TCP + 3 次 TLS/HTTP 低并发复测
+ NRT/ICN/HKG/SIN 预留 + 5 次 TCP + 3 次 HTTP 复测
                  |
                  v
   分批低并发 2 MiB 完整下载与速度门槛
@@ -30,7 +30,7 @@ Noode-CG V2.2 的目标不是找“端口打开的 IP”，而是找从当前运
  28 次历史窗口、匿名平台结果、位置补全、多维评分
                  |
                  v
-   国家/地区/机房/网段去集中、TOP N、发布保护
+ JP/KR 与 NRT/ICN 硬门槛、机房去集中、发布保护
 ```
 
 ## 为什么不保证“3 万条一定通过”
@@ -45,6 +45,10 @@ Noode-CG V2.2 的目标不是找“端口打开的 IP”，而是找从当前运
 
 测速读取未达到请求正文的 98% 时，即使已经收到部分数据也标记为失败，避免把容易中途断流的地址当作高速节点。最近 28 次任务的成功/失败保存在 `data/stability-history.json`，新节点从中性分开始，连续稳定后才获得完整历史加分。
 
+## 为什么不能只按 GitHub 延迟排序
+
+GitHub 托管 Runner 通常位于美国。Cloudflare 官方 Anycast IP 会从 Runner 进入美国机房，因此对 GitHub 很快，却可能从中国网络绕到 LAX。V2.3 将来源反代节点和实际 `colo` 结合：精测阶段预留 NRT、ICN、HKG、SIN，测速阶段再次预留 NRT/ICN；最终至少选择 10 个 NRT 和 10 个 ICN，并限制纯官方随机样本数量。`/cdn-cgi/trace` 的 `loc` 表示探测客户端位置，不能当成节点落地国家；输出国家改用机房国家，缺失时才回退来源标签。
+
 ## “三网”测量的真实含义
 
 单个 GitHub 托管 Runner 不能代表中国电信、中国联通和中国移动。真正三网数据需要在三个对应网络上的自托管 Runner 分别运行，并把探测 JSON 放入 `data/probes/` 后通过 `vantage.probe_files` 合并。项目不会把国家代码或机房位置冒充运营商测量。
@@ -53,7 +57,7 @@ VPS789 的公开接口可提供三网延迟和丢包的外部参考，但其样�
 
 ## 平台兼容性的边界
 
-Cloudflare 优选 IP 是入口，X、Telegram、YouTube 等目标平台位于 Worker 出口之后。仅凭入口 IP 无法证明整条代理链可访问目标平台。项目允许合并匿名本地结果，并在 `platform_compatibility.required: true` 时严格过滤，但探针文件只需保存平台布尔值，不需要保存 UUID、路径、域名或订阅。没有真实链路结果时默认保持建议模式，不声称平台已验证。
+Cloudflare 优选 IP 是入口，X、Telegram、YouTube 等目标平台位于 Worker 出口之后。仅凭入口 IP 无法证明整条代理链可访问目标平台。项目允许合并匿名本地结果，并在 `platform_compatibility.required: true` 时严格过滤，但探针文件只需保存平台布尔值，不需要保存 UUID、路径、域名或订阅。没有真实链路结果时默认保持建议模式，不声称平台已验证。ChatGPT 还会受 Worker 出口地区和 IP 信誉影响；无密钥模式只能用 NRT/ICN 落地、Worker 重复请求和下载完整率降低风险，不能作绝对保证。
 
 ## 输出语义
 
@@ -61,4 +65,4 @@ Cloudflare 优选 IP 是入口，X、Telegram、YouTube 等目标平台位于 Wo
 
 ## 断档保护
 
-当合格结果少于 `output.minimum_publish` 且已经存在上一版非空输出时，程序只更新 `health.json`，保留上一版订阅，避免一次网络故障清空线上数据。
+当合格结果少于 `output.minimum_publish`、NRT/ICN 或 JP/KR 配额不足、或者其他质量门槛失败时，程序只更新 `health.json`，保留上一版订阅，避免一次网络故障或美国方向偏置覆盖可用结果。

@@ -13,6 +13,7 @@ from .http_check import check_http
 from .io_utils import read_json, write_checkpoint
 from .isp_test import apply_platform_policy, merge_probe_files
 from .scorer import score_nodes, select_diverse
+from .selection import reserve_candidates
 from .sharding import select_scan_batch
 from .speed_test import test_speed
 from .tcp_scan import scan_tcp
@@ -114,14 +115,15 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     enrich_history(history_path, http_valid, history_options)
     stability = pipeline.get("stability", {})
     stability_limit = min(len(http_valid), int(stability.get("candidates", len(http_valid))))
-    stability_assessed = sorted(
+    stability_ordered = sorted(
         http_valid,
         key=lambda node: (
             -node.history_score,
             node.http_latency_ms or 999999,
             node.tls_latency_ms or 999999,
         ),
-    )[:stability_limit]
+    )
+    stability_assessed = reserve_candidates(stability_ordered, stability_limit, stability)
     report["counts"]["stability_assessed"] = len(stability_assessed)
     if stability.get("enabled", True):
         stable_tcp = asyncio.run(scan_tcp(stability_assessed, stability.get("tcp", {})))
@@ -132,7 +134,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
                 domain,
                 stability.get("http", {}),
                 pipeline.get("websocket", {}),
-                user_agent=str(config["project"].get("user_agent", "Noode-CG/2.1")),
+                user_agent=str(config["project"].get("user_agent", "Noode-CG/2.3")),
             )
         )
         enrich_locations(stable_http, locations)
@@ -156,7 +158,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         test_speed(
             platform_assessed,
             pipeline.get("speed", {}),
-            user_agent=str(config["project"].get("user_agent", "Noode-CG/2.1")),
+            user_agent=str(config["project"].get("user_agent", "Noode-CG/2.3")),
         )
     )
     speed_options = pipeline.get("speed", {})
@@ -178,6 +180,17 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     report["history"] = update_history(history_path, history_assessed, history_passed, history_options)
     ranked = score_nodes(qualified, config["score"])
     selected = select_diverse(ranked, config["output"])
+    selected_colos = {colo: sum(node.colo == colo for node in selected) for colo in config["output"].get("minimum_per_colo", {})}
+    selected_countries = {
+        country: sum(node.endpoint_country == country.upper() for node in selected)
+        for country in config["output"].get("minimum_per_country", {})
+    }
+    report["counts"]["selected_colos"] = selected_colos
+    report["counts"]["selected_countries"] = selected_countries
+    for colo, minimum in config["output"].get("minimum_per_colo", {}).items():
+        report["gates"].append(_gate(f"selected_colo:{colo}", selected_colos[colo], int(minimum)))
+    for country, minimum in config["output"].get("minimum_per_country", {}).items():
+        report["gates"].append(_gate(f"selected_country:{country}", selected_countries[country], int(minimum)))
     write_checkpoint(checkpoint_dir / "06-ranked.json", ranked)
 
     gates_passed = all(item["passed"] for item in report["gates"])

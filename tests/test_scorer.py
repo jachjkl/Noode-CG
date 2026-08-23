@@ -63,7 +63,7 @@ class ScorerTests(unittest.TestCase):
 
         self.assertEqual(ranked[0].ip, stable.ip)
 
-    def test_diversity_cap_then_fill(self) -> None:
+    def test_country_and_colo_caps_are_not_relaxed_to_fill(self) -> None:
         ranked = score_nodes(
             [node(f"104.16.1.{index}", latency=index, speed=50) for index in range(1, 8)],
             OPTIONS,
@@ -77,7 +77,7 @@ class ScorerTests(unittest.TestCase):
                 "max_per_ipv6_48": 1,
             },
         )
-        self.assertEqual(len(selected), 5)
+        self.assertEqual(len(selected), 2)
 
     def test_colo_and_region_caps_prevent_concentration(self) -> None:
         values = [node(f"104.16.{index // 250}.{index % 250 + 1}", latency=index, speed=50) for index in range(12)]
@@ -97,6 +97,39 @@ class ScorerTests(unittest.TestCase):
             },
         )
         self.assertLessEqual(max(sum(item.colo == colo for item in selected) for colo in {"LAX", "NRT"}), 2)
+
+    def test_asia_reservations_and_official_cap_survive_us_ranking(self) -> None:
+        official = [node(f"104.16.10.{index}", latency=index, speed=80, country="US") for index in range(1, 11)]
+        for value in official:
+            value.colo = "LAX"
+            value.colo_country = "US"
+            value.region = "North America"
+            value.sources = ["cloudflare-official-ipv4"]
+        asia = [node(f"198.51.100.{index}", latency=100 + index, speed=20) for index in range(1, 11)]
+        for index, value in enumerate(asia):
+            value.colo = "NRT" if index < 5 else "ICN"
+            value.colo_country = "JP" if index < 5 else "KR"
+            value.region = "Asia Pacific"
+            value.sources = ["required-source"]
+
+        selected = select_diverse(
+            score_nodes(official + asia, OPTIONS),
+            {
+                "top_nodes": 12,
+                "minimum_per_colo": {"NRT": 3, "ICN": 3},
+                "minimum_per_country": {"JP": 3, "KR": 3},
+                "max_official_generated": 2,
+                "max_per_country": 12,
+                "max_per_region": 12,
+                "max_per_colo": 12,
+                "max_per_ipv4_24": 12,
+                "max_per_ipv6_48": 12,
+            },
+        )
+
+        self.assertGreaterEqual(sum(value.colo == "NRT" for value in selected), 3)
+        self.assertGreaterEqual(sum(value.colo == "ICN" for value in selected), 3)
+        self.assertLessEqual(sum(value.official_only for value in selected), 2)
 
 
 if __name__ == "__main__":
