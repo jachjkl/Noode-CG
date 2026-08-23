@@ -15,7 +15,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 75
     permissions:
       contents: write
     env:
@@ -34,13 +34,13 @@ jobs:
       - name: Commit changed outputs
         shell: bash
         run: |
-          if [ -z "$(git status --porcelain -- output data/sources data/stability-history.json)" ]; then
+          if [ -z "$(git status --porcelain -- output data/sources)" ]; then
             echo "No output changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- output data/sources data/stability-history.json
+          git add -A -- output data/sources
           if git diff --cached --quiet; then
             echo "No staged changes"
             exit 0
