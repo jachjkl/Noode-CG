@@ -20,7 +20,8 @@ try {
         Where-Object {
             $Relative = Get-ProjectRelativePath -FullPath $_.FullName
             $Segments = $Relative -split '[\\/]'
-            $_.Name -ne "Noode-CG.zip" -and
+            $_.FullName -ne $DestinationPath -and
+                $Relative -notmatch '^[^\\/]+\.zip$' -and
                 $_.Extension -notin @(".pyc", ".pyo") -and
                 -not ($Segments | Where-Object { $_ -in $ExcludedDirectories })
         } |

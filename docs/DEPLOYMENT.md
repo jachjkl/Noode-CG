@@ -22,6 +22,8 @@ requirements.txt
 
 仓库进入 **Actions**。如果 GitHub 首次提示启用工作流，点击启用。选择 **Refresh verified endpoints**，点击 **Run workflow**。
 
+如果是覆盖旧版仓库，先运行一次 **Cleanup obsolete V2.3 files**。GitHub 网页上传不会删除旧文件，这个一次性工作流会清除旧模块与旧测试，然后删除自身。清理提交触发的 CI 应只运行当前 19 项测试。
+
 工作流会：
 
 1. 更新 `zip.cm.edu.kg/all.txt` 缓存；
