@@ -13,6 +13,7 @@ class NodeResult:
 
     tcp_ok: bool = False
     tcp_latency_ms: float | None = None
+    tcp_p95_latency_ms: float | None = None
     tcp_jitter_ms: float | None = None
     tcp_loss_rate: float = 1.0
 
@@ -24,6 +25,8 @@ class NodeResult:
     http_ok: bool = False
     http_status: int | None = None
     http_latency_ms: float | None = None
+    http_p95_latency_ms: float | None = None
+    http_success_rate: float = 0.0
     cf_ray: str = ""
     colo: str = ""
     country: str = ""
@@ -31,7 +34,16 @@ class NodeResult:
     city: str = ""
 
     websocket_ok: bool | None = None
+    speed_tested: bool = False
+    speed_ok: bool = False
     speed_mbps: float | None = None
+    speed_completion_rate: float = 0.0
+    speed_test_bytes: int = 0
+    speed_test_seconds: float | None = None
+    history_runs: int = 0
+    history_success_rate: float = 0.5
+    history_consecutive_successes: int = 0
+    history_score: float = 0.5
     score: float = 0.0
     probe_results: dict[str, Any] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)

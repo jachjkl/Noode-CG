@@ -1,12 +1,13 @@
 project:
-  name: Noode-CG V2
+  name: Noode-CG V2.1
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/2.0
+  user_agent: Noode-CG/2.1
 
 paths:
   locations: data/locations.json
   checkpoints: data/checkpoints
+  history: data/stability-history.json
   output: output
 
 sources:
@@ -47,25 +48,56 @@ pipeline:
   min_tcp_alive: 30000
   min_tls_valid: 100
   min_http_valid: 50
+  min_stable_valid: 50
+  min_speed_qualified: 50
   fail_on_quality_gate: false
 
   tcp:
-    concurrency: 800
+    # Broad pass: only reject closed/unreachable endpoints. Accuracy comes from
+    # the low-concurrency stability pass below.
+    concurrency: 400
     timeout_seconds: 1.5
     attempts: 1
 
   tls:
-    concurrency: 300
+    concurrency: 200
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
 
   http:
-    concurrency: 250
+    concurrency: 150
     timeout_seconds: 5.0
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
+
+  stability:
+    enabled: true
+    # Same idea as CFData's result limit: only precisely re-test the best
+    # initial HTTP results so the scheduled job stays within its time budget.
+    candidates: 2000
+    tcp:
+      concurrency: 120
+      timeout_seconds: 2.0
+      attempts: 5
+      minimum_success_ratio: 0.80
+      maximum_p95_ms: 500
+    http:
+      concurrency: 60
+      timeout_seconds: 6.0
+      attempts: 3
+      minimum_success_ratio: 1.0
+      maximum_p95_ms: 1500
+      path: /cdn-cgi/trace
+      require_trace_fields: true
+      accepted_statuses: [200]
+
+  history:
+    # 4 runs/day * 7 days. New nodes start near neutral and earn trust across runs.
+    window_runs: 28
+    neutral_prior_runs: 4
+    max_missed_runs: 56
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -76,25 +108,35 @@ pipeline:
 
   speed:
     enabled: true
+    require_for_publish: true
     domain: speed.cloudflare.com
-    path: /__down?bytes=262144
-    bytes_per_test: 262144
+    path: /__down?bytes=2097152
+    bytes_per_test: 2097152
     candidates: 600
-    concurrency: 8
-    timeout_seconds: 8.0
+    batch_size: 100
+    target_qualified: 330
+    # CFData recommends very low concurrency for accurate speed tests. Three
+    # workers keep GitHub Actions within its time budget without 8-way contention.
+    concurrency: 3
+    timeout_seconds: 10.0
+    minimum_mbps: 4.0
+    minimum_completion_ratio: 0.98
 
 score:
   weights:
-    latency: 0.35
+    latency: 0.20
+    p95: 0.15
     jitter: 0.10
-    loss: 0.10
-    speed: 0.25
-    region: 0.10
-    protocol: 0.10
+    loss: 0.15
+    speed: 0.15
+    completion: 0.10
+    history: 0.10
+    protocol: 0.05
   caps:
     latency_ms: 500
+    p95_latency_ms: 800
     jitter_ms: 150
-    speed_mbps: 100
+    speed_mbps: 80
   region_priority:
     JP: 1.00
     KR: 0.95
@@ -118,5 +160,5 @@ vantage:
   # A GitHub-hosted runner is only one network vantage point. For genuine
   # CT/CU/CM measurements, run the same command on self-hosted runners and
   # merge their data under data/probes/.
-  name: ${NOODE_VANTAGE:-github-general}
+  name: ${NOODE_VANTAGE:-local-unknown}
   probe_files: []

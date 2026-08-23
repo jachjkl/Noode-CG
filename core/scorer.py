@@ -28,6 +28,8 @@ def score_nodes(records: list[NodeResult], options: dict[str, Any]) -> list[Node
 
     for node in records:
         latency = node.http_latency_ms or node.tls_latency_ms or node.tcp_latency_ms
+        p95_values = [value for value in (node.tcp_p95_latency_ms, node.http_p95_latency_ms) if value is not None]
+        p95_latency = max(p95_values) if p95_values else latency
         protocol = (float(node.tcp_ok) + float(node.tls_ok) + float(node.http_ok)) / 3
         if node.websocket_ok is not None:
             protocol = (protocol * 3 + float(node.websocket_ok)) / 4
@@ -36,14 +38,25 @@ def score_nodes(records: list[NodeResult], options: dict[str, Any]) -> list[Node
             protocol *= probe["reachable"] / probe["count"]
         parts = {
             "latency": _lower_better(latency, float(caps["latency_ms"])),
+            "p95": _lower_better(p95_latency, float(caps.get("p95_latency_ms", caps["latency_ms"]))),
             "jitter": _lower_better(node.tcp_jitter_ms, float(caps["jitter_ms"])),
             "loss": max(0.0, min(1.0, 1.0 - node.tcp_loss_rate)),
             "speed": _higher_better(node.speed_mbps, float(caps["speed_mbps"])),
+            "completion": max(0.0, min(1.0, node.speed_completion_rate)),
+            "history": max(0.0, min(1.0, node.history_score)),
             "region": priorities.get((node.country or node.country_hint).upper(), default_region),
             "protocol": protocol,
         }
         node.score = round(sum(parts[key] * weights.get(key, 0.0) for key in parts) * 1000, 3)
-    return sorted(records, key=lambda node: (-node.score, node.http_latency_ms or 999999, node.ip, node.port))
+    return sorted(
+        records,
+        key=lambda node: (
+            -node.score,
+            node.http_p95_latency_ms or node.http_latency_ms or 999999,
+            node.ip,
+            node.port,
+        ),
+    )
 
 
 def _prefix(node: NodeResult, ipv4_prefix: int, ipv6_prefix: int) -> str:

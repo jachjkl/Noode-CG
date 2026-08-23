@@ -4,7 +4,7 @@
 2. 修改 `config.yaml` 的 `project.target_domain`，必须是绑定到 edgetunnel Worker 的纯域名。
 3. 在仓库的 **Settings → Actions → General → Workflow permissions** 中允许 GitHub Actions 写入仓库内容。
 4. 打开 **Actions → Refresh verified endpoints → Run workflow** 做首次运行。
-5. 在 `output/health.json` 确认 `http_valid` 和 `published`，再把下面地址填到 edgetunnel 的优选 IP 订阅：
+5. 在 `output/health.json` 确认 `stable_valid`、`speed_qualified` 和 `published`，再把下面地址填到 edgetunnel 的优选 IP 订阅：
 
    ```text
    https://raw.githubusercontent.com/<owner>/<repo>/main/output/nodes.txt
@@ -16,9 +16,20 @@
    https://raw.githubusercontent.com/jachjkl/Noode-CG/refs/heads/main/output/nodes.txt
    ```
 
-计划任务每 6 小时运行一次。GitHub 的 cron 使用 UTC。
+计划任务每 6 小时运行一次，在每个周期的第 17 分钟触发。GitHub 的 cron 默认使用 UTC；避开第 0 分钟可降低高峰期排队或丢任务的概率。
 
 每次任务都会先刷新 `https://zip.cm.edu.kg/all.txt`，将其中全部有效地址加入候选，并把最新副本保存到 `data/sources/zip-cm-edu-kg-all.txt`。如果该站暂时无法访问，任务使用仓库缓存；远程源和缓存同时不可用时任务会失败并保留旧订阅。
+
+Actions 还会提交 `data/stability-history.json`。它保存最近 28 次测试的稳定性，不含账号或密钥，请保留在仓库中。第一次升级运行时历史为空，连续运行几次后稳定度排序会更有区分度。
+
+## GitHub Actions 机器人规则
+
+- 工作流只使用仓库自带的 `GITHUB_TOKEN`，权限限定为 `contents: write`，不需要 PAT。
+- 官方 `checkout` 和 `setup-python` Action 固定到完整提交 SHA。
+- 同一仓库同一时间只允许一个刷新任务，单次最多运行 50 分钟。
+- 机器人只提交 `output/`、远程源缓存和稳定性历史；没有变化时不提交。
+- 机器人提交不会递归启动下一轮刷新，并在提交信息中附带 `[skip ci]`。
+- 公共仓库如果连续 60 天没有仓库活动，GitHub 可能自动停用定时工作流；届时在 Actions 页面重新启用即可。
 
 ## 本机运行
 

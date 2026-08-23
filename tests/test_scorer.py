@@ -7,14 +7,16 @@ from core.scorer import score_nodes, select_diverse
 
 OPTIONS = {
     "weights": {
-        "latency": 0.35,
+        "latency": 0.20,
+        "p95": 0.15,
         "jitter": 0.10,
-        "loss": 0.10,
-        "speed": 0.25,
-        "region": 0.10,
-        "protocol": 0.10,
+        "loss": 0.15,
+        "speed": 0.15,
+        "completion": 0.10,
+        "history": 0.10,
+        "protocol": 0.05,
     },
-    "caps": {"latency_ms": 500, "jitter_ms": 150, "speed_mbps": 100},
+    "caps": {"latency_ms": 500, "p95_latency_ms": 800, "jitter_ms": 150, "speed_mbps": 80},
     "region_priority": {"JP": 1.0, "US": 0.6},
     "default_region_score": 0.5,
 }
@@ -25,9 +27,13 @@ def node(ip: str, *, latency: float, speed: float, country: str = "JP") -> NodeR
     value.tcp_ok = value.tls_ok = value.http_ok = True
     value.tcp_latency_ms = latency
     value.http_latency_ms = latency
+    value.tcp_p95_latency_ms = latency
     value.tcp_jitter_ms = 1
     value.tcp_loss_rate = 0
     value.speed_mbps = speed
+    value.speed_completion_rate = 1
+    value.speed_ok = True
+    value.history_score = 0.5
     return value
 
 
@@ -39,6 +45,23 @@ class ScorerTests(unittest.TestCase):
         )
         self.assertEqual(ranked[0].ip, "104.17.1.1")
         self.assertGreater(ranked[0].score, ranked[1].score)
+
+    def test_stable_node_beats_fast_but_lossy_node(self) -> None:
+        flaky = node("104.16.1.1", latency=15, speed=80)
+        flaky.tcp_p95_latency_ms = 700
+        flaky.tcp_jitter_ms = 120
+        flaky.tcp_loss_rate = 0.4
+        flaky.speed_completion_rate = 0.6
+        flaky.history_score = 0.2
+        stable = node("104.17.1.1", latency=60, speed=30)
+        stable.tcp_p95_latency_ms = 85
+        stable.tcp_jitter_ms = 8
+        stable.tcp_loss_rate = 0
+        stable.history_score = 0.9
+
+        ranked = score_nodes([flaky, stable], OPTIONS)
+
+        self.assertEqual(ranked[0].ip, stable.ip)
 
     def test_diversity_cap_then_fill(self) -> None:
         ranked = score_nodes(
