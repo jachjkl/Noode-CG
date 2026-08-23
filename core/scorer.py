@@ -36,6 +36,11 @@ def score_nodes(records: list[NodeResult], options: dict[str, Any]) -> list[Node
         probe = probe_summary(node)
         if probe["count"]:
             protocol *= probe["reachable"] / probe["count"]
+        external = 0.5
+        if probe["latency_ms"] is not None or probe["loss_rate"] is not None:
+            external_latency = _lower_better(probe["latency_ms"], float(caps["latency_ms"]))
+            external_loss = 1.0 - float(probe["loss_rate"] or 0.0)
+            external = max(0.0, min(1.0, (external_latency + external_loss) / 2))
         parts = {
             "latency": _lower_better(latency, float(caps["latency_ms"])),
             "p95": _lower_better(p95_latency, float(caps.get("p95_latency_ms", caps["latency_ms"]))),
@@ -46,6 +51,7 @@ def score_nodes(records: list[NodeResult], options: dict[str, Any]) -> list[Node
             "history": max(0.0, min(1.0, node.history_score)),
             "region": priorities.get((node.country or node.country_hint).upper(), default_region),
             "protocol": protocol,
+            "external": external,
         }
         node.score = round(sum(parts[key] * weights.get(key, 0.0) for key in parts) * 1000, 3)
     return sorted(
@@ -68,32 +74,62 @@ def _prefix(node: NodeResult, ipv4_prefix: int, ipv6_prefix: int) -> str:
 def select_diverse(records: list[NodeResult], output: dict[str, Any]) -> list[NodeResult]:
     limit = int(output.get("top_nodes", 300))
     country_limit = int(output.get("max_per_country", limit))
+    region_limit = int(output.get("max_per_region", limit))
+    colo_limit = int(output.get("max_per_colo", limit))
     ipv4_prefix = int(output.get("max_per_ipv4_24", 4))
     ipv6_prefix = int(output.get("max_per_ipv6_48", 4))
     country_counts: Counter[str] = Counter()
+    region_counts: Counter[str] = Counter()
+    colo_counts: Counter[str] = Counter()
     prefix_counts: Counter[str] = Counter()
     selected: list[NodeResult] = []
     selected_keys: set[str] = set()
 
     for node in records:
         country = (node.country or node.country_hint or "XX").upper()
+        region = node.region or "Unknown"
+        colo = node.colo or "Unknown"
         prefix = _prefix(node, 24, 48)
         max_prefix = ipv4_prefix if ":" not in node.ip else ipv6_prefix
-        if country_counts[country] >= country_limit or prefix_counts[prefix] >= max_prefix:
+        if (
+            country_counts[country] >= country_limit
+            or region_counts[region] >= region_limit
+            or colo_counts[colo] >= colo_limit
+            or prefix_counts[prefix] >= max_prefix
+        ):
             continue
         selected.append(node)
         selected_keys.add(node.key)
         country_counts[country] += 1
+        region_counts[region] += 1
+        colo_counts[colo] += 1
         prefix_counts[prefix] += 1
         if len(selected) >= limit:
             return selected
 
-    # If diversity caps leave fewer than TOP N, fill from the remaining verified
-    # records. Quality checks remain mandatory; only diversity is relaxed.
+    # Relax country and subnet caps first, while preserving the stronger region
+    # and colo caps that prevent one GitHub-facing ingress area dominating TOP N.
     for node in records:
-        if node.key not in selected_keys:
-            selected.append(node)
-            selected_keys.add(node.key)
-            if len(selected) >= limit:
-                break
+        if node.key in selected_keys:
+            continue
+        region = node.region or "Unknown"
+        colo = node.colo or "Unknown"
+        if region_counts[region] >= region_limit or colo_counts[colo] >= colo_limit:
+            continue
+        selected.append(node)
+        selected_keys.add(node.key)
+        region_counts[region] += 1
+        colo_counts[colo] += 1
+        if len(selected) >= limit:
+            return selected
+
+    # If the verified pool cannot satisfy the geographic caps, publish the best
+    # remaining verified records rather than silently returning an undersized feed.
+    for node in records:
+        if node.key in selected_keys:
+            continue
+        selected.append(node)
+        selected_keys.add(node.key)
+        if len(selected) >= limit:
+            return selected
     return selected

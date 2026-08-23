@@ -79,6 +79,12 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
 
+    scan = pipeline.get("scan")
+    if not isinstance(scan, dict):
+        raise ConfigError("缺少 pipeline.scan")
+    for name in ("limit", "shards", "window_hours"):
+        _positive_number(scan.get(name), f"pipeline.scan.{name}")
+
     stability = pipeline.get("stability", {})
     if stability.get("enabled", True):
         _positive_number(stability.get("candidates"), "pipeline.stability.candidates")
@@ -107,3 +113,12 @@ def validate_config(config: dict[str, Any]) -> None:
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")
+
+    platform = config.get("platform_compatibility", {})
+    if not isinstance(platform, dict):
+        raise ConfigError("platform_compatibility 必须是对象")
+    if platform.get("required", False):
+        _positive_number(platform.get("minimum_nodes"), "platform_compatibility.minimum_nodes")
+        _positive_number(platform.get("minimum_vantages"), "platform_compatibility.minimum_vantages")
+        if not platform.get("required_platforms"):
+            raise ConfigError("严格平台验证必须配置 required_platforms")

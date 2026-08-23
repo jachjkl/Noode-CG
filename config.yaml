@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V2.1
+  name: Noode-CG V2.2
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/2.1
+  user_agent: Noode-CG/2.2
 
 paths:
   locations: data/locations.json
@@ -15,7 +15,7 @@ sources:
     - data/input/ALL-2026-08-22.txt
     - data/input/ip.zip
   # This required source is refreshed on every run. All valid entries are kept
-  # in the scan pool before official ranges fill the pool to 50,000 unique IPs.
+  # in every scan batch before official ranges fill the logical pool to 100,000 IPs.
   # If the service is temporarily unavailable, the last committed cache is used.
   remote:
     - name: zip.cm.edu.kg/all.txt
@@ -28,6 +28,19 @@ sources:
       timeout_seconds: 30
       default_port: 443
       cache_path: data/sources/zip-cm-edu-kg-all.txt
+    # Privacy-safe, optional three-network reference. It sends no domain, UUID,
+    # path or subscription data. Stale/unavailable data is skipped automatically.
+    - name: vps789-three-network
+      url: https://vps789.com/public/sum/cfIpApi
+      format: vps789
+      required: false
+      max_age_days: 7
+      min_records: 1
+      retries: 2
+      retry_delay_seconds: 2
+      timeout_seconds: 20
+      default_port: 443
+      cache_path: data/sources/vps789-cfip.json
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
@@ -37,20 +50,28 @@ sources:
     include_ipv6: false
     ipv6_url: https://www.cloudflare.com/ips-v6/
     ipv6_fallback: data/cloudflare-ipv6.txt
-    target_pool: 50000
+    target_pool: 100000
     ports: [443]
     deterministic_seed: 20260822
 
 pipeline:
   # These are observable quality gates, not promises. A run never fabricates
   # unverified endpoints merely to hit a count.
-  min_pool: 50000
+  min_pool: 100000
   min_tcp_alive: 30000
   min_tls_valid: 100
   min_http_valid: 50
   min_stable_valid: 50
   min_speed_qualified: 50
   fail_on_quality_gate: false
+
+  # GitHub scans 50,000 endpoints per scheduled run. Required sources and nodes
+  # with history are always included; official-range samples rotate across three
+  # deterministic shards, covering the 100,000 pool within at most 18 hours.
+  scan:
+    limit: 50000
+    shards: 3
+    window_hours: 6
 
   tcp:
     # Broad pass: only reject closed/unreachable endpoints. Accuracy comes from
@@ -124,14 +145,16 @@ pipeline:
 
 score:
   weights:
-    latency: 0.20
-    p95: 0.15
-    jitter: 0.10
-    loss: 0.15
+    latency: 0.18
+    p95: 0.13
+    jitter: 0.09
+    loss: 0.14
     speed: 0.15
     completion: 0.10
     history: 0.10
     protocol: 0.05
+    region: 0.03
+    external: 0.03
   caps:
     latency_ms: 500
     p95_latency_ms: 800
@@ -151,6 +174,8 @@ output:
   minimum_publish: 50
   preserve_last_good: true
   max_per_country: 80
+  max_per_region: 120
+  max_per_colo: 30
   max_per_ipv4_24: 4
   max_per_ipv6_48: 4
   node_label: country
@@ -162,3 +187,11 @@ vantage:
   # merge their data under data/probes/.
   name: ${NOODE_VANTAGE:-local-unknown}
   probe_files: []
+
+platform_compatibility:
+  # GitHub cannot prove access through your private Worker/Clash chain without
+  # its credentials. Anonymous local probe files can enable this strict gate.
+  required: false
+  minimum_nodes: 50
+  minimum_vantages: 1
+  required_platforms: [x, telegram, youtube, huggingface, github, google, chatgpt, civitai]

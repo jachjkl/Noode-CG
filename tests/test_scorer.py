@@ -79,6 +79,25 @@ class ScorerTests(unittest.TestCase):
         )
         self.assertEqual(len(selected), 5)
 
+    def test_colo_and_region_caps_prevent_concentration(self) -> None:
+        values = [node(f"104.16.{index // 250}.{index % 250 + 1}", latency=index, speed=50) for index in range(12)]
+        for index, value in enumerate(values):
+            value.colo = "LAX" if index < 8 else "NRT"
+            value.region = "North America" if index < 8 else "Asia Pacific"
+        ranked = score_nodes(values, OPTIONS)
+        selected = select_diverse(
+            ranked,
+            {
+                "top_nodes": 4,
+                "max_per_country": 6,
+                "max_per_region": 3,
+                "max_per_colo": 2,
+                "max_per_ipv4_24": 6,
+                "max_per_ipv6_48": 6,
+            },
+        )
+        self.assertLessEqual(max(sum(item.colo == colo for item in selected) for colo in {"LAX", "NRT"}), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -46,6 +46,9 @@ class NodeResult:
     history_score: float = 0.5
     score: float = 0.0
     probe_results: dict[str, Any] = field(default_factory=dict)
+    platform_results: dict[str, bool | None] = field(default_factory=dict)
+    platform_score: float = 0.0
+    platform_ok: bool | None = None
     errors: list[str] = field(default_factory=list)
 
     @property

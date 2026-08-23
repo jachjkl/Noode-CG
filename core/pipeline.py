@@ -10,9 +10,10 @@ from .exporter import publish_outputs
 from .fetcher import collect_candidates
 from .history import enrich_history, update_history
 from .http_check import check_http
-from .io_utils import write_checkpoint
-from .isp_test import merge_probe_files
+from .io_utils import read_json, write_checkpoint
+from .isp_test import apply_platform_policy, merge_probe_files
 from .scorer import score_nodes, select_diverse
+from .sharding import select_scan_batch
 from .speed_test import test_speed
 from .tcp_scan import scan_tcp
 from .tls_check import check_tls
@@ -53,12 +54,35 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         if entry.get("required", False):
             report["gates"].append(_gate(f"required_source:{label}", count, int(entry.get("min_records", 1))))
     report["counts"]["remote_sources"] = source_counts
-    write_checkpoint(checkpoint_dir / "01-pool.json", candidates)
-    print(f"候选池: {unique_pool} 个 IP / {len(candidates)} 个 IP:端口", flush=True)
+    required_sources = {
+        str(entry.get("name") or entry.get("url") or "remote")
+        for configured in config["sources"].get("remote", [])
+        for entry in [{"url": configured} if isinstance(configured, str) else configured]
+        if entry.get("required", False)
+    }
+    history_path = resolve_path(config, config["paths"].get("history", "data/stability-history.json"))
+    history_state = read_json(history_path, default={})
+    history_nodes = history_state.get("nodes", {}) if isinstance(history_state, dict) else {}
+    scan_options = dict(pipeline.get("scan", {}))
+    scan_options["required_sources"] = sorted(required_sources)
+    scan_candidates, scan_metadata = select_scan_batch(
+        candidates,
+        scan_options,
+        history_keys=set(history_nodes) if isinstance(history_nodes, dict) else set(),
+    )
+    report["scan"] = scan_metadata
+    report["counts"]["scan_endpoints"] = len(scan_candidates)
+    report["counts"]["scan_unique_ips"] = len({node.ip for node in scan_candidates})
+    write_checkpoint(checkpoint_dir / "01-pool.json", scan_candidates)
+    print(
+        f"逻辑候选池: {unique_pool} 个 IP / 本轮扫描: {len(scan_candidates)} 个端点 "
+        f"(分片 {scan_metadata['shard_index'] + 1}/{scan_metadata['shard_count']})",
+        flush=True,
+    )
     for label, count in source_counts.items():
         print(f"远程源: {label} = {count} 条", flush=True)
 
-    tcp_alive = asyncio.run(scan_tcp(candidates, pipeline["tcp"]))
+    tcp_alive = asyncio.run(scan_tcp(scan_candidates, pipeline["tcp"]))
     report["counts"]["tcp_alive"] = len(tcp_alive)
     report["gates"].append(_gate("tcp_alive", len(tcp_alive), int(pipeline["min_tcp_alive"])))
     write_checkpoint(checkpoint_dir / "02-tcp.json", tcp_alive)
@@ -87,7 +111,6 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     print(f"HTTP/Cloudflare 通过: {len(http_valid)}", flush=True)
 
     history_options = pipeline.get("history", {})
-    history_path = resolve_path(config, config["paths"].get("history", "data/stability-history.json"))
     enrich_history(history_path, http_valid, history_options)
     stability = pipeline.get("stability", {})
     stability_limit = min(len(http_valid), int(stability.get("candidates", len(http_valid))))
@@ -124,9 +147,14 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
 
     probe_paths = [resolve_path(config, path) for path in config.get("vantage", {}).get("probe_files", [])]
     merge_probe_files(stable_http, probe_paths)
+    platform_options = config.get("platform_compatibility", {})
+    platform_assessed = apply_platform_policy(stable_http, platform_options)
+    report["counts"]["platform_verified"] = sum(node.platform_ok is True for node in stable_http)
+    if platform_options.get("required", False):
+        report["gates"].append(_gate("platform_verified", len(platform_assessed), int(platform_options.get("minimum_nodes", 50))))
     tested = asyncio.run(
         test_speed(
-            stable_http,
+            platform_assessed,
             pipeline.get("speed", {}),
             user_agent=str(config["project"].get("user_agent", "Noode-CG/2.1")),
         )

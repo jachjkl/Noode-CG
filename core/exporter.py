@@ -45,6 +45,9 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "websocket_ok": node.websocket_ok,
         "score": node.score,
         "probe_results": node.probe_results,
+        "platform_results": node.platform_results,
+        "platform_score": node.platform_score,
+        "platform_ok": node.platform_ok,
     }
 
 
@@ -148,7 +151,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V2.1",
+                "project": "Noode-CG V2.2",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

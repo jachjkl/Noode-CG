@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import math
 import time
 import urllib.request
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from typing import Any
 
 from .config import resolve_path
@@ -114,16 +116,74 @@ def sample_ranges(
 
 def _parse_remote_payload(entry: dict[str, Any], url: str, payload: bytes) -> list[NodeResult]:
     label = str(entry.get("name") or url)
-    records = parse_bytes(
-        url.split("?", 1)[0],
-        payload,
-        source=label,
-        default_port=int(entry.get("default_port", 443)),
-    )
+    if entry.get("format") == "vps789":
+        records = parse_vps789_payload(payload, source=label, max_age_days=int(entry.get("max_age_days", 7)))
+    else:
+        records = parse_bytes(
+            url.split("?", 1)[0],
+            payload,
+            source=label,
+            default_port=int(entry.get("default_port", 443)),
+        )
     minimum = int(entry.get("min_records", 1))
     if len(records) < minimum:
         raise ValueError(f"{label} 只解析出 {len(records)} 条，低于要求的 {minimum} 条")
     return records
+
+
+def parse_vps789_payload(payload: bytes, *, source: str, max_age_days: int) -> list[NodeResult]:
+    value = json.loads(payload.decode("utf-8-sig"))
+    if not isinstance(value, dict) or value.get("code") != 0 or not isinstance(value.get("data"), dict):
+        raise ValueError("VPS789 接口返回格式无效")
+
+    records: list[NodeResult] = []
+    newest: datetime | None = None
+    for group, rows in value["data"].items():
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                address = str(ipaddress.ip_address(str(row.get("ip", "")).strip()))
+            except ValueError:
+                continue
+            timestamp = str(row.get("createdTime", "")).strip()
+            try:
+                observed = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+                newest = observed if newest is None or observed > newest else newest
+            except ValueError:
+                pass
+
+            node = NodeResult(ip=address, port=443)
+            node.add_source(source)
+            for vantage, latency_key, loss_key in (
+                ("CT", "dxLatencyAvg", "dxPkgLostRateAvg"),
+                ("CU", "ltLatencyAvg", "ltPkgLostRateAvg"),
+                ("CM", "ydLatencyAvg", "ydPkgLostRateAvg"),
+            ):
+                try:
+                    latency = float(row[latency_key])
+                    loss = max(0.0, min(1.0, float(row[loss_key]) / 100))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                node.probe_results[f"vps789-{vantage}"] = {
+                    "tcp_ok": loss < 1.0,
+                    "latency_ms": latency,
+                    "loss_rate": loss,
+                    "observed_at": timestamp,
+                    "list": str(group),
+                }
+            records.append(node)
+
+    if not records:
+        raise ValueError("VPS789 接口没有可解析的 IP")
+    if newest is None:
+        raise ValueError("VPS789 接口缺少有效测速时间")
+    age_days = (datetime.now(UTC) - newest).total_seconds() / 86400
+    if age_days > max_age_days:
+        raise ValueError(f"VPS789 最新测速数据已过期 {age_days:.1f} 天（上限 {max_age_days} 天）")
+    return deduplicate(records)
 
 
 def _load_remote_source(

@@ -1,6 +1,6 @@
 [project]
 name = "noode-cg"
-version = "2.1.0"
+version = "2.2.0"
 description = "Cloudflare edge endpoint verifier and edgetunnel feed generator"
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0.1,<7.0"]

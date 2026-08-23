@@ -20,6 +20,8 @@
 
 每次任务都会先刷新 `https://zip.cm.edu.kg/all.txt`，将其中全部有效地址加入候选，并把最新副本保存到 `data/sources/zip-cm-edu-kg-all.txt`。如果该站暂时无法访问，任务使用仓库缓存；远程源和缓存同时不可用时任务会失败并保留旧订阅。
 
+逻辑池会补足到 100,000 个 IP，但每轮只扫描 50,000 个端点。必选源和历史节点每轮都在，Cloudflare 官方样本分三片轮换。VPS789 公开接口只提供匿名三网参考；数据超过 7 天或接口失败时自动跳过，不影响主流程。机器人可能提交 `data/sources/vps789-cfip.json`，该文件只有公开测速数据，没有账号或代理参数。
+
 Actions 还会提交 `data/stability-history.json`。它保存最近 28 次测试的稳定性，不含账号或密钥，请保留在仓库中。第一次升级运行时历史为空，连续运行几次后稳定度排序会更有区分度。
 
 ## GitHub Actions 机器人规则
@@ -79,6 +81,20 @@ pipeline:
 ```
 
 路径不正确会导致所有节点失败，因此不要保留示例值后直接开启。
+
+## 匿名平台探针
+
+如果要把 X、Telegram、YouTube、Hugging Face、GitHub、Google、ChatGPT 和 Civitai 设为硬门槛，先在真实 Clash/Worker 链路上生成与 [platform-probe.example.json](platform-probe.example.json) 相同结构的数据，保存到 `data/probes/`，并在 `vantage.probe_files` 中列出。该目录的 JSON 默认被 `.gitignore` 忽略，建议只在你确认文件不含隐私后再显式上传。
+
+探针覆盖足够多候选后才设置：
+
+```yaml
+platform_compatibility:
+  required: true
+  minimum_nodes: 50
+```
+
+如果没有匿名探针，保持 `required: false`。GitHub Runner 可以测试公开网站本身，但不能在不知道私人 Worker 协议参数的情况下把结果对应到每个优选 IP。
 
 ## CFData 可选预筛
 
