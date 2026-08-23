@@ -3,10 +3,10 @@ name: Refresh verified endpoints
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    # Avoid minute 0, when scheduled Actions have the highest queue pressure.
+    - cron: "17 */6 * * *"
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: noode-cg-refresh
@@ -15,27 +15,35 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 50
+    permissions:
+      contents: write
     env:
       NOODE_VANTAGE: github-general
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r requirements.txt
       - run: python main.py validate
       - run: python main.py run
       - name: Commit changed outputs
         shell: bash
         run: |
-          if git diff --quiet -- output data/sources/zip-cm-edu-kg-all.txt; then
+          if [ -z "$(git status --porcelain -- output data/sources/zip-cm-edu-kg-all.txt data/stability-history.json)" ]; then
             echo "No output changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add output data/sources/zip-cm-edu-kg-all.txt
-          git commit -m "chore(data): refresh verified endpoints"
-          git push
+          git add output data/sources/zip-cm-edu-kg-all.txt data/stability-history.json
+          if git diff --cached --quiet; then
+            echo "No staged changes"
+            exit 0
+          fi
+          git commit -m "chore(data): refresh verified endpoints [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
