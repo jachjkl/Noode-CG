@@ -1,28 +1,29 @@
 {
   "status": "ok",
-  "started_at": "2026-08-23T18:49:23.213976+00:00",
+  "started_at": "2026-08-24T01:58:28.304808+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 103388,
+    "pool_endpoints": 103462,
     "pool_unique_ips": 100000,
     "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 17766
+      "zip.cm.edu.kg/all.txt": 17551
     },
-    "tcp_alive": 59151,
-    "tls_valid": 56591,
-    "http_valid": 54867,
+    "tcp_alive": 59379,
+    "tls_valid": 57016,
+    "http_valid": 55313,
     "selected_countries": {
-      "CA": 44,
-      "DE": 1,
-      "ES": 3,
+      "CA": 47,
+      "DE": 32,
+      "ES": 6,
       "FR": 13,
-      "GB": 8,
-      "IE": 5,
-      "JP": 80,
-      "KR": 39,
-      "MX": 6,
-      "NL": 21,
+      "GB": 30,
+      "IE": 2,
+      "JP": 31,
+      "MX": 4,
+      "NL": 51,
+      "PL": 2,
+      "SE": 2,
       "US": 80
     }
   },
@@ -35,32 +36,32 @@
     },
     {
       "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 17766,
+      "actual": 17551,
       "minimum": 10000,
       "passed": true
     },
     {
       "name": "tcp_alive",
-      "actual": 59151,
+      "actual": 59379,
       "minimum": 30000,
       "passed": true
     },
     {
       "name": "tls_valid",
-      "actual": 56591,
+      "actual": 57016,
       "minimum": 100,
       "passed": true
     },
     {
       "name": "http_valid",
-      "actual": 54867,
+      "actual": 55313,
       "minimum": 50,
       "passed": true
     }
   ],
   "warnings": [],
-  "duration_seconds": 750.839,
-  "generated_at": "2026-08-23T19:01:54.053134+00:00",
+  "duration_seconds": 583.33,
+  "generated_at": "2026-08-24T02:08:11.635358+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
