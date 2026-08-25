@@ -1,6 +1,6 @@
 {
   "status": "ok",
-  "started_at": "2026-08-24T19:00:18.798672+00:00",
+  "started_at": "2026-08-25T01:53:12.151045+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
@@ -9,21 +9,21 @@
     "remote_sources": {
       "zip.cm.edu.kg/all.txt": 17551
     },
-    "tcp_alive": 59348,
-    "tls_valid": 56779,
-    "http_valid": 55021,
+    "tcp_alive": 59332,
+    "tls_valid": 56831,
+    "http_valid": 55125,
     "selected_countries": {
-      "CA": 50,
-      "CH": 1,
-      "DE": 6,
+      "CA": 47,
+      "DE": 39,
       "DO": 4,
-      "ES": 3,
-      "FR": 1,
-      "GB": 24,
-      "IE": 4,
-      "JP": 40,
-      "MX": 7,
-      "NL": 80,
+      "ES": 2,
+      "FR": 20,
+      "GB": 29,
+      "IE": 2,
+      "JP": 28,
+      "MX": 4,
+      "NL": 41,
+      "SE": 4,
       "US": 80
     }
   },
@@ -42,26 +42,28 @@
     },
     {
       "name": "tcp_alive",
-      "actual": 59348,
+      "actual": 59332,
       "minimum": 30000,
       "passed": true
     },
     {
       "name": "tls_valid",
-      "actual": 56779,
+      "actual": 56831,
       "minimum": 100,
       "passed": true
     },
     {
       "name": "http_valid",
-      "actual": 55021,
+      "actual": 55125,
       "minimum": 50,
       "passed": true
     }
   ],
-  "warnings": [],
-  "duration_seconds": 761.459,
-  "generated_at": "2026-08-24T19:13:00.257957+00:00",
+  "warnings": [
+    "zip.cm.edu.kg/all.txt 在线刷新失败，已使用仓库缓存；第 1 次: <urlopen error [Errno -2] Name or service not known>；第 2 次: <urlopen error [Errno -2] Name or service not known>；第 3 次: <urlopen error [Errno -2] Name or service not known>"
+  ],
+  "duration_seconds": 607.254,
+  "generated_at": "2026-08-25T02:03:19.405131+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
