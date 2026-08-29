@@ -1,12 +1,12 @@
 {
   "status": "ok",
-  "started_at": "2026-08-29T16:43:59.049569+00:00",
+  "started_at": "2026-08-29T20:56:34.428311+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 103473,
+    "pool_endpoints": 103474,
     "pool_unique_ips": 100000,
-    "cloudflare_sampling_seed": 17552098278766566132,
+    "cloudflare_sampling_seed": 18250625859587127019,
     "remote_sources": {
       "zip.cm.edu.kg/all.txt": 16687,
       "ymyuuu/IPDB BestCF IPv4": 10,
@@ -15,19 +15,27 @@
       "bestcf.pages.dev/lzj": 115,
       "hubbylei/bestcf": 10
     },
-    "tcp_alive": 58498,
-    "tls_valid": 55805,
-    "http_valid": 54138,
+    "tcp_alive": 58676,
+    "tls_valid": 55936,
+    "http_valid": 54175,
     "previous_loaded": 100,
-    "previous_reverified": 100,
-    "merge_candidates": 378,
-    "previous_in_final": 22,
+    "previous_reverified": 98,
+    "merge_candidates": 346,
+    "previous_in_final": 52,
     "current_top300": 300,
     "selected_countries": {
-      "CA": 23,
+      "CA": 48,
+      "DE": 7,
+      "DO": 4,
+      "FR": 4,
+      "GB": 13,
+      "IE": 2,
       "JP": 80,
-      "KR": 71,
-      "SG": 46,
+      "KR": 27,
+      "MX": 4,
+      "NL": 20,
+      "SE": 2,
+      "SG": 9,
       "US": 80
     }
   },
@@ -46,19 +54,19 @@
     },
     {
       "name": "tcp_alive",
-      "actual": 58498,
+      "actual": 58676,
       "minimum": 30000,
       "passed": true
     },
     {
       "name": "tls_valid",
-      "actual": 55805,
+      "actual": 55936,
       "minimum": 100,
       "passed": true
     },
     {
       "name": "http_valid",
-      "actual": 54138,
+      "actual": 54175,
       "minimum": 50,
       "passed": true
     }
@@ -66,8 +74,8 @@
   "warnings": [
     "已排除 2 条非公网地址"
   ],
-  "duration_seconds": 609.591,
-  "generated_at": "2026-08-29T16:54:08.640742+00:00",
+  "duration_seconds": 597.546,
+  "generated_at": "2026-08-29T21:06:31.975052+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
