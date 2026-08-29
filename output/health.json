@@ -1,65 +1,34 @@
 {
-  "status": "ok",
-  "started_at": "2026-08-28T22:21:41.385256+00:00",
+  "status": "packaged-last-known-good",
   "target_domain": "jackoyu.dpdns.org",
-  "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 103472,
-    "pool_unique_ips": 100000,
-    "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 17073
-    },
-    "tcp_alive": 58657,
-    "tls_valid": 55990,
-    "http_valid": 54213,
+    "selected": 300,
     "selected_countries": {
-      "CA": 42,
-      "DO": 4,
-      "JP": 80,
-      "KR": 62,
-      "MX": 4,
-      "NL": 3,
-      "SG": 25,
+      "AT": 1,
+      "AU": 1,
+      "CH": 3,
+      "CN": 67,
+      "DE": 80,
+      "FR": 3,
+      "GB": 6,
+      "HK": 5,
+      "JP": 16,
+      "KR": 15,
+      "NL": 12,
+      "PL": 1,
+      "RU": 2,
+      "SG": 5,
+      "TR": 1,
+      "TW": 2,
       "US": 80
     }
   },
-  "gates": [
-    {
-      "name": "pool_unique_ips",
-      "actual": 100000,
-      "minimum": 100000,
-      "passed": true
-    },
-    {
-      "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 17073,
-      "minimum": 10000,
-      "passed": true
-    },
-    {
-      "name": "tcp_alive",
-      "actual": 58657,
-      "minimum": 30000,
-      "passed": true
-    },
-    {
-      "name": "tls_valid",
-      "actual": 55990,
-      "minimum": 100,
-      "passed": true
-    },
-    {
-      "name": "http_valid",
-      "actual": 54213,
-      "minimum": 50,
-      "passed": true
-    }
+  "warnings": [
+    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V2-JP10-R100-Dynamic 的最新结果。"
   ],
-  "warnings": [],
-  "duration_seconds": 604.532,
-  "generated_at": "2026-08-28T22:31:45.918061+00:00",
+  "snapshot_generated_at": "2026-08-23T08:35:45.599500+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
-  "preserved_previous_output": false
+  "preserved_previous_output": true
 }

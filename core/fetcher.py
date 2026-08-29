@@ -112,6 +112,43 @@ def sample_ranges(
     return results
 
 
+def _public_records(records: Iterable[NodeResult], warnings: list[str]) -> list[NodeResult]:
+    public: list[NodeResult] = []
+    rejected = 0
+    for record in records:
+        if ipaddress.ip_address(record.ip).is_global:
+            public.append(record)
+        else:
+            rejected += 1
+    if rejected:
+        warnings.append(f"已排除 {rejected} 条非公网地址")
+    return public
+
+
+def _limit_unique_ips(records: Iterable[NodeResult], target: int) -> list[NodeResult]:
+    if target <= 0:
+        return list(records)
+    allowed: set[str] = set()
+    limited: list[NodeResult] = []
+    for record in records:
+        if record.ip not in allowed and len(allowed) >= target:
+            continue
+        allowed.add(record.ip)
+        limited.append(record)
+    return limited
+
+
+def _resolve_sampling_seed(block: dict[str, Any]) -> int:
+    raw = block.get("sampling_seed")
+    if raw is None or str(raw).strip() == "":
+        return time.time_ns()
+    text = str(raw).strip()
+    try:
+        return int(text)
+    except ValueError:
+        return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
+
+
 def _parse_remote_payload(entry: dict[str, Any], url: str, payload: bytes) -> list[NodeResult]:
     label = str(entry.get("name") or url)
     records = parse_bytes(
@@ -184,12 +221,21 @@ def _load_remote_source(
     return []
 
 
-def collect_candidates(config: dict[str, Any]) -> tuple[list[NodeResult], list[str]]:
+def collect_candidates(
+    config: dict[str, Any],
+    *,
+    priority_records: Iterable[NodeResult] = (),
+) -> tuple[list[NodeResult], list[str]]:
     source_config = config["sources"]
     warnings: list[str] = []
     records: list[NodeResult] = []
     max_bytes = int(source_config.get("max_download_bytes", 20 * 1024 * 1024))
     user_agent = str(config["project"].get("user_agent", "Noode-CG/2.0"))
+
+    for previous in priority_records:
+        node = NodeResult(ip=previous.ip, port=previous.port, country_hint=previous.country or previous.country_hint)
+        node.add_source("previous-top100")
+        records.append(node)
 
     for configured in source_config.get("local", []):
         path = resolve_path(config, configured)
@@ -213,13 +259,14 @@ def collect_candidates(config: dict[str, Any]) -> tuple[list[NodeResult], list[s
             )
         )
 
-    records = deduplicate(records)
+    records = deduplicate(_public_records(records, warnings))
     ranges = source_config.get("cloudflare_ranges", {})
     target = int(ranges.get("target_pool", 0))
     unique_ips = {record.ip for record in records}
     if ranges.get("enabled", True) and len(unique_ips) < target:
         ipv4 = _read_range_lines(config, ranges, 4, warnings)
-        seed = int(ranges.get("deterministic_seed", 0))
+        seed = _resolve_sampling_seed(ranges)
+        ranges["_resolved_sampling_seed"] = seed
         for attempt in range(5):
             generated = sample_ranges(
                 ipv4,
@@ -251,5 +298,6 @@ def collect_candidates(config: dict[str, Any]) -> tuple[list[NodeResult], list[s
                     records.append(node)
                     unique_ips.add(node.ip)
 
-    return deduplicate(records), warnings
-
+    records = deduplicate(_public_records(records, warnings))
+    records = _limit_unique_ips(records, target)
+    return records, warnings

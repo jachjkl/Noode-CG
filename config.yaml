@@ -1,13 +1,19 @@
 project:
-  name: Noode-CG V2-JP10
+  name: Noode-CG V2-JP10-R100-Dynamic
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/2.0-jp10
+  user_agent: Noode-CG/2.2-jp10-r100-dynamic
 
 paths:
   locations: data/locations.json
   checkpoints: data/checkpoints
   output: output
+
+rolling:
+  # Save the previous published TOP100, force them through the current tests,
+  # then merge the survivors with the new TOP300 for a second TOP300 ranking.
+  previous_limit: 100
+  snapshot_path: data/previous-top100.json
 
 sources:
   local:
@@ -27,6 +33,56 @@ sources:
       timeout_seconds: 30
       default_port: 443
       cache_path: data/sources/zip-cm-edu-kg-all.txt
+    - name: ymyuuu/IPDB BestCF IPv4
+      url: https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt
+      required: false
+      min_records: 5
+      min_ratio_to_cache: 0.50
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/ymyuuu-bestcfv4.txt
+    - name: bestcf.pages.dev/cmliu
+      url: https://bestcf.pages.dev/cmliu/all.txt
+      required: false
+      min_records: 10
+      min_ratio_to_cache: 0.50
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/bestcf-cmliu.txt
+    - name: bestcf.pages.dev/cmliu2
+      url: https://bestcf.pages.dev/cmliu2/all.txt
+      required: false
+      min_records: 10
+      min_ratio_to_cache: 0.50
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/bestcf-cmliu2.txt
+    - name: bestcf.pages.dev/lzj
+      url: https://bestcf.pages.dev/lzj/all.txt
+      required: false
+      min_records: 50
+      min_ratio_to_cache: 0.50
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/bestcf-lzj.txt
+    - name: hubbylei/bestcf
+      url: https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt
+      required: false
+      min_records: 5
+      min_ratio_to_cache: 0.50
+      retries: 3
+      retry_delay_seconds: 2
+      timeout_seconds: 30
+      default_port: 443
+      cache_path: data/sources/hubbylei-bestcf.txt
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
@@ -38,7 +94,9 @@ sources:
     ipv6_fallback: data/cloudflare-ipv6.txt
     target_pool: 100000
     ports: [443]
-    deterministic_seed: 20260822
+    # GitHub supplies a different run id/attempt each time. Local runs leave
+    # this empty and use the current nanosecond timestamp.
+    sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
   # These are observable quality gates, not promises. A run never fabricates
@@ -83,6 +141,8 @@ pipeline:
     bytes_per_test: 1048576
     minimum_completion_ratio: 0.95
     candidates: 600
+    priority_sources:
+      previous-top100: 100
     minimum_per_country:
       JP: 30
     concurrency: 6

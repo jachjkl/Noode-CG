@@ -12,6 +12,7 @@ from .fetcher import collect_candidates
 from .http_check import check_http
 from .io_utils import write_checkpoint
 from .isp_test import merge_probe_files
+from .rolling import load_previous_top, merge_with_previous, save_previous_top
 from .scorer import score_nodes, select_diverse
 from .speed_test import test_speed
 from .tcp_scan import scan_tcp
@@ -27,6 +28,9 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
+    output_dir = resolve_path(config, config["paths"]["output"])
+    rolling = config.get("rolling", {})
+    snapshot_path = resolve_path(config, rolling.get("snapshot_path", "data/previous-top100.json"))
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     report: dict[str, Any] = {
         "status": "running",
@@ -38,11 +42,21 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         "warnings": [],
     }
 
-    candidates, warnings = collect_candidates(config)
+    previous, previous_warnings = load_previous_top(
+        output_dir,
+        snapshot_path,
+        int(rolling.get("previous_limit", 100)),
+    )
+    save_previous_top(snapshot_path, previous)
+    report["warnings"].extend(previous_warnings)
+    candidates, warnings = collect_candidates(config, priority_records=previous)
     unique_pool = len({node.ip for node in candidates})
     report["warnings"].extend(warnings)
     report["counts"]["pool_endpoints"] = len(candidates)
     report["counts"]["pool_unique_ips"] = unique_pool
+    sampling_seed = config["sources"].get("cloudflare_ranges", {}).get("_resolved_sampling_seed")
+    if sampling_seed is not None:
+        report["counts"]["cloudflare_sampling_seed"] = sampling_seed
     report["gates"].append(_gate("pool_unique_ips", unique_pool, int(pipeline["min_pool"])))
     source_counts: dict[str, int] = {}
     for configured in config["sources"].get("remote", []):
@@ -96,7 +110,10 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         )
     )
     ranked = score_nodes(tested, config["score"])
-    selected = select_diverse(ranked, config["output"])
+    current_selected = select_diverse(ranked, config["output"])
+    selected, rolling_counts = merge_with_previous(current_selected, ranked, previous, config["output"])
+    report["counts"].update(rolling_counts)
+    report["counts"]["current_top300"] = len(current_selected)
     selected_countries = Counter((node.country or node.country_hint or "XX").upper() for node in selected)
     report["counts"]["selected_countries"] = dict(sorted(selected_countries.items()))
     for country, minimum in config["output"].get("minimum_per_country", {}).items():
@@ -111,7 +128,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     report["status"] = "ok" if gates_passed else "degraded"
     report["duration_seconds"] = round((datetime.now(UTC) - started).total_seconds(), 3)
     final_report = publish_outputs(
-        resolve_path(config, config["paths"]["output"]),
+        output_dir,
         selected,
         report,
         config["output"],

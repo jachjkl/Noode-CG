@@ -15,6 +15,14 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["pipeline"]["min_pool"], 100000)
         self.assertEqual(config["output"]["minimum_per_country"], {"JP": 10})
         self.assertNotIn("KR", config["output"]["minimum_per_country"])
+        self.assertEqual(len(config["sources"]["remote"]), 6)
+        self.assertEqual(config["rolling"]["previous_limit"], 100)
+        self.assertEqual(config["paths"]["output"], "output")
+        self.assertNotIn("deterministic_seed", config["sources"]["cloudflare_ranges"])
+
+        workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "update.yml").read_text(encoding="utf-8")
+        self.assertIn("NOODE_RUN_SEED", workflow)
+        self.assertIn("github.run_attempt", workflow)
 
     def test_rejects_url_as_domain(self) -> None:
         text = """

@@ -128,7 +128,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V2-JP10",
+                "project": "Noode-CG V2-JP10-R100-Dynamic",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

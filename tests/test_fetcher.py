@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from core.fetcher import collect_candidates, sample_ranges
+from core.models import NodeResult
 
 
 class FetcherTests(unittest.TestCase):
@@ -60,10 +61,10 @@ class FetcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             cache = root / "cache.txt"
-            cached_text = "".join(f"192.0.2.{index}:443#US\n" for index in range(1, 11))
+            cached_text = "".join(f"1.1.1.{index}:443#US\n" for index in range(1, 11))
             cache.write_text(cached_text, encoding="utf-8")
             online = root / "online.txt"
-            online.write_text("198.51.100.1:443#JP\n198.51.100.2:443#JP\n", encoding="utf-8")
+            online.write_text("8.8.8.1:443#JP\n8.8.8.2:443#JP\n", encoding="utf-8")
             config = {
                 "_base_dir": str(root),
                 "project": {"user_agent": "Noode-CG-test"},
@@ -89,7 +90,99 @@ class FetcherTests(unittest.TestCase):
             self.assertEqual(cache.read_text(encoding="utf-8"), cached_text)
             self.assertTrue(any("防缩量门槛" in warning for warning in warnings))
 
+    def test_pool_is_exactly_target_size_and_keeps_previous_top(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ranges = root / "ranges.txt"
+            ranges.write_text("104.16.0.0/20\n", encoding="utf-8")
+            config = {
+                "_base_dir": str(root),
+                "project": {"user_agent": "Noode-CG-test"},
+                "sources": {
+                    "local": [],
+                    "remote": [],
+                    "cloudflare_ranges": {
+                        "enabled": True,
+                        "refresh": False,
+                        "ipv4_fallback": "ranges.txt",
+                        "target_pool": 10,
+                        "ports": [443],
+                        "sampling_seed": "test-fixed",
+                        "include_ipv6": False,
+                    },
+                },
+            }
+            previous = [NodeResult(ip="1.1.1.1"), NodeResult(ip="1.0.0.1")]
+
+            records, _warnings = collect_candidates(config, priority_records=previous)
+
+            self.assertEqual(len({record.ip for record in records}), 10)
+            self.assertTrue({"1.1.1.1", "1.0.0.1"}.issubset({record.ip for record in records}))
+            self.assertTrue(all("previous-top100" in record.sources for record in records[:2]))
+
+    def test_different_run_seeds_rotate_official_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ranges = root / "ranges.txt"
+            ranges.write_text("104.16.0.0/16\n", encoding="utf-8")
+            base = {
+                "_base_dir": str(root),
+                "project": {"user_agent": "Noode-CG-test"},
+                "sources": {
+                    "local": [],
+                    "remote": [],
+                    "cloudflare_ranges": {
+                        "enabled": True,
+                        "refresh": False,
+                        "ipv4_fallback": "ranges.txt",
+                        "target_pool": 100,
+                        "ports": [443],
+                        "include_ipv6": False,
+                    },
+                },
+            }
+            previous = [NodeResult(ip="1.1.1.1")]
+            first_config = {**base, "sources": {**base["sources"]}}
+            first_config["sources"]["cloudflare_ranges"] = {
+                **base["sources"]["cloudflare_ranges"],
+                "sampling_seed": "run-100-attempt-1",
+            }
+            second_config = {**base, "sources": {**base["sources"]}}
+            second_config["sources"]["cloudflare_ranges"] = {
+                **base["sources"]["cloudflare_ranges"],
+                "sampling_seed": "run-101-attempt-1",
+            }
+
+            first, _ = collect_candidates(first_config, priority_records=previous)
+            second, _ = collect_candidates(second_config, priority_records=previous)
+            first_ips = {record.ip for record in first}
+            second_ips = {record.ip for record in second}
+
+            self.assertEqual(len(first_ips), 100)
+            self.assertEqual(len(second_ips), 100)
+            self.assertIn("1.1.1.1", first_ips & second_ips)
+            self.assertNotEqual(first_ips, second_ips)
+            self.assertGreater(len(first_ips ^ second_ips), 100)
+
+    def test_non_public_source_addresses_do_not_consume_pool_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.txt"
+            source.write_text("127.0.0.1:1234\n1.1.1.1:443\n", encoding="utf-8")
+            config = {
+                "_base_dir": str(root),
+                "project": {"user_agent": "Noode-CG-test"},
+                "sources": {
+                    "local": ["source.txt"],
+                    "remote": [],
+                    "cloudflare_ranges": {"enabled": False, "target_pool": 0},
+                },
+            }
+
+            records, _warnings = collect_candidates(config)
+
+            self.assertEqual([record.ip for record in records], ["1.1.1.1"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

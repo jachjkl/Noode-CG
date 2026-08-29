@@ -22,15 +22,18 @@ requirements.txt
 
 仓库进入 **Actions**。如果 GitHub 首次提示启用工作流，点击启用。选择 **Refresh verified endpoints**，点击 **Run workflow**。
 
-如果是覆盖旧版仓库，先运行一次 **Cleanup obsolete V2.3 files**。GitHub 网页上传不会删除旧文件，这个一次性工作流会清除旧模块与旧测试，然后删除自身。清理提交触发的 CI 应只运行当前 19 项测试。
+如果是覆盖旧版仓库，先运行一次 **Cleanup obsolete files**。GitHub 网页上传不会删除旧文件，这个一次性工作流会清除旧模块、旧测试和废弃数据，然后删除自身。清理成功后再运行刷新任务。
 
 工作流会：
 
-1. 更新 `zip.cm.edu.kg/all.txt` 缓存；
-2. 读取仓库内的 TXT 和 ZIP 种子；
-3. 从 Cloudflare 官方 IPv4 网段补足 100,000 个不同 IP；
-4. 扫描、验证、测速并选择 TOP 300；
-5. 自动提交 `output/` 和 `data/sources/` 的变化。
+1. 更新配置中的 6 个在线 IP 源缓存；
+2. 读取仓库内的 TXT、ZIP 和上一轮 TOP100；
+3. 从 Cloudflare 官方 IPv4 网段补足到 100,000 个不同 IP；
+4. 扫描并选择本轮 TOP300；
+5. 与本轮复测成功的上一轮 TOP100 合并，再选最终 TOP300；
+6. 自动提交 `output/`、`data/sources/` 和 `data/previous-top100.json`。
+
+每次任务都会重新下载在线源，并使用本次 Actions 的 `run_id + run_attempt` 重新抽取官方段。手动点击“重新运行所有任务”也会使用不同种子，不会复用固定的 10 万候选池。
 
 工作流使用 GitHub 机器人账户提交，权限只包含当前仓库的 `contents: write`。默认超时 75 分钟，同一仓库不会同时运行两份刷新任务。
 
@@ -45,6 +48,7 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 - `status` 为 `ok` 表示配置的基础数量门槛通过；
 - `published` 表示本轮是否写入新列表；
 - `counts.selected_countries.JP` 应至少为 10（前提是本轮确有 10 个合格日本节点）；
+- `counts.previous_loaded`、`previous_reverified` 和 `previous_in_final` 显示旧 TOP100 的复测与保留数量；
 - `warnings` 会说明数据源回退或日本节点不足。
 
 ## 常见问题

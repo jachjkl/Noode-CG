@@ -37,6 +37,20 @@ class SpeedQualityTests(unittest.TestCase):
         self.assertIsNone(_accepted_speed_mbps(900, 1000, 1.0, 0.95))
         self.assertAlmostEqual(_accepted_speed_mbps(1000, 1000, 1.0, 0.95), 0.008)
 
+    def test_previous_top_nodes_are_reserved_for_current_speed_test(self) -> None:
+        records = [node(f"104.16.{index}.1", country="US", latency=index + 1) for index in range(20)]
+        previous = node("1.1.1.1", country="JP", latency=999)
+        previous.add_source("previous-top100")
+        records.append(previous)
+
+        targets = _select_speed_targets(
+            records,
+            10,
+            {"priority_sources": {"previous-top100": 1}},
+        )
+
+        self.assertIn(previous, targets)
+
 
 if __name__ == "__main__":
     unittest.main()

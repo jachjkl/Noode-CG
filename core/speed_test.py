@@ -26,6 +26,19 @@ def _select_speed_targets(
     selected: list[NodeResult] = []
     selected_keys: set[str] = set()
 
+    priority_sources = {
+        str(source): max(0, int(value)) for source, value in options.get("priority_sources", {}).items()
+    }
+    for wanted_source, wanted_count in priority_sources.items():
+        source_count = 0
+        for node in ordered:
+            if source_count >= min(wanted_count, count):
+                break
+            if node.key not in selected_keys and wanted_source in node.sources:
+                selected.append(node)
+                selected_keys.add(node.key)
+                source_count += 1
+
     for wanted_country, wanted_count in minimums.items():
         for node in ordered:
             if sum(_country(item) == wanted_country for item in selected) >= min(wanted_count, count):
