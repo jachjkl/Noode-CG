@@ -1,35 +1,36 @@
 {
   "status": "ok",
-  "started_at": "2026-08-29T04:20:18.032051+00:00",
+  "started_at": "2026-08-29T07:05:54.220470+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
-    "pool_endpoints": 103473,
+    "pool_endpoints": 103474,
     "pool_unique_ips": 100000,
-    "cloudflare_sampling_seed": 13995777559876357742,
+    "cloudflare_sampling_seed": 15199422048271128212,
     "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 17073,
+      "zip.cm.edu.kg/all.txt": 16687,
       "ymyuuu/IPDB BestCF IPv4": 10,
       "bestcf.pages.dev/cmliu": 32,
       "bestcf.pages.dev/cmliu2": 43,
-      "bestcf.pages.dev/lzj": 129,
+      "bestcf.pages.dev/lzj": 119,
       "hubbylei/bestcf": 10
     },
-    "tcp_alive": 58532,
-    "tls_valid": 55811,
-    "http_valid": 54001,
+    "tcp_alive": 58657,
+    "tls_valid": 55981,
+    "http_valid": 54221,
     "previous_loaded": 100,
-    "previous_reverified": 50,
-    "merge_candidates": 330,
-    "previous_in_final": 20,
+    "previous_reverified": 98,
+    "merge_candidates": 369,
+    "previous_in_final": 29,
     "current_top300": 300,
     "selected_countries": {
-      "CA": 31,
+      "CA": 47,
       "DO": 4,
       "JP": 80,
-      "KR": 68,
-      "MX": 5,
-      "SG": 32,
+      "KR": 48,
+      "MX": 6,
+      "NL": 7,
+      "SG": 28,
       "US": 80
     }
   },
@@ -42,25 +43,25 @@
     },
     {
       "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 17073,
+      "actual": 16687,
       "minimum": 10000,
       "passed": true
     },
     {
       "name": "tcp_alive",
-      "actual": 58532,
+      "actual": 58657,
       "minimum": 30000,
       "passed": true
     },
     {
       "name": "tls_valid",
-      "actual": 55811,
+      "actual": 55981,
       "minimum": 100,
       "passed": true
     },
     {
       "name": "http_valid",
-      "actual": 54001,
+      "actual": 54221,
       "minimum": 50,
       "passed": true
     }
@@ -68,8 +69,8 @@
   "warnings": [
     "已排除 2 条非公网地址"
   ],
-  "duration_seconds": 669.751,
-  "generated_at": "2026-08-29T04:31:27.783009+00:00",
+  "duration_seconds": 603.403,
+  "generated_at": "2026-08-29T07:15:57.623540+00:00",
   "selected": 300,
   "minimum_publish": 50,
   "published": true,
