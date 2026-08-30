@@ -1,12 +1,12 @@
 {
   "status": "degraded",
-  "started_at": "2026-08-30T07:40:59.444138+00:00",
+  "started_at": "2026-08-30T11:55:56.369130+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
     "previous_loaded": 100,
-    "link_source_endpoints": 19234,
-    "link_source_unique_ips": 15763,
+    "link_source_endpoints": 19241,
+    "link_source_unique_ips": 15770,
     "remote_sources": {
       "zip.cm.edu.kg/all.txt": 16803,
       "ymyuuu/IPDB BestCF IPv4": 10,
@@ -15,13 +15,13 @@
       "bestcf.pages.dev/lzj": 119,
       "hubbylei/bestcf": 10
     },
-    "official_previous_excluded": 0,
+    "official_previous_excluded": 50000,
     "official_sampled_this_run": 50000,
     "official_rounds": 1,
-    "latency_eligible": 23650,
-    "cloudflare_sampling_seed": 1354203472757139170,
+    "latency_eligible": 27359,
+    "cloudflare_sampling_seed": 10398864466190335634,
     "shortlist": 3000,
-    "shortlist_speed_complete": 2992,
+    "shortlist_speed_complete": 2996,
     "current_top300": 300,
     "rolling_retest_candidates": 400,
     "previous_reverified": 21,
@@ -37,7 +37,7 @@
     },
     {
       "name": "latency_eligible",
-      "actual": 23650,
+      "actual": 27359,
       "minimum": 3000,
       "passed": true
     },
@@ -59,39 +59,39 @@
   ],
   "rounds": [
     {
-      "input": 69234,
-      "tcp_alive": 43255,
-      "tls_valid": 41793,
-      "http_valid": 40624,
-      "average_latency_eligible": 23650,
+      "input": 69241,
+      "tcp_alive": 43604,
+      "tls_valid": 42859,
+      "http_valid": 41267,
+      "average_latency_eligible": 27359,
       "round": 1,
       "official_unique_ips": 50000,
-      "qualified_total": 23650
+      "qualified_total": 27359
     }
   ],
   "network_baseline": {
     "Google": {
-      "median_ms": 21.09,
+      "median_ms": 22.158,
       "successes": 2,
       "attempts": 2,
       "errors": []
     },
     "Cloudflare": {
-      "median_ms": 12.445,
+      "median_ms": 11.482,
       "successes": 2,
       "attempts": 2,
       "errors": []
     },
     "GitHub": {
-      "median_ms": 11.734,
+      "median_ms": 12.104,
       "successes": 2,
       "attempts": 2,
       "errors": []
     },
-    "average_ms": 15.09
+    "average_ms": 15.248
   },
-  "duration_seconds": 921.001,
-  "generated_at": "2026-08-30T07:56:20.444785+00:00",
+  "duration_seconds": 775.132,
+  "generated_at": "2026-08-30T12:08:51.500953+00:00",
   "selected": 71,
   "minimum_publish": 300,
   "published": false,
