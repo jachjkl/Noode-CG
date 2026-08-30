@@ -50,8 +50,8 @@ def _three_metric_checks(
     for node in http_valid:
         calculate_average_latency(node)
     return http_valid, {
-        "tls_three_of_three_under_300ms": len(tls_valid),
-        "https_ttfb_three_of_three_under_300ms": len(http_valid),
+        "tls_three_attempt_average_under_300ms": len(tls_valid),
+        "https_ttfb_three_attempt_average_under_300ms": len(http_valid),
     }
 
 
@@ -89,7 +89,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/5.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/6.0"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -178,7 +178,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             rolling_attempt_index += 1
             attempt_counts = {
                 **metric_counts, **speed_counts, "attempt": rolling_attempt_index,
-                "input": len(retest), "tcp_three_of_three_under_300ms": len(retest_tcp),
+                "input": len(retest), "tcp_three_attempt_average_under_300ms": len(retest_tcp),
                 "current_failed": len(failed),
                 "previous_reverified": sum(node.ip in previous_ips for node in retest_quality),
                 "final_count": len(selected),
@@ -193,7 +193,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             continue
 
         untested_speed = [node for node in three_metric.values() if node.key not in speed_processed_keys]
-        if len(three_metric) >= metric_target and untested_speed and remaining >= reserve:
+        if len(untested_speed) >= metric_target and remaining >= reserve:
             chunk = sorted(untested_speed, key=lambda node: (
                 node.average_latency_ms if node.average_latency_ms is not None else 999999,
                 node.ip, node.port,
@@ -210,7 +210,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             continue
 
         unprocessed = [node for node in strict_tcp.values() if node.key not in processed_metric_keys]
-        if len(strict_tcp) >= metric_target and unprocessed and remaining >= reserve:
+        if len(unprocessed) >= metric_target and remaining >= reserve:
             chunk = sorted(unprocessed, key=lambda node: (
                 node.tcp_latency_ms if node.tcp_latency_ms is not None else 999999,
                 node.ip, node.port,
@@ -259,7 +259,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             "link_endpoints": len(source_candidates) if round_index == 1 else 0,
             "official_unique_ips": len({node.ip for node in official}),
             "input": len(batch),
-            "tcp_three_of_three_under_300ms": len(strict_passed),
+            "tcp_three_attempt_average_under_300ms": len(strict_passed),
             "strict_tcp_total": len(strict_tcp),
         })
         print(

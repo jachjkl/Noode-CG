@@ -118,7 +118,7 @@ async def check_http(
     require_trace = bool(options.get("require_trace_fields", True))
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
-    maximum_ttfb = float(options.get("maximum_attempt_ttfb_ms", float("inf")))
+    maximum_ttfb = float(options.get("maximum_average_ttfb_ms", float("inf")))
     path = str(options.get("path", "/cdn-cgi/trace"))
     ws = websocket_options or {}
 
@@ -151,12 +151,6 @@ async def check_http(
                         f"第 {attempt_index + 1} 次: status={status}, colo={colo or '-'}, loc={country or '-'}",
                     )
                     continue
-                if ttfb > maximum_ttfb:
-                    node.add_error(
-                        "https_ttfb",
-                        f"第 {attempt_index + 1} 次: {ttfb:.3f}ms > {maximum_ttfb:g}ms",
-                    )
-                    continue
                 successes += 1
                 latencies.append(ttfb)
                 node.http_status = status
@@ -166,14 +160,21 @@ async def check_http(
             except Exception as exc:
                 node.add_error("http", f"第 {attempt_index + 1} 次: {exc}")
 
-        node.http_ok = successes == attempts if require_all else successes > 0
         node.http_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
+        attempts_passed = successes == attempts if require_all else successes > 0
+        average_passed = node.http_latency_ms is not None and node.http_latency_ms <= maximum_ttfb
+        node.http_ok = attempts_passed and average_passed
+        if attempts_passed and not average_passed:
+            node.add_error(
+                "https_ttfb",
+                f"三次平均延迟 {node.http_latency_ms:g}ms > {maximum_ttfb:g}ms",
+            )
         node.probe_results["https_ttfb"] = {
             "attempts": attempts,
             "successes": successes,
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ttfb_ms": node.http_latency_ms,
-            "maximum_attempt_ttfb_ms": maximum_ttfb,
+            "maximum_average_ttfb_ms": maximum_ttfb,
             "strict_passed": node.http_ok,
         }
 

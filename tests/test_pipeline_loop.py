@@ -77,8 +77,8 @@ class PipelineLoopTests(unittest.TestCase):
             def metrics(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "tls_three_of_three_under_300ms": len(prepared),
-                    "https_ttfb_three_of_three_under_300ms": len(prepared),
+                    "tls_three_attempt_average_under_300ms": len(prepared),
+                    "https_ttfb_three_attempt_average_under_300ms": len(prepared),
                 }
 
             def speed(records: list[NodeResult], **_kwargs):
@@ -113,6 +113,86 @@ class PipelineLoopTests(unittest.TestCase):
             self.assertIn("9.9.9.9", {node.ip for node in retest_scan})
             self.assertTrue((output / "nodes.txt").is_file())
             self.assertTrue(checkpoints.is_dir())
+
+    def test_speed_qualified_results_accumulate_across_multiple_5000_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            official_batches = [
+                [NodeResult(ip=f"104.16.{batch}.{index}") for index in range(1, 6)]
+                for batch in range(2)
+            ]
+            config = {
+                "_base_dir": str(root),
+                "project": {"target_domain": "worker.example.com", "user_agent": "test"},
+                "paths": {"locations": "locations.json", "checkpoints": "checkpoints", "output": "output"},
+                "rolling": {
+                    "previous_limit": 1,
+                    "snapshot_path": "previous.json",
+                    "official_snapshot_path": "previous-official.txt",
+                },
+                "sources": {"remote": [], "cloudflare_ranges": {"official_batch_size": 5}},
+                "pipeline": {
+                    "three_metric_shortlist": 5,
+                    "current_selection": 3,
+                    "max_runtime_seconds": 10000,
+                    "minimum_round_budget_seconds": 1,
+                    "postprocess_reserve_seconds": 1,
+                    "tcp": {},
+                    "rolling_retest": {},
+                },
+                "output": {
+                    "top_nodes": 3,
+                    "minimum_publish": 3,
+                    "preserve_last_good": True,
+                    "write_compatibility_zip": False,
+                },
+                "vantage": {"probe_files": []},
+            }
+
+            async_scan = AsyncMock(side_effect=lambda records, _options: list(records))
+
+            def metrics(records: list[NodeResult], **_kwargs):
+                prepared = [ready(node) for node in records]
+                return prepared, {
+                    "tls_three_attempt_average_under_300ms": len(prepared),
+                    "https_ttfb_three_attempt_average_under_300ms": len(prepared),
+                }
+
+            speed_call = 0
+
+            def speed(records: list[NodeResult], **_kwargs):
+                nonlocal speed_call
+                speed_call += 1
+                prepared = [ready(node) for node in records]
+                keep = 1 if speed_call == 1 else 2 if speed_call == 2 else len(prepared)
+                qualified = prepared[:keep]
+                return qualified, {
+                    "speed_tested": len(prepared),
+                    "speed_at_least_16mbps": len(qualified),
+                }
+
+            with (
+                patch("core.pipeline.measure_network_baseline", return_value={"all_targets_passed": True}),
+                patch("core.pipeline.load_previous_top", return_value=([], [])),
+                patch("core.pipeline.collect_source_candidates", return_value=([], [])),
+                patch("core.pipeline.collect_official_batch", side_effect=[
+                    (official_batches[0], []),
+                    (official_batches[1], []),
+                ]) as official_call,
+                patch("core.pipeline.scan_tcp", new=async_scan),
+                patch("core.pipeline._three_metric_checks", side_effect=metrics),
+                patch("core.pipeline._speed_checks", side_effect=speed),
+                patch("core.pipeline.load_locations", return_value={}),
+            ):
+                report = run_pipeline(config)
+
+            self.assertEqual(report["status"], "ok")
+            self.assertEqual(report["selected"], 3)
+            self.assertEqual(official_call.call_count, 2)
+            self.assertEqual(len(report["speed_batches"]), 2)
+            self.assertEqual(report["speed_batches"][0]["current_speed_qualified_total"], 1)
+            self.assertEqual(report["speed_batches"][1]["current_speed_qualified_total"], 3)
 
 
 if __name__ == "__main__":

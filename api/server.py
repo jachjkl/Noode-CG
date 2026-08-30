@@ -36,7 +36,7 @@ def make_handler(output_dir: Path):
             if route in {"/", "/healthz"}:
                 payload = json.dumps(
                     {
-                        "service": "Noode-CG V5-ThreeMetrics5000",
+                        "service": "Noode-CG V6-Average300",
                         "status": "ok",
                         "routes": sorted(ROUTES),
                     },

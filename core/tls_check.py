@@ -71,7 +71,7 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
     )
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
-    maximum_latency = float(options.get("maximum_attempt_latency_ms", float("inf")))
+    maximum_latency = float(options.get("maximum_average_latency_ms", float("inf")))
 
     async def worker(node: NodeResult) -> NodeResult:
         latencies: list[float] = []
@@ -79,26 +79,27 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
         for attempt_index in range(attempts):
             try:
                 latency, version, cipher = await _probe_once(node, domain, context, timeout)
-                if latency > maximum_latency:
-                    node.add_error(
-                        "tls",
-                        f"第 {attempt_index + 1} 次: {latency:.3f}ms > {maximum_latency:g}ms",
-                    )
-                    continue
                 successes += 1
                 latencies.append(latency)
                 node.tls_version = version
                 node.tls_cipher = cipher
             except Exception as exc:
                 node.add_error("tls", f"第 {attempt_index + 1} 次: {exc}")
-        node.tls_ok = successes == attempts if require_all else successes > 0
         node.tls_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
+        attempts_passed = successes == attempts if require_all else successes > 0
+        average_passed = node.tls_latency_ms is not None and node.tls_latency_ms <= maximum_latency
+        node.tls_ok = attempts_passed and average_passed
+        if attempts_passed and not average_passed:
+            node.add_error(
+                "tls",
+                f"三次平均延迟 {node.tls_latency_ms:g}ms > {maximum_latency:g}ms",
+            )
         node.probe_results["tls"] = {
             "attempts": attempts,
             "successes": successes,
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ms": node.tls_latency_ms,
-            "maximum_attempt_latency_ms": maximum_latency,
+            "maximum_average_latency_ms": maximum_latency,
             "strict_passed": node.tls_ok,
         }
         return node

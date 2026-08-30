@@ -130,7 +130,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V5-ThreeMetrics5000",
+                "project": "Noode-CG V6-Average300",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

@@ -22,9 +22,9 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(record.tcp_ok)
         self.assertEqual(record.tcp_latency_ms, 12.5)
 
-    async def test_strict_tcp_rejects_if_any_attempt_exceeds_300ms(self) -> None:
+    async def test_tcp_accepts_one_slow_attempt_when_three_attempt_average_is_under_300ms(self) -> None:
         record = NodeResult(ip="192.0.2.2")
-        probe = AsyncMock(side_effect=[80.0, 300.1, 90.0])
+        probe = AsyncMock(side_effect=[80.0, 500.0, 90.0])
         with patch("core.tcp_scan._probe_once", new=probe):
             result = await scan_tcp(
                 [record],
@@ -33,16 +33,17 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
                     "attempts": 3,
                     "concurrency": 1,
                     "require_all_attempts": True,
-                    "maximum_attempt_latency_ms": 300,
+                    "maximum_average_latency_ms": 300,
                 },
             )
 
-        self.assertEqual(result, [])
-        self.assertFalse(record.tcp_ok)
+        self.assertEqual(result, [record])
+        self.assertTrue(record.tcp_ok)
+        self.assertEqual(record.tcp_latency_ms, 223.333)
 
-    async def test_strict_tcp_accepts_three_attempts_at_or_below_300ms(self) -> None:
+    async def test_tcp_accepts_three_attempt_average_equal_to_300ms(self) -> None:
         record = NodeResult(ip="192.0.2.3")
-        probe = AsyncMock(side_effect=[80.0, 300.0, 90.0])
+        probe = AsyncMock(side_effect=[200.0, 300.0, 400.0])
         with patch("core.tcp_scan._probe_once", new=probe):
             result = await scan_tcp(
                 [record],
@@ -51,12 +52,30 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
                     "attempts": 3,
                     "concurrency": 1,
                     "require_all_attempts": True,
-                    "maximum_attempt_latency_ms": 300,
+                    "maximum_average_latency_ms": 300,
                 },
             )
 
         self.assertEqual(result, [record])
         self.assertEqual(record.tcp_loss_rate, 0.0)
+
+    async def test_tcp_rejects_three_attempt_average_over_300ms(self) -> None:
+        record = NodeResult(ip="192.0.2.8")
+        probe = AsyncMock(side_effect=[300.0, 300.0, 300.1])
+        with patch("core.tcp_scan._probe_once", new=probe):
+            result = await scan_tcp(
+                [record],
+                {
+                    "timeout_seconds": 1,
+                    "attempts": 3,
+                    "concurrency": 1,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertFalse(record.tcp_ok)
 
     async def test_http_stage_uses_fields_supported_by_node_model(self) -> None:
         record = NodeResult(ip="192.0.2.1", tcp_ok=True)
@@ -94,13 +113,13 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [])
         self.assertFalse(record.http_ok)
 
-    async def test_strict_tls_rejects_if_any_attempt_exceeds_300ms(self) -> None:
+    async def test_tls_uses_three_attempt_average_threshold(self) -> None:
         record = NodeResult(ip="192.0.2.5", tcp_ok=True)
         probe = AsyncMock(
             side_effect=[
-                (80.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (300.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (300.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
                 (300.1, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
-                (90.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
             ]
         )
         with patch("core.tls_check._probe_once", new=probe):
@@ -112,14 +131,39 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
                     "concurrency": 1,
                     "attempts": 3,
                     "require_all_attempts": True,
-                    "maximum_attempt_latency_ms": 300,
+                    "maximum_average_latency_ms": 300,
                 },
             )
 
         self.assertEqual(result, [])
         self.assertFalse(record.tls_ok)
 
-    async def test_https_ttfb_rejects_if_any_attempt_exceeds_300ms(self) -> None:
+    async def test_tls_accepts_one_slow_attempt_when_average_is_under_300ms(self) -> None:
+        record = NodeResult(ip="192.0.2.9", tcp_ok=True)
+        probe = AsyncMock(
+            side_effect=[
+                (100.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (500.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (100.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+            ]
+        )
+        with patch("core.tls_check._probe_once", new=probe):
+            result = await check_tls(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                },
+            )
+
+        self.assertEqual(result, [record])
+        self.assertEqual(record.tls_latency_ms, 233.333)
+
+    async def test_https_ttfb_uses_three_attempt_average_threshold(self) -> None:
         record = NodeResult(ip="192.0.2.6", tcp_ok=True, tls_ok=True)
         def response(latency: float) -> tuple[int, dict[str, str], bytes, float]:
             return (
@@ -128,7 +172,7 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
                 b"colo=NRT\nloc=JP\n",
                 latency,
             )
-        request = AsyncMock(side_effect=[response(80.0), response(300.1), response(90.0)])
+        request = AsyncMock(side_effect=[response(300.0), response(300.0), response(300.1)])
         with patch("core.http_check._request", new=request):
             result = await check_http(
                 [record],
@@ -140,13 +184,43 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
                     "concurrency": 1,
                     "attempts": 3,
                     "require_all_attempts": True,
-                    "maximum_attempt_ttfb_ms": 300,
+                    "maximum_average_ttfb_ms": 300,
                 },
             )
 
         self.assertEqual(result, [])
         self.assertFalse(record.http_ok)
-        self.assertEqual(record.probe_results["https_ttfb"]["successes"], 2)
+        self.assertEqual(record.probe_results["https_ttfb"]["successes"], 3)
+
+    async def test_https_ttfb_accepts_one_slow_attempt_when_average_is_under_300ms(self) -> None:
+        record = NodeResult(ip="192.0.2.10", tcp_ok=True, tls_ok=True)
+
+        def response(latency: float) -> tuple[int, dict[str, str], bytes, float]:
+            return (
+                200,
+                {"server": "cloudflare", "cf-ray": "test-NRT"},
+                b"colo=NRT\nloc=JP\n",
+                latency,
+            )
+
+        request = AsyncMock(side_effect=[response(100.0), response(500.0), response(100.0)])
+        with patch("core.http_check._request", new=request):
+            result = await check_http(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "path": "/cdn-cgi/trace",
+                    "accepted_statuses": [200],
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_ttfb_ms": 300,
+                },
+            )
+
+        self.assertEqual(result, [record])
+        self.assertEqual(record.http_latency_ms, 233.333)
 
     async def test_https_ttfb_stops_at_first_response_byte(self) -> None:
         record = NodeResult(ip="192.0.2.7", tcp_ok=True, tls_ok=True)

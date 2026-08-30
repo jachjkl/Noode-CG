@@ -31,7 +31,7 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
     timeout = float(options.get("timeout_seconds", 1.5))
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
-    maximum_raw = options.get("maximum_attempt_latency_ms")
+    maximum_raw = options.get("maximum_average_latency_ms")
     maximum_latency = float(maximum_raw) if maximum_raw is not None else None
 
     async def worker(node: NodeResult) -> NodeResult:
@@ -44,22 +44,25 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
                 last_error = exc
         node.tcp_loss_rate = round(1 - len(measurements) / attempts, 4)
         if measurements:
-            node.tcp_latency_ms = round(statistics.median(measurements), 3)
+            node.tcp_latency_ms = round(statistics.fmean(measurements), 3)
             node.tcp_jitter_ms = round(statistics.pstdev(measurements), 3) if len(measurements) > 1 else 0.0
         all_succeeded = len(measurements) == attempts
-        all_within_limit = maximum_latency is None or all(value <= maximum_latency for value in measurements)
-        node.tcp_ok = bool(measurements) and (all_succeeded or not require_all) and all_within_limit
+        average_within_limit = maximum_latency is None or (
+            node.tcp_latency_ms is not None and node.tcp_latency_ms <= maximum_latency
+        )
+        node.tcp_ok = bool(measurements) and (all_succeeded or not require_all) and average_within_limit
         node.probe_results["tcp"] = {
             "attempts": attempts,
             "successes": len(measurements),
             "latencies_ms": [round(value, 3) for value in measurements],
-            "maximum_attempt_latency_ms": maximum_latency,
+            "average_ms": node.tcp_latency_ms,
+            "maximum_average_latency_ms": maximum_latency,
             "strict_passed": node.tcp_ok,
         }
         if not node.tcp_ok and last_error:
             node.add_error("tcp", last_error)
-        elif not node.tcp_ok and not all_within_limit:
-            node.add_error("tcp", f"至少一次延迟超过 {maximum_latency:g}ms")
+        elif not node.tcp_ok and not average_within_limit:
+            node.add_error("tcp", f"三次平均延迟 {node.tcp_latency_ms:g}ms > {maximum_latency:g}ms")
         elif not node.tcp_ok:
             node.add_error("tcp", f"只成功 {len(measurements)}/{attempts} 次")
         return node

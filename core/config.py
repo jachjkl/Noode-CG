@@ -79,18 +79,18 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
     _positive_number(pipeline["tcp"].get("attempts"), "pipeline.tcp.attempts")
     _positive_number(
-        pipeline["tcp"].get("maximum_attempt_latency_ms"),
-        "pipeline.tcp.maximum_attempt_latency_ms",
+        pipeline["tcp"].get("maximum_average_latency_ms"),
+        "pipeline.tcp.maximum_average_latency_ms",
     )
     _positive_number(pipeline["tls"].get("attempts"), "pipeline.tls.attempts")
     _positive_number(
-        pipeline["tls"].get("maximum_attempt_latency_ms"),
-        "pipeline.tls.maximum_attempt_latency_ms",
+        pipeline["tls"].get("maximum_average_latency_ms"),
+        "pipeline.tls.maximum_average_latency_ms",
     )
     _positive_number(pipeline["http"].get("attempts"), "pipeline.http.attempts")
     _positive_number(
-        pipeline["http"].get("maximum_attempt_ttfb_ms"),
-        "pipeline.http.maximum_attempt_ttfb_ms",
+        pipeline["http"].get("maximum_average_ttfb_ms"),
+        "pipeline.http.maximum_average_ttfb_ms",
     )
     for stage in ("tcp", "tls", "http"):
         if int(pipeline[stage].get("attempts", 0)) != 3:
@@ -115,8 +115,8 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
         _positive_number(block.get("attempts"), f"pipeline.{stage}.attempts")
         _positive_number(
-            block.get("maximum_attempt_latency_ms"),
-            f"pipeline.{stage}.maximum_attempt_latency_ms",
+            block.get("maximum_average_latency_ms"),
+            f"pipeline.{stage}.maximum_average_latency_ms",
         )
 
     top_nodes = config["output"].get("top_nodes")

@@ -24,7 +24,7 @@
     }
   },
   "warnings": [
-    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V5-ThreeMetrics5000 的最新 500 条结果。"
+    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V6-Average300 的最新 500 条结果。"
   ],
   "snapshot_generated_at": "2026-08-23T08:35:45.599500+00:00",
   "selected": 300,

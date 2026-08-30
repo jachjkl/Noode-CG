@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V5-ThreeMetrics5000
+  name: Noode-CG V6-Average300
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/5.0-three-metrics
+  user_agent: Noode-CG/6.0-average300
 
 paths:
   locations: data/locations.json
@@ -71,7 +71,7 @@ pipeline:
     timeout_seconds: 1.5
     attempts: 3
     require_all_attempts: true
-    maximum_attempt_latency_ms: 300
+    maximum_average_latency_ms: 300
 
   tls:
     concurrency: 300
@@ -80,7 +80,7 @@ pipeline:
     minimum_version: TLSv1.2
     attempts: 3
     require_all_attempts: true
-    maximum_attempt_latency_ms: 300
+    maximum_average_latency_ms: 300
 
   http:
     concurrency: 250
@@ -90,7 +90,7 @@ pipeline:
     accepted_statuses: [200]
     attempts: 3
     require_all_attempts: true
-    maximum_attempt_ttfb_ms: 300
+    maximum_average_ttfb_ms: 300
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -117,7 +117,7 @@ pipeline:
     timeout_seconds: 1.5
     attempts: 3
     require_all_attempts: true
-    maximum_attempt_latency_ms: 300
+    maximum_average_latency_ms: 300
 
 output:
   top_nodes: 500
