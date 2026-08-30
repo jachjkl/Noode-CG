@@ -1,34 +1,99 @@
 {
-  "status": "packaged-last-known-good",
+  "status": "degraded",
+  "started_at": "2026-08-30T07:40:59.444138+00:00",
   "target_domain": "jackoyu.dpdns.org",
+  "vantage": "github-general",
   "counts": {
-    "selected": 300,
-    "selected_countries": {
-      "AT": 1,
-      "AU": 1,
-      "CH": 3,
-      "CN": 67,
-      "DE": 80,
-      "FR": 3,
-      "GB": 6,
-      "HK": 5,
-      "JP": 16,
-      "KR": 15,
-      "NL": 12,
-      "PL": 1,
-      "RU": 2,
-      "SG": 5,
-      "TR": 1,
-      "TW": 2,
-      "US": 80
-    }
+    "previous_loaded": 100,
+    "link_source_endpoints": 19234,
+    "link_source_unique_ips": 15763,
+    "remote_sources": {
+      "zip.cm.edu.kg/all.txt": 16803,
+      "ymyuuu/IPDB BestCF IPv4": 10,
+      "bestcf.pages.dev/cmliu": 32,
+      "bestcf.pages.dev/cmliu2": 43,
+      "bestcf.pages.dev/lzj": 119,
+      "hubbylei/bestcf": 10
+    },
+    "official_previous_excluded": 0,
+    "official_sampled_this_run": 50000,
+    "official_rounds": 1,
+    "latency_eligible": 23650,
+    "cloudflare_sampling_seed": 1354203472757139170,
+    "shortlist": 3000,
+    "shortlist_speed_complete": 2992,
+    "current_top300": 300,
+    "rolling_retest_candidates": 400,
+    "previous_reverified": 21,
+    "previous_in_final": 21,
+    "final_speed_complete": 71
   },
-  "warnings": [
-    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V3-Rolling300 的最新结果。"
+  "gates": [
+    {
+      "name": "required_source:zip.cm.edu.kg/all.txt",
+      "actual": 16803,
+      "minimum": 10000,
+      "passed": true
+    },
+    {
+      "name": "latency_eligible",
+      "actual": 23650,
+      "minimum": 3000,
+      "passed": true
+    },
+    {
+      "name": "current_top300",
+      "actual": 300,
+      "minimum": 300,
+      "passed": true
+    },
+    {
+      "name": "final_top300",
+      "actual": 71,
+      "minimum": 300,
+      "passed": false
+    }
   ],
-  "snapshot_generated_at": "2026-08-23T08:35:45.599500+00:00",
-  "selected": 300,
+  "warnings": [
+    "已排除 2 条非公网地址"
+  ],
+  "rounds": [
+    {
+      "input": 69234,
+      "tcp_alive": 43255,
+      "tls_valid": 41793,
+      "http_valid": 40624,
+      "average_latency_eligible": 23650,
+      "round": 1,
+      "official_unique_ips": 50000,
+      "qualified_total": 23650
+    }
+  ],
+  "network_baseline": {
+    "Google": {
+      "median_ms": 21.09,
+      "successes": 2,
+      "attempts": 2,
+      "errors": []
+    },
+    "Cloudflare": {
+      "median_ms": 12.445,
+      "successes": 2,
+      "attempts": 2,
+      "errors": []
+    },
+    "GitHub": {
+      "median_ms": 11.734,
+      "successes": 2,
+      "attempts": 2,
+      "errors": []
+    },
+    "average_ms": 15.09
+  },
+  "duration_seconds": 921.001,
+  "generated_at": "2026-08-30T07:56:20.444785+00:00",
+  "selected": 71,
   "minimum_publish": 300,
-  "published": true,
+  "published": false,
   "preserved_previous_output": true
 }
