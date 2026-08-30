@@ -37,6 +37,10 @@ def _accepted_speed_mbps(
     return round(received * 8 / max(elapsed, 0.001) / 1_000_000, 3)
 
 
+def meets_minimum_speed(node: NodeResult, *, minimum_mbps: float) -> bool:
+    return node.speed_mbps is not None and node.speed_mbps >= minimum_mbps
+
+
 async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user_agent: str) -> list[NodeResult]:
     if not options.get("enabled", True) or not records:
         return records
@@ -51,8 +55,8 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
 
     async def worker(node: NodeResult) -> NodeResult:
         writer = None
-        started = time.perf_counter()
         received = 0
+        download_elapsed = 0.0
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(
@@ -77,19 +81,33 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
             status_line = header.split(b"\r\n", 1)[0].split()
             if len(status_line) < 2 or status_line[1] != b"200":
                 raise ValueError(f"测速响应状态异常: {status_line[:2]}")
+            download_started = time.perf_counter()
             while received < wanted:
                 chunk = await asyncio.wait_for(reader.read(min(65536, wanted - received)), timeout=timeout)
                 if not chunk:
                     break
                 received += len(chunk)
-            elapsed = max(time.perf_counter() - started, 0.001)
-            node.speed_mbps = _accepted_speed_mbps(received, wanted, elapsed, minimum_completion_ratio)
+            download_elapsed = max(time.perf_counter() - download_started, 0.001)
+            node.speed_mbps = _accepted_speed_mbps(
+                received,
+                wanted,
+                download_elapsed,
+                minimum_completion_ratio,
+            )
             if node.speed_mbps is None:
                 node.add_error("speed", f"测速正文不完整: {received}/{wanted} bytes")
         except Exception as exc:
             node.speed_mbps = None
             node.add_error("speed", exc)
         finally:
+            node.probe_results["speed"] = {
+                "received_bytes": received,
+                "wanted_bytes": wanted,
+                "completion_ratio": round(received / wanted, 4) if wanted > 0 else 0.0,
+                "download_seconds": round(download_elapsed, 4),
+                "speed_mbps": node.speed_mbps,
+                "minimum_mbps": float(options.get("minimum_mbps", 0)),
+            }
             if writer is not None:
                 writer.close()
                 try:

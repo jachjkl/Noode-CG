@@ -1,5 +1,5 @@
 param(
-    [string]$Destination = "Noode-CG-V3-Rolling300.zip"
+    [string]$Destination = "Noode-CG-V5-ThreeMetrics5000.zip"
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +22,7 @@ try {
             $Segments = $Relative -split '[\\/]'
             $_.FullName -ne $DestinationPath -and
                 $Relative -notmatch '^[^\\/]+\.zip$' -and
+                $Relative -notmatch '^data[\\/]input[\\/](ALL-2026-08-22\.txt|ip\.zip)$' -and
                 $_.Extension -notin @(".pyc", ".pyo") -and
                 -not ($Segments | Where-Object { $_ -in $ExcludedDirectories })
         } |

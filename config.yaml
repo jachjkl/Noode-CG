@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V3-Rolling300
+  name: Noode-CG V5-ThreeMetrics5000
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/3.0-rolling300
+  user_agent: Noode-CG/5.0-three-metrics
 
 paths:
   locations: data/locations.json
@@ -11,15 +11,13 @@ paths:
 
 rolling:
   # Save the previous published TOP100, then retest them together with the
-  # current TOP300 before publishing the final TOP300.
+  # current TOP500 before publishing the final TOP500.
   previous_limit: 100
   snapshot_path: data/previous-top100.json
   official_snapshot_path: data/previous-official-ips.txt
 
 sources:
-  local:
-    - data/input/ALL-2026-08-22.txt
-    - data/input/ip.zip
+  local: []
   # Every valid entry from every link is included. Link entries do not consume
   # any of the 50,000 official-range slots sampled in each round.
   # If the service is temporarily unavailable, the last committed cache is used.
@@ -34,39 +32,9 @@ sources:
       timeout_seconds: 30
       default_port: 443
       cache_path: data/sources/zip-cm-edu-kg-all.txt
-    - name: ymyuuu/IPDB BestCF IPv4
-      url: https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt
-      required: false
-      min_records: 5
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/ymyuuu-bestcfv4.txt
-    - name: bestcf.pages.dev/cmliu
-      url: https://bestcf.pages.dev/cmliu/all.txt
-      required: false
-      min_records: 10
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/bestcf-cmliu.txt
-    - name: bestcf.pages.dev/cmliu2
-      url: https://bestcf.pages.dev/cmliu2/all.txt
-      required: false
-      min_records: 10
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/bestcf-cmliu2.txt
     - name: bestcf.pages.dev/lzj
       url: https://bestcf.pages.dev/lzj/all.txt
-      required: false
+      required: true
       min_records: 50
       min_ratio_to_cache: 0.50
       retries: 3
@@ -74,16 +42,6 @@ sources:
       timeout_seconds: 30
       default_port: 443
       cache_path: data/sources/bestcf-lzj.txt
-    - name: hubbylei/bestcf
-      url: https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt
-      required: false
-      min_records: 5
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/hubbylei-bestcf.txt
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
@@ -100,9 +58,9 @@ sources:
     sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
-  latency_shortlist: 3000
-  maximum_average_latency_ms: 300
-  current_selection: 300
+  # This target counts only IPs that pass TCP, TLS, and HTTPS TTFB below.
+  three_metric_shortlist: 5000
+  current_selection: 500
   max_runtime_seconds: 19800
   minimum_round_budget_seconds: 900
   postprocess_reserve_seconds: 6000
@@ -112,12 +70,17 @@ pipeline:
     concurrency: 800
     timeout_seconds: 1.5
     attempts: 3
+    require_all_attempts: true
+    maximum_attempt_latency_ms: 300
 
   tls:
     concurrency: 300
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
+    attempts: 3
+    require_all_attempts: true
+    maximum_attempt_latency_ms: 300
 
   http:
     concurrency: 250
@@ -125,6 +88,9 @@ pipeline:
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
+    attempts: 3
+    require_all_attempts: true
+    maximum_attempt_ttfb_ms: 300
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -136,23 +102,26 @@ pipeline:
   speed:
     enabled: true
     domain: speed.cloudflare.com
-    # A full 1 MiB response is required before speed affects ranking. Partial
-    # downloads remain usable nodes; they simply receive no speed bonus.
+    # A full 1 MiB response is required. Partial downloads or results below
+    # 16 Mbps (2 MB/s) are excluded from the current TOP500.
     path: /__down?bytes=1048576
     bytes_per_test: 1048576
     minimum_completion_ratio: 0.95
-    candidates: 3000
-    concurrency: 6
+    candidates: 5000
+    minimum_mbps: 16.0
+    concurrency: 10
     timeout_seconds: 10.0
 
   rolling_retest:
     concurrency: 200
     timeout_seconds: 1.5
-    attempts: 10
+    attempts: 3
+    require_all_attempts: true
+    maximum_attempt_latency_ms: 300
 
 output:
-  top_nodes: 300
-  minimum_publish: 300
+  top_nodes: 500
+  minimum_publish: 500
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true
@@ -167,7 +136,7 @@ vantage:
 network_baseline:
   # These are whole-run diagnostics from the GitHub runner, not fake
   # per-candidate proxy tests. Candidate ranking uses TCP/TLS/Worker HTTP.
-  attempts: 2
+  attempts: 3
   timeout_seconds: 10
   targets:
     - name: Google

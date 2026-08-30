@@ -82,15 +82,15 @@ def prepare_retest_candidates(
     previous: list[NodeResult],
 ) -> list[NodeResult]:
     fresh: list[NodeResult] = []
-    seen: set[str] = set()
+    seen_ips: set[str] = set()
     for original, source in [
-        *((node, "current-top300") for node in current_selected),
+        *((node, "current-top500") for node in current_selected),
         *((node, "previous-top100") for node in previous),
     ]:
-        if original.key in seen:
+        if original.ip in seen_ips:
             continue
         node = NodeResult(ip=original.ip, port=original.port, country_hint=original.country or original.country_hint)
         node.add_source(source)
         fresh.append(node)
-        seen.add(node.key)
+        seen_ips.add(node.ip)
     return fresh

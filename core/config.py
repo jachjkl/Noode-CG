@@ -64,8 +64,7 @@ def validate_config(config: dict[str, Any]) -> None:
 
     pipeline = config["pipeline"]
     for name in (
-        "latency_shortlist",
-        "maximum_average_latency_ms",
+        "three_metric_shortlist",
         "current_selection",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
@@ -78,6 +77,32 @@ def validate_config(config: dict[str, Any]) -> None:
             raise ConfigError(f"缺少 pipeline.{stage}")
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
+    _positive_number(pipeline["tcp"].get("attempts"), "pipeline.tcp.attempts")
+    _positive_number(
+        pipeline["tcp"].get("maximum_attempt_latency_ms"),
+        "pipeline.tcp.maximum_attempt_latency_ms",
+    )
+    _positive_number(pipeline["tls"].get("attempts"), "pipeline.tls.attempts")
+    _positive_number(
+        pipeline["tls"].get("maximum_attempt_latency_ms"),
+        "pipeline.tls.maximum_attempt_latency_ms",
+    )
+    _positive_number(pipeline["http"].get("attempts"), "pipeline.http.attempts")
+    _positive_number(
+        pipeline["http"].get("maximum_attempt_ttfb_ms"),
+        "pipeline.http.maximum_attempt_ttfb_ms",
+    )
+    for stage in ("tcp", "tls", "http"):
+        if int(pipeline[stage].get("attempts", 0)) != 3:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
+        if pipeline[stage].get("require_all_attempts") is not True:
+            raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
+
+    speed = pipeline.get("speed")
+    if not isinstance(speed, dict):
+        raise ConfigError("缺少 pipeline.speed")
+    for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps"):
+        _positive_number(speed.get(name), f"pipeline.speed.{name}")
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
@@ -89,6 +114,10 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
         _positive_number(block.get("attempts"), f"pipeline.{stage}.attempts")
+        _positive_number(
+            block.get("maximum_attempt_latency_ms"),
+            f"pipeline.{stage}.maximum_attempt_latency_ms",
+        )
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")

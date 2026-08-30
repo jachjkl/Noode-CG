@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from core.models import NodeResult
-from core.speed_test import _accepted_speed_mbps, _select_speed_targets
+from core.speed_test import _accepted_speed_mbps, _select_speed_targets, meets_minimum_speed
 
 
 def node(ip: str, *, latency: float) -> NodeResult:
@@ -30,6 +30,15 @@ class SpeedQualityTests(unittest.TestCase):
     def test_partial_download_does_not_receive_a_speed_score(self) -> None:
         self.assertIsNone(_accepted_speed_mbps(900, 1000, 1.0, 0.95))
         self.assertAlmostEqual(_accepted_speed_mbps(1000, 1000, 1.0, 0.95), 0.008)
+
+    def test_minimum_two_megabytes_per_second_is_16_mbps(self) -> None:
+        below = node("1.1.1.1", latency=10)
+        below.speed_mbps = 15.999
+        exact = node("8.8.8.8", latency=10)
+        exact.speed_mbps = 16.0
+
+        self.assertFalse(meets_minimum_speed(below, minimum_mbps=16.0))
+        self.assertTrue(meets_minimum_speed(exact, minimum_mbps=16.0))
 
 if __name__ == "__main__":
     unittest.main()
