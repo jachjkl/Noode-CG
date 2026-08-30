@@ -7,7 +7,6 @@ from typing import Any
 from .io_utils import atomic_write_json, read_json
 from .models import NodeResult
 from .parser import deduplicate, parse_bytes
-from .scorer import select_diverse
 
 
 def _from_public(value: dict[str, Any]) -> NodeResult | None:
@@ -29,6 +28,7 @@ def _from_public(value: dict[str, Any]) -> NodeResult | None:
         tcp_latency_ms=value.get("tcp_latency_ms"),
         tls_latency_ms=value.get("tls_latency_ms"),
         http_latency_ms=value.get("http_latency_ms"),
+        average_latency_ms=value.get("average_latency_ms"),
         tcp_jitter_ms=value.get("jitter_ms", value.get("tcp_jitter_ms")),
         tcp_loss_rate=float(value.get("loss_rate", value.get("tcp_loss_rate", 1.0))),
         speed_mbps=value.get("speed_mbps"),
@@ -77,22 +77,20 @@ def save_previous_top(path: str | Path, records: list[NodeResult]) -> None:
     atomic_write_json(path, [record.to_dict() for record in records])
 
 
-def merge_with_previous(
+def prepare_retest_candidates(
     current_selected: list[NodeResult],
-    ranked: list[NodeResult],
     previous: list[NodeResult],
-    output_options: dict[str, Any],
-) -> tuple[list[NodeResult], dict[str, int]]:
-    live_by_key = {node.key: node for node in ranked}
-    previous_reverified = [live_by_key[node.key] for node in previous if node.key in live_by_key]
-    merged_keys = {node.key for node in current_selected}
-    merged_keys.update(node.key for node in previous_reverified)
-    merged_ranked = [node for node in ranked if node.key in merged_keys]
-    final = select_diverse(merged_ranked, output_options)
-    previous_keys = {node.key for node in previous_reverified}
-    return final, {
-        "previous_loaded": len(previous),
-        "previous_reverified": len(previous_reverified),
-        "merge_candidates": len(merged_ranked),
-        "previous_in_final": sum(node.key in previous_keys for node in final),
-    }
+) -> list[NodeResult]:
+    fresh: list[NodeResult] = []
+    seen: set[str] = set()
+    for original, source in [
+        *((node, "current-top300") for node in current_selected),
+        *((node, "previous-top100") for node in previous),
+    ]:
+        if original.key in seen:
+            continue
+        node = NodeResult(ip=original.ip, port=original.port, country_hint=original.country or original.country_hint)
+        node.add_source(source)
+        fresh.append(node)
+        seen.add(node.key)
+    return fresh

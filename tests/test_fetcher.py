@@ -4,8 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.fetcher import collect_candidates, sample_ranges
-from core.models import NodeResult
+from core.fetcher import collect_official_batch, collect_source_candidates, sample_ranges
 
 
 class FetcherTests(unittest.TestCase):
@@ -49,10 +48,10 @@ class FetcherTests(unittest.TestCase):
                             "cache_path": "cache.txt",
                         }
                     ],
-                    "cloudflare_ranges": {"enabled": False, "target_pool": 0},
+                    "cloudflare_ranges": {"enabled": False, "official_batch_size": 0},
                 },
             }
-            records, warnings = collect_candidates(config)
+            records, warnings = collect_source_candidates(config)
             self.assertEqual(len(records), 2)
             self.assertTrue(all("required-test" in node.sources for node in records))
             self.assertTrue(any("仓库缓存" in warning for warning in warnings))
@@ -82,45 +81,51 @@ class FetcherTests(unittest.TestCase):
                             "cache_path": "cache.txt",
                         }
                     ],
-                    "cloudflare_ranges": {"enabled": False, "target_pool": 0},
+                    "cloudflare_ranges": {"enabled": False, "official_batch_size": 0},
                 },
             }
-            records, warnings = collect_candidates(config)
+            records, warnings = collect_source_candidates(config)
             self.assertEqual(len(records), 10)
             self.assertEqual(cache.read_text(encoding="utf-8"), cached_text)
             self.assertTrue(any("防缩量门槛" in warning for warning in warnings))
 
-    def test_pool_is_exactly_target_size_and_keeps_previous_top(self) -> None:
+    def test_official_batch_is_additional_to_all_source_ips(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             ranges = root / "ranges.txt"
             ranges.write_text("104.16.0.0/20\n", encoding="utf-8")
+            source = root / "source.txt"
+            source.write_text("1.1.1.1:443\n8.8.8.8:443\n", encoding="utf-8")
             config = {
                 "_base_dir": str(root),
                 "project": {"user_agent": "Noode-CG-test"},
                 "sources": {
-                    "local": [],
+                    "local": ["source.txt"],
                     "remote": [],
                     "cloudflare_ranges": {
                         "enabled": True,
                         "refresh": False,
                         "ipv4_fallback": "ranges.txt",
-                        "target_pool": 10,
+                        "official_batch_size": 10,
                         "ports": [443],
                         "sampling_seed": "test-fixed",
                         "include_ipv6": False,
                     },
                 },
             }
-            previous = [NodeResult(ip="1.1.1.1"), NodeResult(ip="1.0.0.1")]
 
-            records, _warnings = collect_candidates(config, priority_records=previous)
+            sources, _warnings = collect_source_candidates(config)
+            official, _warnings = collect_official_batch(
+                config,
+                exclude_ips={node.ip for node in sources},
+                round_index=0,
+            )
 
-            self.assertEqual(len({record.ip for record in records}), 10)
-            self.assertTrue({"1.1.1.1", "1.0.0.1"}.issubset({record.ip for record in records}))
-            self.assertTrue(all("previous-top100" in record.sources for record in records[:2]))
+            self.assertEqual({node.ip for node in sources}, {"1.1.1.1", "8.8.8.8"})
+            self.assertEqual(len({record.ip for record in official}), 10)
+            self.assertTrue({node.ip for node in sources}.isdisjoint({node.ip for node in official}))
 
-    def test_different_run_seeds_rotate_official_candidates(self) -> None:
+    def test_official_batches_are_different_and_disjoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             ranges = root / "ranges.txt"
@@ -135,34 +140,22 @@ class FetcherTests(unittest.TestCase):
                         "enabled": True,
                         "refresh": False,
                         "ipv4_fallback": "ranges.txt",
-                        "target_pool": 100,
+                        "official_batch_size": 100,
                         "ports": [443],
                         "include_ipv6": False,
                     },
                 },
             }
-            previous = [NodeResult(ip="1.1.1.1")]
-            first_config = {**base, "sources": {**base["sources"]}}
-            first_config["sources"]["cloudflare_ranges"] = {
-                **base["sources"]["cloudflare_ranges"],
-                "sampling_seed": "run-100-attempt-1",
-            }
-            second_config = {**base, "sources": {**base["sources"]}}
-            second_config["sources"]["cloudflare_ranges"] = {
-                **base["sources"]["cloudflare_ranges"],
-                "sampling_seed": "run-101-attempt-1",
-            }
-
-            first, _ = collect_candidates(first_config, priority_records=previous)
-            second, _ = collect_candidates(second_config, priority_records=previous)
+            first, _ = collect_official_batch(base, exclude_ips=set(), round_index=0)
+            first_ips = {record.ip for record in first}
+            second, _ = collect_official_batch(base, exclude_ips=first_ips, round_index=1)
             first_ips = {record.ip for record in first}
             second_ips = {record.ip for record in second}
 
             self.assertEqual(len(first_ips), 100)
             self.assertEqual(len(second_ips), 100)
-            self.assertIn("1.1.1.1", first_ips & second_ips)
             self.assertNotEqual(first_ips, second_ips)
-            self.assertGreater(len(first_ips ^ second_ips), 100)
+            self.assertTrue(first_ips.isdisjoint(second_ips))
 
     def test_non_public_source_addresses_do_not_consume_pool_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -175,11 +168,11 @@ class FetcherTests(unittest.TestCase):
                 "sources": {
                     "local": ["source.txt"],
                     "remote": [],
-                    "cloudflare_ranges": {"enabled": False, "target_pool": 0},
+                    "cloudflare_ranges": {"enabled": False, "official_batch_size": 0},
                 },
             }
 
-            records, _warnings = collect_candidates(config)
+            records, _warnings = collect_source_candidates(config)
 
             self.assertEqual([record.ip for record in records], ["1.1.1.1"])
 

@@ -54,7 +54,7 @@ def _positive_number(value: Any, name: str, *, allow_zero: bool = False) -> None
 
 
 def validate_config(config: dict[str, Any]) -> None:
-    for section in ("project", "paths", "sources", "pipeline", "score", "output"):
+    for section in ("project", "paths", "sources", "pipeline", "output"):
         if section not in config or not isinstance(config[section], dict):
             raise ConfigError(f"缺少配置段: {section}")
 
@@ -63,8 +63,15 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ConfigError("project.target_domain 必须是纯域名，不能包含协议或路径")
 
     pipeline = config["pipeline"]
-    for name in ("min_pool", "min_tcp_alive", "min_tls_valid", "min_http_valid"):
-        _positive_number(pipeline.get(name), f"pipeline.{name}", allow_zero=name != "min_pool")
+    for name in (
+        "latency_shortlist",
+        "maximum_average_latency_ms",
+        "current_selection",
+        "max_runtime_seconds",
+        "minimum_round_budget_seconds",
+        "postprocess_reserve_seconds",
+    ):
+        _positive_number(pipeline.get(name), f"pipeline.{name}")
     for stage in ("tcp", "tls", "http"):
         block = pipeline.get(stage)
         if not isinstance(block, dict):
@@ -72,10 +79,18 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
 
-    weights = config["score"].get("weights", {})
-    if not weights or abs(sum(float(v) for v in weights.values()) - 1.0) > 0.0001:
-        raise ConfigError("score.weights 权重之和必须等于 1")
+    ranges = config["sources"].get("cloudflare_ranges", {})
+    _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
+
+    for stage in ("rolling_retest",):
+        block = pipeline.get(stage)
+        if not isinstance(block, dict):
+            raise ConfigError(f"缺少 pipeline.{stage}")
+        _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
+        _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
+        _positive_number(block.get("attempts"), f"pipeline.{stage}.attempts")
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")
-
+    if int(config["pipeline"]["current_selection"]) != int(top_nodes):
+        raise ConfigError("pipeline.current_selection 必须等于 output.top_nodes")

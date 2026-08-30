@@ -26,6 +26,7 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "tcp_latency_ms": node.tcp_latency_ms,
         "tls_latency_ms": node.tls_latency_ms,
         "http_latency_ms": node.http_latency_ms,
+        "average_latency_ms": node.average_latency_ms,
         "jitter_ms": node.tcp_jitter_ms,
         "loss_rate": node.tcp_loss_rate,
         "speed_mbps": node.speed_mbps,
@@ -79,6 +80,7 @@ def _csv_text(records: list[NodeResult]) -> str:
         "tcp_latency_ms",
         "tls_latency_ms",
         "http_latency_ms",
+        "average_latency_ms",
         "jitter_ms",
         "loss_rate",
         "speed_mbps",
@@ -128,7 +130,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V2-JP10-R100-Dynamic",
+                "project": "Noode-CG V3-Rolling300",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

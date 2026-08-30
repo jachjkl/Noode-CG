@@ -9,53 +9,21 @@ from .models import NodeResult
 from .tls_check import make_ssl_context
 
 
-def _country(node: NodeResult) -> str:
-    return (node.country or node.country_hint or "XX").upper()
-
-
 def _select_speed_targets(
     records: list[NodeResult],
     count: int,
     options: dict[str, Any],
 ) -> list[NodeResult]:
-    ordered = sorted(records, key=lambda node: (node.http_latency_ms or 999999, node.tcp_latency_ms or 999999))
-    minimums = {
-        str(country).upper(): max(0, int(value))
-        for country, value in options.get("minimum_per_country", {}).items()
-    }
-    selected: list[NodeResult] = []
-    selected_keys: set[str] = set()
-
-    priority_sources = {
-        str(source): max(0, int(value)) for source, value in options.get("priority_sources", {}).items()
-    }
-    for wanted_source, wanted_count in priority_sources.items():
-        source_count = 0
-        for node in ordered:
-            if source_count >= min(wanted_count, count):
-                break
-            if node.key not in selected_keys and wanted_source in node.sources:
-                selected.append(node)
-                selected_keys.add(node.key)
-                source_count += 1
-
-    for wanted_country, wanted_count in minimums.items():
-        for node in ordered:
-            if sum(_country(item) == wanted_country for item in selected) >= min(wanted_count, count):
-                break
-            if node.key not in selected_keys and _country(node) == wanted_country:
-                selected.append(node)
-                selected_keys.add(node.key)
-
-    for node in ordered:
-        if len(selected) >= count:
-            break
-        if node.key not in selected_keys:
-            selected.append(node)
-            selected_keys.add(node.key)
-
-    order = {node.key: index for index, node in enumerate(ordered)}
-    return sorted(selected[:count], key=lambda node: order[node.key])
+    del options
+    return sorted(
+        records,
+        key=lambda node: (
+            node.average_latency_ms if node.average_latency_ms is not None else 999999,
+            node.http_latency_ms if node.http_latency_ms is not None else 999999,
+            node.ip,
+            node.port,
+        ),
+    )[:count]
 
 
 def _accepted_speed_mbps(

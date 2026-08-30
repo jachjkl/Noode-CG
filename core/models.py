@@ -24,6 +24,7 @@ class NodeResult:
     http_ok: bool = False
     http_status: int | None = None
     http_latency_ms: float | None = None
+    average_latency_ms: float | None = None
     cf_ray: str = ""
     colo: str = ""
     country: str = ""
@@ -64,4 +65,3 @@ class NodeResult:
     def from_dict(cls, value: dict[str, Any]) -> NodeResult:
         known = {field.name for field in __import__("dataclasses").fields(cls)}
         return cls(**{key: val for key, val in value.items() if key in known})
-

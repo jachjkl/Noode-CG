@@ -221,21 +221,12 @@ def _load_remote_source(
     return []
 
 
-def collect_candidates(
-    config: dict[str, Any],
-    *,
-    priority_records: Iterable[NodeResult] = (),
-) -> tuple[list[NodeResult], list[str]]:
+def collect_source_candidates(config: dict[str, Any]) -> tuple[list[NodeResult], list[str]]:
     source_config = config["sources"]
     warnings: list[str] = []
     records: list[NodeResult] = []
     max_bytes = int(source_config.get("max_download_bytes", 20 * 1024 * 1024))
     user_agent = str(config["project"].get("user_agent", "Noode-CG/2.0"))
-
-    for previous in priority_records:
-        node = NodeResult(ip=previous.ip, port=previous.port, country_hint=previous.country or previous.country_hint)
-        node.add_source("previous-top100")
-        records.append(node)
 
     for configured in source_config.get("local", []):
         path = resolve_path(config, configured)
@@ -259,45 +250,74 @@ def collect_candidates(
             )
         )
 
-    records = deduplicate(_public_records(records, warnings))
-    ranges = source_config.get("cloudflare_ranges", {})
-    target = int(ranges.get("target_pool", 0))
-    unique_ips = {record.ip for record in records}
-    if ranges.get("enabled", True) and len(unique_ips) < target:
-        ipv4 = _read_range_lines(config, ranges, 4, warnings)
-        seed = _resolve_sampling_seed(ranges)
-        ranges["_resolved_sampling_seed"] = seed
-        for attempt in range(5):
-            generated = sample_ranges(
-                ipv4,
-                target,
-                ports=list(ranges.get("ports", [443])),
-                seed=seed + attempt,
-                source="cloudflare-official-ipv4",
-            )
-            for node in generated:
-                if node.ip in unique_ips:
-                    continue
-                records.append(node)
-                unique_ips.add(node.ip)
-                if len(unique_ips) >= target:
-                    break
-            if len(unique_ips) >= target:
-                break
+    return deduplicate(_public_records(records, warnings)), warnings
 
-        if ranges.get("include_ipv6", False) and len(unique_ips) < target:
-            ipv6 = _read_range_lines(config, ranges, 6, warnings)
-            for node in sample_ranges(
-                ipv6,
-                target - len(unique_ips),
-                ports=list(ranges.get("ports", [443])),
-                seed=seed + 100,
-                source="cloudflare-official-ipv6",
-            ):
-                if node.ip not in unique_ips:
-                    records.append(node)
-                    unique_ips.add(node.ip)
 
-    records = deduplicate(_public_records(records, warnings))
-    records = _limit_unique_ips(records, target)
-    return records, warnings
+def _cached_ranges(
+    config: dict[str, Any],
+    block: dict[str, Any],
+    family: int,
+    warnings: list[str],
+) -> list[str]:
+    cache_key = f"_cached_ipv{family}_ranges"
+    cached = block.get(cache_key)
+    if isinstance(cached, list):
+        return [str(value) for value in cached]
+    ranges = _read_range_lines(config, block, family, warnings)
+    block[cache_key] = ranges
+    return ranges
+
+
+def _cached_sampling_seed(block: dict[str, Any]) -> int:
+    cached = block.get("_resolved_sampling_seed")
+    if isinstance(cached, int):
+        return cached
+    seed = _resolve_sampling_seed(block)
+    block["_resolved_sampling_seed"] = seed
+    return seed
+
+
+def collect_official_batch(
+    config: dict[str, Any],
+    *,
+    exclude_ips: set[str],
+    round_index: int,
+) -> tuple[list[NodeResult], list[str]]:
+    block = config["sources"].get("cloudflare_ranges", {})
+    warnings: list[str] = []
+    wanted = max(0, int(block.get("official_batch_size", 50000)))
+    if not block.get("enabled", True) or wanted == 0:
+        return [], warnings
+
+    ranges = _cached_ranges(config, block, 4, warnings)
+    if not ranges:
+        warnings.append("Cloudflare 官方 IPv4 网段为空，无法生成本轮候选")
+        return [], warnings
+
+    seed = _cached_sampling_seed(block)
+    selected: list[NodeResult] = []
+    selected_ips: set[str] = set()
+    # Each round has an independent stream. Oversampling absorbs collisions
+    # with link sources and every earlier official batch.
+    for attempt in range(12):
+        request_count = min(
+            wanted * (2 + attempt),
+            wanted + len(exclude_ips) + len(selected_ips) + 1000,
+        )
+        generated = sample_ranges(
+            ranges,
+            request_count,
+            ports=list(block.get("ports", [443])),
+            seed=seed + round_index * 100_003 + attempt * 7_919,
+            source=f"cloudflare-official-ipv4-round-{round_index + 1}",
+        )
+        for node in generated:
+            if node.ip in exclude_ips or node.ip in selected_ips:
+                continue
+            selected.append(node)
+            selected_ips.add(node.ip)
+            if len(selected) >= wanted:
+                return selected, warnings
+
+    warnings.append(f"第 {round_index + 1} 轮官方段只生成 {len(selected)}/{wanted} 个不重复 IP")
+    return selected, warnings
