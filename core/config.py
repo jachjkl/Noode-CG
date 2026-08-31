@@ -64,31 +64,117 @@ def validate_config(config: dict[str, Any]) -> None:
 
     pipeline = config["pipeline"]
     for name in (
-        "latency_shortlist",
-        "maximum_average_latency_ms",
+        "prefilter_shortlist",
+        "maximum_combined_latency_ms",
+        "maximum_component_latency_ms",
+        "maximum_jitter_ms",
         "current_selection",
+        "speed_batch_size",
+        "max_official_rounds",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
         "postprocess_reserve_seconds",
     ):
         _positive_number(pipeline.get(name), f"pipeline.{name}")
-    for stage in ("tcp", "tls", "http"):
+    for stage in ("prefilter_tcp", "quality_tcp", "tls", "http"):
         block = pipeline.get(stage)
         if not isinstance(block, dict):
             raise ConfigError(f"缺少 pipeline.{stage}")
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
+        _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
+    _positive_number(
+        pipeline["prefilter_tcp"].get("attempts"),
+        "pipeline.prefilter_tcp.attempts",
+    )
+    _positive_number(
+        pipeline["prefilter_tcp"].get("maximum_average_latency_ms"),
+        "pipeline.prefilter_tcp.maximum_average_latency_ms",
+    )
+    _positive_number(
+        pipeline["quality_tcp"].get("attempts"),
+        "pipeline.quality_tcp.attempts",
+    )
+    _positive_number(
+        pipeline["quality_tcp"].get("maximum_average_latency_ms"),
+        "pipeline.quality_tcp.maximum_average_latency_ms",
+    )
+    _positive_number(pipeline["tls"].get("attempts"), "pipeline.tls.attempts")
+    _positive_number(
+        pipeline["tls"].get("maximum_average_latency_ms"),
+        "pipeline.tls.maximum_average_latency_ms",
+    )
+    _positive_number(pipeline["http"].get("attempts"), "pipeline.http.attempts")
+    _positive_number(
+        pipeline["http"].get("maximum_average_ttfb_ms"),
+        "pipeline.http.maximum_average_ttfb_ms",
+    )
+    expected_attempts = {"prefilter_tcp": 3, "quality_tcp": 5, "tls": 3, "http": 3}
+    for stage, attempts in expected_attempts.items():
+        if int(pipeline[stage].get("attempts", 0)) != attempts:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 {attempts}")
+    for stage in ("prefilter_tcp", "tls", "http"):
+        if pipeline[stage].get("require_all_attempts") is not True:
+            raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
+    if pipeline["quality_tcp"].get("require_all_attempts") is not False:
+        raise ConfigError("pipeline.quality_tcp.require_all_attempts 必须为 false，以便计算丢包率")
+    if pipeline["quality_tcp"].get("stop_on_failure") is not False:
+        raise ConfigError("pipeline.quality_tcp.stop_on_failure 必须为 false")
+    if pipeline["quality_tcp"].get("stop_when_average_impossible") is not False:
+        raise ConfigError("pipeline.quality_tcp.stop_when_average_impossible 必须为 false")
+
+    speed = pipeline.get("speed")
+    if not isinstance(speed, dict):
+        raise ConfigError("缺少 pipeline.speed")
+    for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps", "bytes_per_test"):
+        _positive_number(speed.get(name), f"pipeline.speed.{name}")
+    _positive_number(speed.get("maximum_download_seconds"), "pipeline.speed.maximum_download_seconds")
+    if int(pipeline["speed_batch_size"]) > int(pipeline["prefilter_shortlist"]):
+        raise ConfigError("pipeline.speed_batch_size 不能大于 prefilter_shortlist")
+    if float(pipeline["prefilter_tcp"]["maximum_average_latency_ms"]) != 1000:
+        raise ConfigError("pipeline.prefilter_tcp.maximum_average_latency_ms 必须等于 1000")
+    if float(pipeline["quality_tcp"]["maximum_average_latency_ms"]) != 300:
+        raise ConfigError("pipeline.quality_tcp.maximum_average_latency_ms 必须等于 300")
+    if float(speed["minimum_mbps"]) != 3:
+        raise ConfigError("pipeline.speed.minimum_mbps 必须等于 3")
+
+    country_minimums = pipeline.get("country_minimums")
+    if not isinstance(country_minimums, dict) or not country_minimums:
+        raise ConfigError("pipeline.country_minimums 必须是非空对象")
+    for country, minimum in country_minimums.items():
+        if len(str(country)) != 2:
+            raise ConfigError("pipeline.country_minimums 国家代码必须是两个字母")
+        _positive_number(minimum, f"pipeline.country_minimums.{country}")
+    if sum(int(value) for value in country_minimums.values()) > int(pipeline["current_selection"]):
+        raise ConfigError("pipeline.country_minimums 合计不能超过 current_selection")
+
+    source_country_rule = pipeline.get("jp_source_requirement")
+    if not isinstance(source_country_rule, dict):
+        raise ConfigError("缺少 pipeline.jp_source_requirement")
+    source_country = str(source_country_rule.get("country", ""))
+    if len(source_country) != 2:
+        raise ConfigError("pipeline.jp_source_requirement.country 必须是两个字母")
+    _positive_number(
+        source_country_rule.get("count"),
+        "pipeline.jp_source_requirement.count",
+    )
+    _positive_number(
+        source_country_rule.get("tcp_attempts"),
+        "pipeline.jp_source_requirement.tcp_attempts",
+    )
+    if int(source_country_rule.get("tcp_attempts", 0)) != 3:
+        raise ConfigError("pipeline.jp_source_requirement.tcp_attempts 必须等于 3")
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
 
-    for stage in ("rolling_retest",):
-        block = pipeline.get(stage)
-        if not isinstance(block, dict):
-            raise ConfigError(f"缺少 pipeline.{stage}")
-        _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
-        _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
-        _positive_number(block.get("attempts"), f"pipeline.{stage}.attempts")
+    location_filter = pipeline.get("location_filter")
+    if not isinstance(location_filter, dict):
+        raise ConfigError("缺少 pipeline.location_filter")
+
+    baseline = config.get("network_baseline")
+    if not isinstance(baseline, dict) or int(baseline.get("attempts", 0)) != 3:
+        raise ConfigError("network_baseline.attempts 必须等于 3")
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")

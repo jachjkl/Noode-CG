@@ -10,6 +10,9 @@ class MigrationWorkflowTests(unittest.TestCase):
             Path(__file__).parents[1] / ".github" / "workflows" / "cleanup-legacy.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("tests/test_pipeline_loop.py", workflow)
+        self.assertIn("output/nodes.txt", workflow)
+        self.assertIn("output/nodes.json", workflow)
+        self.assertIn("data/previous-top100.json", workflow)
 
         ci = (
             Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml"

@@ -3,11 +3,66 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.fetcher import collect_official_batch, collect_source_candidates, sample_ranges
 
 
 class FetcherTests(unittest.TestCase):
+    def test_optional_cfdata_local_source_is_quiet_when_missing_and_parsed_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = {
+                "_base_dir": str(root),
+                "project": {"user_agent": "Noode-CG-test"},
+                "sources": {
+                    "local": [{
+                        "name": "local-cfdata",
+                        "path": "data/local-cfdata-candidates.txt",
+                        "required": False,
+                        "default_port": 443,
+                    }],
+                    "remote": [],
+                    "cloudflare_ranges": {"enabled": False, "official_batch_size": 0},
+                },
+            }
+
+            records, warnings = collect_source_candidates(config)
+            self.assertEqual(records, [])
+            self.assertEqual(warnings, [])
+
+            source = root / "data" / "local-cfdata-candidates.txt"
+            source.parent.mkdir()
+            source.write_text("1.1.1.1:443\n8.8.8.8:8443\n", encoding="utf-8")
+            records, warnings = collect_source_candidates(config)
+
+            self.assertEqual([node.ip_port for node in records], ["1.1.1.1:443", "8.8.8.8:8443"])
+            self.assertTrue(all(node.sources == ["local-cfdata"] for node in records))
+            self.assertEqual(warnings, [])
+
+    def test_each_online_source_is_downloaded_once_when_successful(self) -> None:
+        config = {
+            "_base_dir": str(Path.cwd()),
+            "project": {"user_agent": "Noode-CG-test"},
+            "sources": {
+                "local": [],
+                "remote": [
+                    {"name": "first", "url": "https://example.com/first.txt", "min_records": 1},
+                    {"name": "second", "url": "https://example.com/second.txt", "min_records": 1},
+                ],
+                "cloudflare_ranges": {"enabled": False, "official_batch_size": 0},
+            },
+        }
+        with patch(
+            "core.fetcher._download",
+            side_effect=[b"1.1.1.1:443#JP\n", b"8.8.8.8:443#US\n"],
+        ) as download:
+            records, warnings = collect_source_candidates(config)
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(download.call_count, 2)
+        self.assertEqual(warnings, [])
+
     def test_sampling_is_deterministic_and_unique(self) -> None:
         first = sample_ranges(
             ["104.16.0.0/20", "172.64.0.0/20"],

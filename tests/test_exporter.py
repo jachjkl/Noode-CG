@@ -40,7 +40,18 @@ class ExporterTests(unittest.TestCase):
             self.assertFalse(report["published"])
             self.assertEqual((output / "nodes.txt").read_text(encoding="utf-8"), "1.1.1.1:443#US\n")
 
+    def test_does_not_create_empty_subscription_on_first_failed_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            report = publish_outputs(
+                output,
+                [],
+                {"status": "degraded"},
+                {"minimum_publish": 200, "preserve_last_good": True},
+            )
+            self.assertFalse(report["published"])
+            self.assertFalse((output / "nodes.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
-

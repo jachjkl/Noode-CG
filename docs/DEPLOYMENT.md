@@ -1,8 +1,10 @@
 # GitHub 部署指南
 
-## 1. 覆盖上传
+## 覆盖上传
 
-解压 `Noode-CG-V3-Rolling300.zip`，将解压后 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。根目录应直接出现：
+解压 `Noode-CG-V12.1-Hybrid310-NoCN-TCP5-Speed3.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
+
+根目录应直接出现：
 
 ```text
 .github/
@@ -14,45 +16,64 @@ main.py
 requirements.txt
 ```
 
-不要只上传 ZIP，也不要形成 `仓库/Noode-CG/Noode-CG/...`。
+压缩包没有远程源缓存、官方网段快照、候选列表和历史抽样 IP。
 
-## 2. 一次性清理旧文件
+## 清理旧版本
 
-网页覆盖上传不会删除旧版文件。进入 **Actions → Cleanup obsolete files → Run workflow**。该工作流会删除旧模块、旧测试、废弃数据和旧压缩包，提交后再删除自身。
+旧仓库进入 **Actions → Cleanup obsolete files → Run workflow**。它会删除旧模块、旧缓存、旧动态订阅和旧 TOP100，防止历史 CN 继续显示，并在提交后删除清理工作流自身。
 
-等待它显示绿色成功后，再运行 **Refresh verified endpoints**。新建空仓库可跳过清理。
+## 第一次刷新
 
-## 3. 自动优选
+进入 **Actions → Refresh verified endpoints → Run workflow**。清理后 `output/nodes.txt` 暂时不存在，第一次成功运行后出现 310 条地址。
 
-刷新任务每 6 小时自动运行，单次最大 350 分钟。同一仓库不会并发运行两份刷新任务。每次任务会：
+以后任务在每 8 小时的第 17 分钟自动执行。工作流只提交输出、上一轮 TOP100 和上一轮官方抽样快照。
 
-1. 全量刷新 6 个链接源；
-2. 排除上次官方样本并抽取新的 50,000 个官方 IP；
-3. 必要时继续追加互不重复的 50,000 批次，直到得到 3,000 个平均延迟不超过 300ms 的地址或接近运行时限；
-4. 测速并选本轮 TOP300；
-5. 加入上轮 TOP100，全部重新测试后发布最终 TOP300；
-6. 自动提交 `output/`、源缓存、TOP100 快照和官方样本快照。
+## 结果检查
 
-如果接近 GitHub 托管任务时限仍未凑齐 3,000，程序会保留旧订阅，不会伪造或发布未验证地址。下一次六小时任务会换一批官方候选继续运行。
-
-## 4. 订阅地址
+订阅地址：
 
 ```text
 https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 ```
 
-检查 `output/health.json`：
+在 `output/health.json` 查看：
 
-- `status: ok`：所有关键数量门槛通过；
-- `published: true`：本轮 300 已覆盖订阅；
-- `counts.official_previous_excluded`：为避免相邻运行重复而排除的上轮官方 IP 数；
-- `counts.official_sampled_this_run`：本轮抽取的官方 IP 总数；
-- `counts.latency_eligible`：平均延迟不超过 300ms 的累计数量；
-- `counts.previous_loaded / previous_reverified / previous_in_final`：旧 TOP100 的复测情况；
-- `rounds`：每一批 50,000 的 TCP、TLS、HTTP 和合格数量。
+- `rounds[].prefilter_tcp_three_pass_success_under_1000ms`：三次初筛 TCPing 成功数量；
+- `source_country_lane.link_candidates`：两个链接中本轮提取到的 JP 候选数；
+- `source_country_lane.measurements.tcping_measured`：JP 端点完成 TCPing 测量的数量；
+- `source_country_lane.measurements.download_measured`：JP 端点取得下载速度的数量；
+- `source_country_lane.selected`：仅按 TCPing 和下载结果排序后选出的不同 JP IP 数，应为 10；
+- `source_country_lane.tls_skipped` 与 `https_ttfb_skipped`：应为 `true`；
+- `rounds[].prefilter_shortlisted`：进入严格阶段的数量，应为 5,000；
+- `rounds[].quality_tcp_five_probe_success_under_300ms`：严格 TCP 五次测试后平均不超过 300ms 的数量；
+- `metric_batches[].tls_three_pass_success`：TLS 三次合格数；
+- `metric_batches[].https_ttfb_three_pass_success`：TTFB 三次合格数；
+- `speed_batches[].current_speed_qualified_total`：跨轮累计下载合格数；
+- `rolling_attempts[0].previous_tested_this_attempt`：上一轮 TOP100 的唯一一次复测数；
+- `counts.final_country_candidates_rejected`：在最终竞争层被排除的 CN/未知地区数量；
+- `counts.final_forbidden_country_count`：最终结果中的禁用地区数量，必须为 0；
+- `gates.final_top310`、`gates.final_country:JP` 和 `gates.final_no_forbidden_or_unknown_country`：310 条、JP10 和无 CN 发布门槛；
+- `published`：本轮是否覆盖订阅。
 
-## 5. 常见问题
+若 `published: false`，说明两个链接中不足 10 个不同 JP IP、严格非 JP 结果不足 300、5,000 初筛或 Runner 基线没有全部满足。首次迁移已清除旧动态订阅，因此不会继续显示历史 CN。
 
-Actions 无法推送时，进入 **Settings → Actions → General → Workflow permissions**，允许工作流读写仓库内容。
+## 安装本地开机优选
 
-目标域名必须在 `config.yaml` 中正确配置并绑定到你的 Worker。GitHub Runner 的网络位置与本地三网不同，GitHub 排名不能等同于电信、联通、移动本地结果。
+本地自动推送必须使用一个通过 `git clone` 得到的仓库，而不是浏览器下载的普通文件夹。先在 Git Credential Manager 中完成一次 GitHub 登录，然后执行：
+
+```powershell
+git clone https://github.com/jachjkl/Noode-CG.git D:\Noode-CG
+powershell -ExecutionPolicy Bypass -File D:\Noode-CG\scripts\install-local-cfdata-task.ps1 `
+  -RepositoryPath D:\Noode-CG `
+  -CfDataExe "D:\桌面\软件\cfdata-windows-amd64.exe"
+```
+
+计划任务在当前用户登录且网络可用时执行；脚本会等待网络、使用 CFData 本地优选、写入 `data/local-cfdata-candidates.txt`，再用现有 Git 凭据提交和推送。推送候选会自动触发 `Refresh verified endpoints`。脚本强制关闭 CFData 自带 GitHub 上传，因此不会读取或提交仓库 Token。
+
+手动试运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\Noode-CG\scripts\run-local-cfdata.ps1 `
+  -RepositoryPath D:\Noode-CG `
+  -CfDataExe "D:\桌面\软件\cfdata-windows-amd64.exe"
+```

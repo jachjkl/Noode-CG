@@ -18,15 +18,19 @@ class NodeResult:
 
     tls_ok: bool = False
     tls_latency_ms: float | None = None
+    tls_jitter_ms: float | None = None
     tls_version: str = ""
     tls_cipher: str = ""
 
     http_ok: bool = False
     http_status: int | None = None
     http_latency_ms: float | None = None
+    http_jitter_ms: float | None = None
     average_latency_ms: float | None = None
+    overall_jitter_ms: float | None = None
     cf_ray: str = ""
     colo: str = ""
+    colo_country: str = ""
     country: str = ""
     region: str = ""
     city: str = ""

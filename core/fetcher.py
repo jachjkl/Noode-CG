@@ -42,11 +42,16 @@ def _read_range_lines(
                 timeout=15,
                 max_bytes=1024 * 1024,
             ).decode("ascii", errors="strict")
-        except Exception as exc:  # Network fallback is intentional.
-            warnings.append(f"刷新 Cloudflare {kind.upper()} 网段失败，使用内置快照: {exc}")
+        except Exception as exc:  # An explicitly configured fallback may be used below.
+            warnings.append(f"在线刷新 Cloudflare {kind.upper()} 网段失败: {exc}")
     if not text:
-        fallback = resolve_path(config, block[f"{kind}_fallback"])
-        text = fallback.read_text(encoding="utf-8")
+        fallback_value = block.get(f"{kind}_fallback")
+        if fallback_value:
+            fallback = resolve_path(config, fallback_value)
+            text = fallback.read_text(encoding="utf-8")
+        else:
+            warnings.append(f"Cloudflare {kind.upper()} 官方网段在线获取失败，且未配置本地回退")
+            return []
 
     ranges: list[str] = []
     for raw in text.splitlines():
@@ -229,12 +234,29 @@ def collect_source_candidates(config: dict[str, Any]) -> tuple[list[NodeResult],
     user_agent = str(config["project"].get("user_agent", "Noode-CG/2.0"))
 
     for configured in source_config.get("local", []):
-        path = resolve_path(config, configured)
+        entry = {"path": configured} if isinstance(configured, str) else configured
+        path_value = str(entry.get("path", "")).strip()
+        if not path_value:
+            if entry.get("required", False):
+                warnings.append("必选本地输入缺少 path")
+            continue
+        path = resolve_path(config, path_value)
+        label = str(entry.get("name") or path_value)
         if not path.is_file():
-            warnings.append(f"本地输入不存在，已跳过: {path}")
+            if entry.get("required", False):
+                warnings.append(f"必选本地输入不存在，已跳过: {path}")
             continue
         try:
-            records.extend(parse_bytes(path.name, path.read_bytes(), source=str(path)))
+            parsed = parse_bytes(
+                path.name,
+                path.read_bytes(),
+                source=label,
+                default_port=int(entry.get("default_port", 443)),
+            )
+            minimum = max(0, int(entry.get("min_records", 0)))
+            if minimum and len(parsed) < minimum:
+                warnings.append(f"本地输入 {label} 只有 {len(parsed)} 条，低于期望的 {minimum} 条")
+            records.extend(parsed)
         except Exception as exc:
             warnings.append(f"解析本地输入失败 {path}: {exc}")
 

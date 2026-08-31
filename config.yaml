@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V3-Rolling300
+  name: Noode-CG V12.1-CFData-Hybrid310-NoCN
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/3.0-rolling300
+  user_agent: Noode-CG/12.1-cfdata-hybrid310-nocn
 
 paths:
   locations: data/locations.json
@@ -10,89 +10,46 @@ paths:
   output: output
 
 rolling:
-  # Save the previous published TOP100, then retest them together with the
-  # current TOP300 before publishing the final TOP300.
+  # Save the previous published TOP100 and strictly retest each one once.
+  # Passing old nodes then compete with the already-tested current pool.
   previous_limit: 100
   snapshot_path: data/previous-top100.json
-  official_snapshot_path: data/previous-official-ips.txt
+  official_snapshot_path: data/previous-official-ips.txt.gz
 
 sources:
+  # Optional candidates produced by the Windows CFData startup task. They are
+  # only candidates: GitHub runs the same strict verification before publish.
   local:
-    - data/input/ALL-2026-08-22.txt
-    - data/input/ip.zip
+    - name: local-cfdata
+      path: data/local-cfdata-candidates.txt
+      required: false
+      default_port: 443
   # Every valid entry from every link is included. Link entries do not consume
   # any of the 50,000 official-range slots sampled in each round.
-  # If the service is temporarily unavailable, the last committed cache is used.
   remote:
     - name: zip.cm.edu.kg/all.txt
       url: https://zip.cm.edu.kg/all.txt
       required: true
       min_records: 10000
-      min_ratio_to_cache: 0.80
       retries: 3
       retry_delay_seconds: 2
       timeout_seconds: 30
       default_port: 443
-      cache_path: data/sources/zip-cm-edu-kg-all.txt
-    - name: ymyuuu/IPDB BestCF IPv4
-      url: https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt
-      required: false
-      min_records: 5
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/ymyuuu-bestcfv4.txt
-    - name: bestcf.pages.dev/cmliu
-      url: https://bestcf.pages.dev/cmliu/all.txt
-      required: false
-      min_records: 10
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/bestcf-cmliu.txt
-    - name: bestcf.pages.dev/cmliu2
-      url: https://bestcf.pages.dev/cmliu2/all.txt
-      required: false
-      min_records: 10
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/bestcf-cmliu2.txt
     - name: bestcf.pages.dev/lzj
       url: https://bestcf.pages.dev/lzj/all.txt
-      required: false
+      required: true
       min_records: 50
-      min_ratio_to_cache: 0.50
       retries: 3
       retry_delay_seconds: 2
       timeout_seconds: 30
       default_port: 443
-      cache_path: data/sources/bestcf-lzj.txt
-    - name: hubbylei/bestcf
-      url: https://raw.githubusercontent.com/hubbylei/bestcf/refs/heads/main/bestcf.txt
-      required: false
-      min_records: 5
-      min_ratio_to_cache: 0.50
-      retries: 3
-      retry_delay_seconds: 2
-      timeout_seconds: 30
-      default_port: 443
-      cache_path: data/sources/hubbylei-bestcf.txt
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
     refresh: true
     ipv4_url: https://www.cloudflare.com/ips-v4/
-    ipv4_fallback: data/cloudflare-ipv4.txt
     include_ipv6: false
     ipv6_url: https://www.cloudflare.com/ips-v6/
-    ipv6_fallback: data/cloudflare-ipv6.txt
     official_batch_size: 50000
     ports: [443]
     # GitHub supplies a different run id/attempt each time. Local runs leave
@@ -100,31 +57,85 @@ sources:
     sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
-  latency_shortlist: 3000
-  maximum_average_latency_ms: 300
-  current_selection: 300
+  # Stage 1 keeps the fastest 5,000 IPs whose three TCPing attempts average
+  # no more than 1,000ms. Stage 2 applies the strict 300ms quality rules.
+  prefilter_shortlist: 5000
+  maximum_combined_latency_ms: 300
+  maximum_component_latency_ms: 300
+  maximum_jitter_ms: 500
+  # 300 strict non-JP addresses plus the dedicated JP10 lane.
+  current_selection: 310
+  # Download only the best 400 at a time and stop as soon as 300 strict
+  # non-JP addresses plus JP10 are ready.
+  speed_batch_size: 400
+  # Keep drawing new disjoint official batches until TOP310 is complete.
+  # Thirty rounds cover the available official IPv4 space; runtime and range
+  # exhaustion remain the only safety stops.
+  max_official_rounds: 30
   max_runtime_seconds: 19800
-  minimum_round_budget_seconds: 900
-  postprocess_reserve_seconds: 6000
+  minimum_round_budget_seconds: 600
+  postprocess_reserve_seconds: 1800
   fail_on_quality_gate: false
 
-  tcp:
+  country_minimums:
+    JP: 10
+  # JP nodes are tested once in a dedicated lane and must originate from the
+  # two full link feeds. They skip TLS/HTTPS-TTFB: TCPing is measured three
+  # times, download once, and the best ten different IPs are kept regardless
+  # of the normal pool's 300ms/3Mbps pass thresholds.
+  jp_source_requirement:
+    country: JP
+    count: 10
+    tcp_attempts: 3
+  prefilter_country_reserve: {}
+  speed_country_reserve: {}
+
+  prefilter_tcp:
     concurrency: 800
-    timeout_seconds: 1.5
+    timeout_seconds: 1.2
     attempts: 3
+    require_all_attempts: true
+    maximum_average_latency_ms: 1000
+    maximum_jitter_ms: 500
+    stop_on_failure: true
+    stop_when_average_impossible: true
+
+  quality_tcp:
+    concurrency: 500
+    timeout_seconds: 1.0
+    # Run all five probes. Failed attempts become packet loss and are used by
+    # final ranking; at least one successful measurement is still required.
+    attempts: 5
+    require_all_attempts: false
+    maximum_average_latency_ms: 300
+    maximum_jitter_ms: 500
+    stop_on_failure: false
+    stop_when_average_impossible: false
 
   tls:
-    concurrency: 300
+    concurrency: 250
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
+    attempts: 3
+    require_all_attempts: true
+    maximum_average_latency_ms: 300
+    maximum_jitter_ms: 500
+    stop_on_failure: true
+    stop_when_average_impossible: true
 
   http:
-    concurrency: 250
+    concurrency: 200
     timeout_seconds: 5.0
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
+    attempts: 3
+    require_all_attempts: true
+    maximum_average_ttfb_ms: 300
+    maximum_jitter_ms: 500
+    stop_on_failure: true
+    stop_when_average_impossible: true
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -136,23 +147,24 @@ pipeline:
   speed:
     enabled: true
     domain: speed.cloudflare.com
-    # A full 1 MiB response is required before speed affects ranking. Partial
-    # downloads remain usable nodes; they simply receive no speed bonus.
-    path: /__down?bytes=1048576
-    bytes_per_test: 1048576
+    # One 256 KiB response is required. Results below 3 Mbps are excluded.
+    path: /__down?bytes=262144
+    bytes_per_test: 262144
     minimum_completion_ratio: 0.95
-    candidates: 3000
-    concurrency: 6
-    timeout_seconds: 10.0
+    candidates: 400
+    minimum_mbps: 3.0
+    concurrency: 64
+    timeout_seconds: 5.0
+    maximum_download_seconds: 4.5
 
-  rolling_retest:
-    concurrency: 200
-    timeout_seconds: 1.5
-    attempts: 10
+  location_filter:
+    require_known_endpoint_country: true
+    require_known_colo_country: true
+    excluded_countries: [CN]
 
 output:
-  top_nodes: 300
-  minimum_publish: 300
+  top_nodes: 310
+  minimum_publish: 310
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true
@@ -167,7 +179,7 @@ vantage:
 network_baseline:
   # These are whole-run diagnostics from the GitHub runner, not fake
   # per-candidate proxy tests. Candidate ranking uses TCP/TLS/Worker HTTP.
-  attempts: 2
+  attempts: 3
   timeout_seconds: 10
   targets:
     - name: Google

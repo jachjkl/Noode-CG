@@ -22,6 +22,7 @@ def qualified(node: NodeResult) -> NodeResult:
     node.tcp_loss_rate = 0.0
     node.speed_mbps = 20.0
     node.country = node.country_hint
+    node.colo_country = node.country_hint
     return node
 
 
@@ -118,6 +119,7 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 report = run_pipeline(config)
 
             self.assertEqual(report["status"], "ok")
+            self.assertTrue(any(gate["name"] == "final_top3" for gate in report["gates"]))
             self.assertEqual(official_call.call_count, 1)
             self.assertEqual(jp_lane.call_count, 1)
             self.assertEqual(

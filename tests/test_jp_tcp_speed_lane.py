@@ -16,6 +16,7 @@ def _measured(node: NodeResult) -> NodeResult:
     node.tcp_loss_rate = 0.0
     node.speed_mbps = 12.0
     node.country = node.country_hint
+    node.colo_country = node.country_hint
     return node
 
 
