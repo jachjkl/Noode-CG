@@ -1,12 +1,160 @@
 {
-  "status": "awaiting-first-run",
+  "status": "ok",
+  "started_at": "2026-08-31T03:32:36.988068+00:00",
   "target_domain": "jackoyu.dpdns.org",
-  "counts": {},
-  "warnings": [
-    "V8 压缩包未携带旧版节点；上传后请运行 Refresh verified endpoints 生成 500 个一次测速且非 CN 的最新地址。"
+  "vantage": "github-general",
+  "counts": {
+    "previous_loaded": 100,
+    "link_source_endpoints": 16951,
+    "link_source_unique_ips": 13711,
+    "remote_sources": {
+      "zip.cm.edu.kg/all.txt": 16803,
+      "bestcf.pages.dev/lzj": 216
+    },
+    "previous_reverified": 28,
+    "previous_in_final": 0,
+    "official_previous_excluded": 650000,
+    "official_sampled_this_run": 50000,
+    "official_rounds": 1,
+    "strict_tcp_qualified": 15000,
+    "metric_processed": 10000,
+    "three_metric_qualified": 8227,
+    "speed_processed": 5000,
+    "speed_at_least_minimum": 4858,
+    "rolling_failed_current": 215,
+    "rolling_unique_current_tested": 2000,
+    "rolling_verified_accumulated": 1813,
+    "cloudflare_sampling_seed": 4659643149669009845
+  },
+  "gates": [
+    {
+      "name": "network_baseline_three_sites",
+      "actual": 1,
+      "minimum": 1,
+      "passed": true
+    },
+    {
+      "name": "required_source:zip.cm.edu.kg/all.txt",
+      "actual": 16803,
+      "minimum": 10000,
+      "passed": true
+    },
+    {
+      "name": "required_source:bestcf.pages.dev/lzj",
+      "actual": 216,
+      "minimum": 50,
+      "passed": true
+    },
+    {
+      "name": "three_metric_qualified",
+      "actual": 8227,
+      "minimum": 5000,
+      "passed": true
+    },
+    {
+      "name": "current_speed_qualified",
+      "actual": 4858,
+      "minimum": 500,
+      "passed": true
+    },
+    {
+      "name": "final_top500",
+      "actual": 500,
+      "minimum": 500,
+      "passed": true
+    }
   ],
-  "generated_at": "2026-08-31T02:46:45.831120+00:00",
-  "selected": 0,
+  "warnings": [],
+  "rounds": [
+    {
+      "round": 1,
+      "link_endpoints": 16951,
+      "official_unique_ips": 50000,
+      "input": 66951,
+      "tcp_one_pass_success": 38805,
+      "tcp_selected_for_tls_https": 15000,
+      "strict_tcp_total": 15000,
+      "tcp_duration_seconds": 40.045
+    }
+  ],
+  "metric_batches": [
+    {
+      "tls_one_pass_success": 4226,
+      "https_ttfb_one_pass_success": 4081,
+      "foreign_combined_latency_qualified": 3985,
+      "tls_and_https_duration_seconds": 23.316,
+      "batch": 1,
+      "input": 5000,
+      "three_metric_qualified_total": 3985
+    },
+    {
+      "tls_one_pass_success": 4458,
+      "https_ttfb_one_pass_success": 4343,
+      "foreign_combined_latency_qualified": 4242,
+      "tls_and_https_duration_seconds": 23.75,
+      "batch": 2,
+      "input": 5000,
+      "three_metric_qualified_total": 8227
+    }
+  ],
+  "speed_batches": [
+    {
+      "speed_tested_once": 5000,
+      "speed_duration_seconds": 21.386,
+      "speed_at_least_minimum": 4858,
+      "batch": 1,
+      "input": 5000,
+      "current_speed_qualified_total": 4858
+    }
+  ],
+  "rolling_attempts": [
+    {
+      "tls_one_pass_success": 2050,
+      "https_ttfb_one_pass_success": 2046,
+      "foreign_combined_latency_qualified": 1814,
+      "tls_and_https_duration_seconds": 55.009,
+      "speed_tested_once": 1814,
+      "speed_duration_seconds": 8.811,
+      "speed_at_least_minimum": 1813,
+      "attempt": 1,
+      "input": 2099,
+      "tcp_one_pass_success": 2069,
+      "current_failed": 215,
+      "previous_tested_this_attempt": 100,
+      "previous_reverified": 28,
+      "verified_added_this_attempt": 1813,
+      "verified_accumulated": 1813,
+      "final_count": 500
+    }
+  ],
+  "network_baseline": {
+    "Google": {
+      "average_ms": 49.025,
+      "successes": 1,
+      "attempts": 1,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "Cloudflare": {
+      "average_ms": 42.818,
+      "successes": 1,
+      "attempts": 1,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "GitHub": {
+      "average_ms": 24.887,
+      "successes": 1,
+      "attempts": 1,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "average_ms": 38.91,
+    "all_targets_passed": true
+  },
+  "duration_seconds": 177.477,
+  "generated_at": "2026-08-31T03:35:34.464944+00:00",
+  "selected": 500,
   "minimum_publish": 500,
   "published": true,
   "preserved_previous_output": false
