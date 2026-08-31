@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V11.1-LinkJP10
+  name: Noode-CG V11.2-LinkJP10
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/11.1-link-jp10
+  user_agent: Noode-CG/11.2-link-jp10
 
 paths:
   locations: data/locations.json
@@ -61,9 +61,10 @@ pipeline:
   # Download only the best 400 at a time and stop as soon as TOP200 + JP10 is
   # satisfied. Strictly qualified successes persist across official rounds.
   speed_batch_size: 400
-  # Prevent an impossible quality requirement from exhausting the entire
-  # Cloudflare IPv4 space during one GitHub Actions run.
-  max_official_rounds: 5
+  # Keep drawing new disjoint official batches until TOP200 is complete.
+  # Thirty rounds cover the available official IPv4 space; runtime and range
+  # exhaustion remain the only safety stops.
+  max_official_rounds: 30
   max_runtime_seconds: 19800
   minimum_round_budget_seconds: 600
   postprocess_reserve_seconds: 1800
@@ -76,6 +77,9 @@ pipeline:
   jp_source_requirement:
     country: JP
     count: 10
+    # A successful IP is never retested. Only the still-unqualified JP
+    # candidates get another full three-pass measurement, up to three rounds.
+    max_test_rounds: 3
   prefilter_country_reserve: {}
   speed_country_reserve: {}
 

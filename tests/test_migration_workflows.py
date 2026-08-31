@@ -16,6 +16,12 @@ class MigrationWorkflowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("rm -f -- tests/test_pipeline_loop.py", ci)
 
+        package_script = (
+            Path(__file__).parents[1] / "scripts" / "package.ps1"
+        ).read_text(encoding="utf-8")
+        for name in ("nodes\\.txt", "nodes\\.json", "nodes\\.csv", "api\\.json", "health\\.json"):
+            self.assertIn(name, package_script)
+
 
 if __name__ == "__main__":
     unittest.main()

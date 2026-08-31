@@ -113,10 +113,7 @@ def publish_outputs(
     destination.mkdir(parents=True, exist_ok=True)
     minimum = int(options.get("minimum_publish", 1))
     preserve = bool(options.get("preserve_last_good", True))
-    existing_good = (destination / "nodes.txt").is_file() and bool(
-        (destination / "nodes.txt").read_text(encoding="utf-8").strip()
-    )
-    should_publish = len(records) >= minimum or not preserve or not existing_good
+    should_publish = len(records) >= minimum or not preserve
     generated_at = datetime.now(UTC).isoformat()
 
     report = dict(report)
@@ -138,7 +135,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V11.1-LinkJP10",
+                "project": "Noode-CG V11.2-LinkJP10",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

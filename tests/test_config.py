@@ -44,8 +44,11 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config["pipeline"]["location_filter"]["require_known_endpoint_country"])
         self.assertTrue(config["pipeline"]["location_filter"]["require_known_colo_country"])
         self.assertEqual(config["pipeline"]["country_minimums"], {"JP": 10})
-        self.assertEqual(config["pipeline"]["jp_source_requirement"], {"country": "JP", "count": 10})
-        self.assertEqual(config["pipeline"]["max_official_rounds"], 5)
+        self.assertEqual(
+            config["pipeline"]["jp_source_requirement"],
+            {"country": "JP", "count": 10, "max_test_rounds": 3},
+        )
+        self.assertEqual(config["pipeline"]["max_official_rounds"], 30)
         self.assertEqual(config["network_baseline"]["attempts"], 3)
         self.assertEqual(config["paths"]["output"], "output")
         self.assertNotIn("deterministic_seed", config["sources"]["cloudflare_ranges"])

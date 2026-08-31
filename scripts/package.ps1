@@ -1,5 +1,5 @@
 param(
-    [string]$Destination = "Noode-CG-V11.1-LinkJP10-CIFix.zip"
+    [string]$Destination = "Noode-CG-V11.2-LinkJP10-Retry.zip"
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +25,7 @@ try {
                 $Relative -notmatch '^data[\\/]input([\\/]|$)' -and
                 $Relative -notmatch '^data[\\/]sources([\\/]|$)' -and
                 $Relative -notmatch '^data[\\/](previous-top100\.json|previous-official-ips\.txt(?:\.gz)?)$' -and
+                $Relative -notmatch '^output[\\/](nodes\.txt|nodes\.json|nodes\.csv|api\.json|health\.json|ip\.zip)$' -and
                 $_.Extension -notin @(".pyc", ".pyo") -and
                 -not ($Segments | Where-Object { $_ -in $ExcludedDirectories })
         } |

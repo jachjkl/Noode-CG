@@ -148,6 +148,10 @@ def validate_config(config: dict[str, Any]) -> None:
         source_country_rule.get("count"),
         "pipeline.jp_source_requirement.count",
     )
+    _positive_number(
+        source_country_rule.get("max_test_rounds"),
+        "pipeline.jp_source_requirement.max_test_rounds",
+    )
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")

@@ -185,12 +185,29 @@ def _competition_candidates(
     return [*preferred, *general]
 
 
+def _fresh_endpoint_candidates(
+    records: Iterable[NodeResult], *, source: str
+) -> list[NodeResult]:
+    fresh: list[NodeResult] = []
+    for original in records:
+        node = NodeResult(
+            ip=original.ip,
+            port=original.port,
+            country_hint=original.country_hint or original.country,
+        )
+        for label in original.sources:
+            node.add_source(label)
+        node.add_source(source)
+        fresh.append(node)
+    return fresh
+
+
 def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     started = datetime.now(UTC)
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/11.1"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/11.2"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -259,6 +276,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     source_country_target = int(
         source_country_rule.get("count", country_minimums.get(source_country, 0))
     )
+    source_country_max_test_rounds = int(source_country_rule.get("max_test_rounds", 3))
     speed_country_reserve = {
         str(country).upper(): int(minimum)
         for country, minimum in pipeline.get("speed_country_reserve", {}).items()
@@ -282,9 +300,17 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         node for node in source_candidates if _country_of(node) == source_country
     ]
     tested_current_ips.update(node.ip for node in source_country_candidates)
-    if source_country_candidates:
+    source_country_attempts: list[dict[str, Any]] = []
+    pending_source_country = list(source_country_candidates)
+    for attempt_index in range(1, source_country_max_test_rounds + 1):
+        if not pending_source_country or len(source_country_quality) >= source_country_target:
+            break
+        attempt_candidates = _fresh_endpoint_candidates(
+            pending_source_country,
+            source=f"{source_country.lower()}-source-attempt-{attempt_index}",
+        )
         source_country_tcp = asyncio.run(
-            scan_tcp(source_country_candidates, pipeline["quality_tcp"])
+            scan_tcp(attempt_candidates, pipeline["quality_tcp"])
         )
         source_country_metrics, source_country_metric_counts = _three_metric_checks(
             source_country_tcp,
@@ -301,27 +327,34 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         )
         speed_processed_ips.update(node.ip for node in source_country_metrics)
         _keep_best_by_ip(source_country_quality, source_country_passed)
-        report["source_country_lane"] = {
+        source_country_attempts.append({
             **source_country_metric_counts,
             **source_country_speed_counts,
-            "country": source_country,
-            "required": source_country_target,
-            "link_candidates": len(source_country_candidates),
+            "attempt": attempt_index,
+            "input_endpoints": len(attempt_candidates),
+            "input_unique_ips": len({node.ip for node in attempt_candidates}),
             "tcp_three_pass_success": len(source_country_tcp),
-            "qualified": len(source_country_quality),
-        }
-    else:
-        report["source_country_lane"] = {
-            "country": source_country,
-            "required": source_country_target,
-            "link_candidates": 0,
-            "tcp_three_pass_success": 0,
-            "qualified": 0,
-        }
+            "qualified_unique_ips_total": len(source_country_quality),
+        })
+        qualified_ips = set(source_country_quality)
+        pending_source_country = [
+            node for node in source_country_candidates if node.ip not in qualified_ips
+        ]
+
+    report["source_country_lane"] = {
+        "country": source_country,
+        "required": source_country_target,
+        "link_candidates": len(source_country_candidates),
+        "link_unique_ips": len({node.ip for node in source_country_candidates}),
+        "attempt_count": len(source_country_attempts),
+        "attempts": source_country_attempts,
+        "qualified": len(source_country_quality),
+    }
 
     report["counts"].update({
         "jp_source_candidates": len(source_country_candidates),
         "jp_source_qualified": len(source_country_quality),
+        "jp_source_test_attempts": len(source_country_attempts),
     })
     if len(source_country_quality) < source_country_target:
         report["warnings"].append(
