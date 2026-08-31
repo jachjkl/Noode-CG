@@ -1,0 +1,174 @@
+{
+  "status": "ok",
+  "started_at": "2026-08-31T14:55:04.557700+00:00",
+  "target_domain": "jackoyu.dpdns.org",
+  "vantage": "github-general",
+  "counts": {
+    "previous_loaded": 0,
+    "link_source_endpoints": 16831,
+    "link_source_unique_ips": 13605,
+    "local_sources": {
+      "local-cfdata": 0
+    },
+    "remote_sources": {
+      "zip.cm.edu.kg/all.txt": 16669,
+      "bestcf.pages.dev/lzj": 230
+    },
+    "jp_source_candidates": 533,
+    "jp_source_qualified": 10,
+    "jp_source_selected": 10,
+    "jp_source_test_attempts": 1,
+    "official_previous_excluded": 50000,
+    "official_sampled_this_run": 50000,
+    "official_snapshot_saved": 50000,
+    "official_rounds": 1,
+    "prefilter_shortlisted_max": 5000,
+    "current_unique_tested": 63605,
+    "three_metric_qualified": 2619,
+    "speed_processed": 918,
+    "speed_at_least_minimum": 400,
+    "previous_retested_once": 0,
+    "previous_reverified": 0,
+    "previous_in_final": 0,
+    "final_country_candidates_rejected": 0,
+    "final_forbidden_country_count": 0,
+    "cloudflare_sampling_seed": 2503198390310744577
+  },
+  "gates": [
+    {
+      "name": "network_baseline_three_sites",
+      "actual": 1,
+      "minimum": 1,
+      "passed": true
+    },
+    {
+      "name": "required_source:zip.cm.edu.kg/all.txt",
+      "actual": 16669,
+      "minimum": 10000,
+      "passed": true
+    },
+    {
+      "name": "required_source:bestcf.pages.dev/lzj",
+      "actual": 230,
+      "minimum": 50,
+      "passed": true
+    },
+    {
+      "name": "prefilter_shortlist",
+      "actual": 5000,
+      "minimum": 5000,
+      "passed": true
+    },
+    {
+      "name": "final_top310",
+      "actual": 310,
+      "minimum": 310,
+      "passed": true
+    },
+    {
+      "name": "final_country:JP",
+      "actual": 10,
+      "minimum": 10,
+      "passed": true
+    },
+    {
+      "name": "final_no_forbidden_or_unknown_country",
+      "actual": 1,
+      "minimum": 1,
+      "passed": true
+    }
+  ],
+  "warnings": [],
+  "rounds": [
+    {
+      "round": 1,
+      "link_endpoints": 16831,
+      "official_unique_ips": 50000,
+      "input": 66298,
+      "prefilter_tcp_three_pass_success_under_1000ms": 41728,
+      "prefilter_shortlisted": 5000,
+      "quality_tcp_five_probe_success_under_300ms": 4989,
+      "three_metric_qualified": 2619,
+      "current_speed_qualified_total": 400,
+      "prefilter_duration_seconds": 48.952,
+      "quality_tcp_duration_seconds": 4.394
+    }
+  ],
+  "metric_batches": [
+    {
+      "tls_three_pass_success": 2955,
+      "https_ttfb_three_pass_success": 2619,
+      "foreign_combined_latency_qualified": 2619,
+      "tls_and_https_duration_seconds": 106.733,
+      "batch": 1,
+      "input": 5000,
+      "quality_tcp_five_probe_success": 4989,
+      "three_metric_qualified_total": 2619
+    }
+  ],
+  "speed_batches": [
+    {
+      "speed_tested_once": 400,
+      "speed_duration_seconds": 4.775,
+      "speed_at_least_minimum": 400,
+      "batch": 1,
+      "round": 1,
+      "input": 400,
+      "current_speed_qualified_total": 400
+    }
+  ],
+  "rolling_attempts": [],
+  "network_baseline": {
+    "Google": {
+      "average_ms": 18.301,
+      "successes": 3,
+      "attempts": 3,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "Cloudflare": {
+      "average_ms": 64.836,
+      "successes": 3,
+      "attempts": 3,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "GitHub": {
+      "average_ms": 157.506,
+      "successes": 3,
+      "attempts": 3,
+      "all_attempts_passed": true,
+      "errors": []
+    },
+    "average_ms": 80.214,
+    "all_targets_passed": true
+  },
+  "source_country_lane": {
+    "country": "JP",
+    "required": 10,
+    "link_candidates": 533,
+    "link_unique_ips": 518,
+    "test_count": 1,
+    "tcping_only_plus_download": true,
+    "tls_skipped": true,
+    "https_ttfb_skipped": true,
+    "measurements": {
+      "input_endpoints": 533,
+      "input_unique_ips": 518,
+      "tcping_attempts_per_endpoint": 3,
+      "tcping_measured": 523,
+      "download_tested_once": 533,
+      "download_measured": 501,
+      "selected_unique_ips": 10,
+      "duration_seconds": 38.636
+    },
+    "qualified": 10,
+    "selected": 10
+  },
+  "duration_seconds": 206.648,
+  "generated_at": "2026-08-31T14:58:31.205590+00:00",
+  "selected": 310,
+  "minimum_publish": 310,
+  "published": true,
+  "preserved_previous_output": false
+}
