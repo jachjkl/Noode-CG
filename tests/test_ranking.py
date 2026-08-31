@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from core.models import NodeResult
-from core.ranking import calculate_average_latency, rank_final
+from core.ranking import calculate_average_latency, rank_final, rank_tcp
 
 
 def measured(
@@ -48,14 +48,14 @@ class RankingTests(unittest.TestCase):
 
         self.assertEqual(result, [first, other])
 
-    def test_final_selection_reserves_fifteen_japanese_nodes(self) -> None:
+    def test_final_selection_reserves_ten_japanese_nodes(self) -> None:
         us_nodes = [
             measured(f"192.0.2.{index}", tcp=50, tls=60, http=70, speed=100 - index)
             for index in range(1, 21)
         ]
         jp_nodes = [
             measured(f"198.51.100.{index}", tcp=100, tls=110, http=120, speed=10)
-            for index in range(1, 16)
+            for index in range(1, 11)
         ]
         for node in us_nodes:
             node.country = "US"
@@ -65,11 +65,32 @@ class RankingTests(unittest.TestCase):
         result = rank_final(
             [*us_nodes, *jp_nodes],
             count=20,
-            minimum_by_country={"JP": 15},
+            minimum_by_country={"JP": 10},
         )
 
         self.assertEqual(len(result), 20)
-        self.assertEqual(sum(node.country == "JP" for node in result), 15)
+        self.assertEqual(sum(node.country == "JP" for node in result), 10)
+
+    def test_tcp_prefilter_keeps_fastest_nodes_and_country_reserve(self) -> None:
+        fast_us = [NodeResult(ip=f"192.0.2.{index}", country_hint="US") for index in range(1, 6)]
+        slower_jp = [NodeResult(ip=f"198.51.100.{index}", country_hint="JP") for index in range(1, 3)]
+        for index, node in enumerate(fast_us, start=1):
+            node.tcp_latency_ms = float(index)
+            node.tcp_jitter_ms = 1.0
+            node.tcp_loss_rate = 0.0
+        for index, node in enumerate(slower_jp, start=100):
+            node.tcp_latency_ms = float(index)
+            node.tcp_jitter_ms = 1.0
+            node.tcp_loss_rate = 0.0
+
+        result = rank_tcp(
+            [*fast_us, *slower_jp],
+            count=5,
+            minimum_by_country={"JP": 2},
+        )
+
+        self.assertEqual(len(result), 5)
+        self.assertEqual(sum(node.country_hint == "JP" for node in result), 2)
 
 
 if __name__ == "__main__":

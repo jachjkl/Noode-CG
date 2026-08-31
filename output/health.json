@@ -3,11 +3,11 @@
   "target_domain": "jackoyu.dpdns.org",
   "counts": {},
   "warnings": [
-    "V9 压缩包不携带候选 IP；上传后请运行 Refresh verified endpoints 在线生成 500 条，其中 JP 至少 15 条。"
+    "V10 压缩包不携带候选 IP；上传后请运行 Refresh verified endpoints 在线生成 200 条，其中 JP 至少 10 条。"
   ],
   "generated_at": "2026-08-31T04:40:59.275224+00:00",
   "selected": 0,
-  "minimum_publish": 500,
+  "minimum_publish": 200,
   "published": true,
   "preserved_previous_output": false
 }

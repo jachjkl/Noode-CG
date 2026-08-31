@@ -138,7 +138,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V9-ThreePassJP15",
+                "project": "Noode-CG V10-Fast200JP10",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V9-ThreePassJP15
+  name: Noode-CG V10-Fast200JP10
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/9.0-three-pass-jp15
+  user_agent: Noode-CG/10.0-fast200-jp10
 
 paths:
   locations: data/locations.json
@@ -10,8 +10,8 @@ paths:
   output: output
 
 rolling:
-  # Save the previous published TOP100, then retest them together with the
-  # current TOP500 before publishing the final TOP500.
+  # Save the previous published TOP100 and strictly retest each one once.
+  # Passing old nodes then compete with the already-tested current pool.
   previous_limit: 100
   snapshot_path: data/previous-top100.json
   official_snapshot_path: data/previous-official-ips.txt
@@ -51,55 +51,62 @@ sources:
     sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
-  # This target counts only IPs that pass TCP, TLS, and HTTPS TTFB below.
-  three_metric_shortlist: 5000
+  # Stage 1 keeps the fastest 5,000 IPs whose three TCPing attempts average
+  # no more than 1,000ms. Stage 2 applies the strict 300ms quality rules.
+  prefilter_shortlist: 5000
   maximum_combined_latency_ms: 300
   maximum_component_latency_ms: 300
-  maximum_jitter_ms: 200
-  current_selection: 500
-  speed_batch_size: 1000
-  # Final verification takes up to 800 never-before-retested current nodes at
-  # once and accumulates successes. A node and previous TOP100 entry are not
-  # tested repeatedly in later final-verification rounds.
-  rolling_candidate_batch: 800
+  maximum_jitter_ms: 500
+  current_selection: 200
+  # Download only the best 400 at a time and stop as soon as TOP200 + JP10 is
+  # satisfied. Strictly qualified successes persist across official rounds.
+  speed_batch_size: 400
   max_runtime_seconds: 19800
-  minimum_round_budget_seconds: 900
-  postprocess_reserve_seconds: 6000
+  minimum_round_budget_seconds: 600
+  postprocess_reserve_seconds: 1800
   fail_on_quality_gate: false
 
-  # Three consecutive TCPing attempts run over the entire source + 50,000
-  # official batch. Only the fastest candidates continue to TLS/HTTPS.
-  strict_tcp_candidates_per_round: 10000
-
   country_minimums:
-    JP: 15
+    JP: 10
+  prefilter_country_reserve:
+    JP: 50
   speed_country_reserve:
-    JP: 60
+    JP: 25
 
-  tcp:
-    concurrency: 400
+  prefilter_tcp:
+    concurrency: 800
+    timeout_seconds: 1.2
+    attempts: 3
+    require_all_attempts: true
+    maximum_average_latency_ms: 1000
+    maximum_jitter_ms: 500
+    stop_on_failure: true
+    stop_when_average_impossible: true
+
+  quality_tcp:
+    concurrency: 500
     timeout_seconds: 1.0
     attempts: 3
     require_all_attempts: true
-    maximum_average_latency_ms: 200
-    maximum_jitter_ms: 200
+    maximum_average_latency_ms: 300
+    maximum_jitter_ms: 500
     stop_on_failure: true
     stop_when_average_impossible: true
 
   tls:
-    concurrency: 150
+    concurrency: 250
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
     attempts: 3
     require_all_attempts: true
     maximum_average_latency_ms: 300
-    maximum_jitter_ms: 200
+    maximum_jitter_ms: 500
     stop_on_failure: true
     stop_when_average_impossible: true
 
   http:
-    concurrency: 100
+    concurrency: 200
     timeout_seconds: 5.0
     path: /cdn-cgi/trace
     require_trace_fields: true
@@ -107,7 +114,7 @@ pipeline:
     attempts: 3
     require_all_attempts: true
     maximum_average_ttfb_ms: 300
-    maximum_jitter_ms: 200
+    maximum_jitter_ms: 500
     stop_on_failure: true
     stop_when_average_impossible: true
 
@@ -125,21 +132,11 @@ pipeline:
     path: /__down?bytes=262144
     bytes_per_test: 262144
     minimum_completion_ratio: 0.95
-    candidates: 1000
+    candidates: 400
     minimum_mbps: 1.0
-    concurrency: 48
+    concurrency: 64
     timeout_seconds: 5.0
     maximum_download_seconds: 4.5
-
-  rolling_retest:
-    concurrency: 200
-    timeout_seconds: 1.0
-    attempts: 3
-    require_all_attempts: true
-    maximum_average_latency_ms: 200
-    maximum_jitter_ms: 200
-    stop_on_failure: true
-    stop_when_average_impossible: true
 
   location_filter:
     require_known_endpoint_country: true
@@ -147,8 +144,8 @@ pipeline:
     excluded_countries: [CN]
 
 output:
-  top_nodes: 500
-  minimum_publish: 500
+  top_nodes: 200
+  minimum_publish: 200
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true

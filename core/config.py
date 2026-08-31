@@ -64,7 +64,7 @@ def validate_config(config: dict[str, Any]) -> None:
 
     pipeline = config["pipeline"]
     for name in (
-        "three_metric_shortlist",
+        "prefilter_shortlist",
         "maximum_combined_latency_ms",
         "maximum_component_latency_ms",
         "maximum_jitter_ms",
@@ -73,21 +73,30 @@ def validate_config(config: dict[str, Any]) -> None:
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
         "postprocess_reserve_seconds",
-        "strict_tcp_candidates_per_round",
-        "rolling_candidate_batch",
     ):
         _positive_number(pipeline.get(name), f"pipeline.{name}")
-    for stage in ("tcp", "tls", "http"):
+    for stage in ("prefilter_tcp", "quality_tcp", "tls", "http"):
         block = pipeline.get(stage)
         if not isinstance(block, dict):
             raise ConfigError(f"缺少 pipeline.{stage}")
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
         _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
-    _positive_number(pipeline["tcp"].get("attempts"), "pipeline.tcp.attempts")
     _positive_number(
-        pipeline["tcp"].get("maximum_average_latency_ms"),
-        "pipeline.tcp.maximum_average_latency_ms",
+        pipeline["prefilter_tcp"].get("attempts"),
+        "pipeline.prefilter_tcp.attempts",
+    )
+    _positive_number(
+        pipeline["prefilter_tcp"].get("maximum_average_latency_ms"),
+        "pipeline.prefilter_tcp.maximum_average_latency_ms",
+    )
+    _positive_number(
+        pipeline["quality_tcp"].get("attempts"),
+        "pipeline.quality_tcp.attempts",
+    )
+    _positive_number(
+        pipeline["quality_tcp"].get("maximum_average_latency_ms"),
+        "pipeline.quality_tcp.maximum_average_latency_ms",
     )
     _positive_number(pipeline["tls"].get("attempts"), "pipeline.tls.attempts")
     _positive_number(
@@ -99,7 +108,7 @@ def validate_config(config: dict[str, Any]) -> None:
         pipeline["http"].get("maximum_average_ttfb_ms"),
         "pipeline.http.maximum_average_ttfb_ms",
     )
-    for stage in ("tcp", "tls", "http"):
+    for stage in ("prefilter_tcp", "quality_tcp", "tls", "http"):
         if int(pipeline[stage].get("attempts", 0)) != 3:
             raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
         if pipeline[stage].get("require_all_attempts") is not True:
@@ -111,10 +120,12 @@ def validate_config(config: dict[str, Any]) -> None:
     for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps", "bytes_per_test"):
         _positive_number(speed.get(name), f"pipeline.speed.{name}")
     _positive_number(speed.get("maximum_download_seconds"), "pipeline.speed.maximum_download_seconds")
-    if int(pipeline["strict_tcp_candidates_per_round"]) < int(pipeline["three_metric_shortlist"]):
-        raise ConfigError("pipeline.strict_tcp_candidates_per_round 不能小于 three_metric_shortlist")
-    if int(pipeline["speed_batch_size"]) > int(pipeline["three_metric_shortlist"]):
-        raise ConfigError("pipeline.speed_batch_size 不能大于 three_metric_shortlist")
+    if int(pipeline["speed_batch_size"]) > int(pipeline["prefilter_shortlist"]):
+        raise ConfigError("pipeline.speed_batch_size 不能大于 prefilter_shortlist")
+    if float(pipeline["prefilter_tcp"]["maximum_average_latency_ms"]) != 1000:
+        raise ConfigError("pipeline.prefilter_tcp.maximum_average_latency_ms 必须等于 1000")
+    if float(pipeline["quality_tcp"]["maximum_average_latency_ms"]) != 300:
+        raise ConfigError("pipeline.quality_tcp.maximum_average_latency_ms 必须等于 300")
 
     country_minimums = pipeline.get("country_minimums")
     if not isinstance(country_minimums, dict) or not country_minimums:
@@ -128,23 +139,6 @@ def validate_config(config: dict[str, Any]) -> None:
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
-
-    for stage in ("rolling_retest",):
-        block = pipeline.get(stage)
-        if not isinstance(block, dict):
-            raise ConfigError(f"缺少 pipeline.{stage}")
-        _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
-        _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
-        _positive_number(block.get("attempts"), f"pipeline.{stage}.attempts")
-        _positive_number(
-            block.get("maximum_average_latency_ms"),
-            f"pipeline.{stage}.maximum_average_latency_ms",
-        )
-        _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
-        if int(block.get("attempts", 0)) != 3:
-            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
-        if block.get("require_all_attempts") is not True:
-            raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
 
     location_filter = pipeline.get("location_filter")
     if not isinstance(location_filter, dict):

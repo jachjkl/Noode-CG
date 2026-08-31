@@ -88,7 +88,7 @@ def prepare_retest_candidates(
     fresh: list[NodeResult] = []
     seen_ips: set[str] = set()
     for original, source in [
-        *((node, "current-top500") for node in current_selected),
+        *((node, "current-selection") for node in current_selected),
         *((node, "previous-top100") for node in previous),
     ]:
         if original.ip in seen_ips:

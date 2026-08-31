@@ -17,7 +17,7 @@ from .isp_test import merge_probe_files
 from .models import NodeResult
 from .network_baseline import measure_network_baseline
 from .parser import deduplicate
-from .ranking import calculate_average_latency, rank_final
+from .ranking import calculate_average_latency, rank_final, rank_tcp
 from .rolling import load_previous_top, prepare_retest_candidates, save_previous_top
 from .speed_test import meets_minimum_speed, test_speed
 from .tcp_scan import scan_tcp
@@ -157,7 +157,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/9.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/10.0"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -201,23 +201,21 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     report["counts"]["remote_sources"] = source_counts
 
     prior_official_ips = _load_ip_snapshot(official_snapshot)
-    excluded_official_ips = {node.ip for node in source_candidates} | prior_official_ips
+    previous_ips = {node.ip for node in previous}
+    excluded_official_ips = (
+        {node.ip for node in source_candidates} | prior_official_ips | previous_ips
+    )
     current_official_ips: set[str] = set()
-    strict_tcp: dict[str, NodeResult] = {}
-    processed_metric_keys: set[str] = set()
-    three_metric: dict[str, NodeResult] = {}
-    speed_processed_keys: set[str] = set()
+    tested_current_ips: set[str] = set()
+    metric_qualified: dict[str, NodeResult] = {}
+    speed_processed_ips: set[str] = set()
     current_quality: dict[str, NodeResult] = {}
-    rolling_failed_current: set[str] = set()
-    rolling_tested_current: set[str] = set()
-    rolling_tested_previous: set[str] = set()
-    verified_final: dict[str, NodeResult] = {}
+    previous_quality: dict[str, NodeResult] = {}
     selected: list[NodeResult] = []
-    round_index = metric_batch_index = speed_batch_index = rolling_attempt_index = 0
-    metric_target = int(pipeline["three_metric_shortlist"])
+    round_index = speed_batch_index = 0
+    prefilter_target = int(pipeline["prefilter_shortlist"])
     final_target = int(pipeline["current_selection"])
     speed_batch_size = int(pipeline["speed_batch_size"])
-    rolling_batch_size = int(pipeline.get("rolling_candidate_batch", final_target * 4))
     country_minimums = {
         str(country).upper(): int(minimum)
         for country, minimum in pipeline.get("country_minimums", {}).items()
@@ -231,134 +229,65 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     minimum_round_budget = float(pipeline["minimum_round_budget_seconds"])
     locations = load_locations(resolve_path(config, config["paths"]["locations"]))
     probe_paths = [resolve_path(config, path) for path in config.get("vantage", {}).get("probe_files", [])]
-    metric_checkpoint_written = False
+    prefilter_country_reserve = {
+        str(country).upper(): int(minimum)
+        for country, minimum in pipeline.get("prefilter_country_reserve", {}).items()
+    }
+    prefilter_shortlisted_max = 0
 
-    while len(selected) < final_target or not _country_quotas_met(selected, country_minimums):
-        remaining = max_runtime - (time.monotonic() - monotonic_started)
-        if remaining <= 0:
-            report["warnings"].append("已到内部运行时限，保留上一版订阅")
-            break
+    # The previous TOP100 has its own lane: one strict TCP/TLS/TTFB/download
+    # recheck, then it competes with current results without being tested again.
+    if previous:
+        previous_retest = prepare_retest_candidates([], previous)
+        previous_tcp = asyncio.run(scan_tcp(previous_retest, pipeline["quality_tcp"]))
+        previous_metrics, metric_counts = _three_metric_checks(
+            previous_tcp,
+            domain=domain,
+            pipeline=pipeline,
+            user_agent=user_agent,
+            locations=locations,
+        )
+        previous_passed, speed_counts = _speed_checks(
+            previous_metrics,
+            pipeline=pipeline,
+            user_agent=user_agent,
+            probe_paths=probe_paths,
+        )
+        _keep_best_by_ip(previous_quality, previous_passed)
+        report["rolling_attempts"].append({
+            **metric_counts,
+            **speed_counts,
+            "attempt": 1,
+            "input": len(previous_retest),
+            "tcp_three_pass_success": len(previous_tcp),
+            "previous_tested_this_attempt": len(previous_retest),
+            "previous_reverified": len(previous_quality),
+        })
 
-        available = [
-            node
-            for node in current_quality.values()
-            if node.ip not in rolling_failed_current and node.ip not in rolling_tested_current
-        ]
-        previous_batch = [node for node in previous if node.ip not in rolling_tested_previous]
-        still_needed = max(0, final_target - len(verified_final))
-        remaining_minimums = {
-            country: max(0, minimum - _country_count(list(verified_final.values()), country))
-            for country, minimum in country_minimums.items()
-        }
-        retest_supply = [*available, *previous_batch]
-        enough_country_supply = all(
-            _country_count(retest_supply, country) >= minimum
-            for country, minimum in remaining_minimums.items()
+    while True:
+        combined = [*current_quality.values(), *previous_quality.values()]
+        candidate_selection = rank_final(
+            combined,
+            count=final_target,
+            minimum_by_country=country_minimums,
         )
         if (
-            retest_supply
-            and len(retest_supply) >= still_needed
-            and enough_country_supply
-            and remaining >= minimum_round_budget
+            len(candidate_selection) >= final_target
+            and _country_quotas_met(candidate_selection, country_minimums)
         ):
-            current = rank_final(
-                available,
-                count=rolling_batch_size,
-                minimum_by_country=remaining_minimums,
-            )
-            retest = prepare_retest_candidates(current, previous_batch)
-            retest_tcp = asyncio.run(scan_tcp(retest, pipeline["rolling_retest"]))
-            retest_metrics, metric_counts = _three_metric_checks(
-                retest_tcp, domain=domain, pipeline=pipeline,
-                user_agent=user_agent, locations=locations,
-            )
-            retest_quality, speed_counts = _speed_checks(
-                retest_metrics, pipeline=pipeline, user_agent=user_agent,
-                probe_paths=probe_paths,
-            )
-            _keep_best_by_ip(verified_final, retest_quality)
-            selected = rank_final(
-                verified_final.values(),
-                count=final_target,
-                minimum_by_country=country_minimums,
-            )
-            passed_ips = {node.ip for node in retest_quality}
-            failed = {node.ip for node in current if node.ip not in passed_ips}
-            rolling_failed_current.update(failed)
-            rolling_tested_current.update(node.ip for node in current)
-            rolling_tested_previous.update(node.ip for node in previous_batch)
-            previous_ips = {node.ip for node in previous}
-            rolling_attempt_index += 1
-            attempt_counts = {
-                **metric_counts, **speed_counts, "attempt": rolling_attempt_index,
-                "input": len(retest), "tcp_three_pass_success": len(retest_tcp),
-                "current_failed": len(failed),
-                "previous_tested_this_attempt": len(previous_batch),
-                "previous_reverified": sum(node.ip in previous_ips for node in verified_final.values()),
-                "verified_added_this_attempt": len({node.ip for node in retest_quality}),
-                "verified_accumulated": len(verified_final),
-                "final_count": len(selected),
-                "final_countries": {
-                    country: _country_count(selected, country) for country in country_minimums
-                },
-            }
-            report["rolling_attempts"].append(attempt_counts)
-            if len(selected) >= final_target and _country_quotas_met(selected, country_minimums):
-                report["counts"]["previous_reverified"] = attempt_counts["previous_reverified"]
-                report["counts"]["previous_in_final"] = sum(node.ip in previous_ips for node in selected)
-                write_checkpoint(checkpoint_dir / "04-final-top500.json", selected)
-                break
-            selected = []
-            continue
+            selected = candidate_selection
+            break
 
-        untested_speed = [node for node in three_metric.values() if node.key not in speed_processed_keys]
-        if len(three_metric) >= metric_target and untested_speed and remaining >= reserve:
-            chunk = rank_final(
-                untested_speed,
-                count=speed_batch_size,
-                minimum_by_country=speed_country_reserve,
+        remaining = max_runtime - (time.monotonic() - monotonic_started)
+        if remaining < minimum_round_budget + reserve:
+            report["warnings"].append(
+                "剩余时间不足以完成新的官方 50,000 候选批次，保留上一版订阅"
             )
-            speed_batch_index += 1
-            qualified, counts = _speed_checks(
-                chunk, pipeline=pipeline, user_agent=user_agent, probe_paths=probe_paths
-            )
-            speed_processed_keys.update(node.key for node in chunk)
-            _keep_best_by_ip(current_quality, qualified)
-            counts.update({"batch": speed_batch_index, "input": len(chunk),
-                           "current_speed_qualified_total": len(current_quality)})
-            report["speed_batches"].append(counts)
-            continue
-
-        unprocessed = [node for node in strict_tcp.values() if node.key not in processed_metric_keys]
-        if len(unprocessed) >= metric_target and remaining >= reserve:
-            chunk = sorted(unprocessed, key=lambda node: (
-                node.tcp_latency_ms if node.tcp_latency_ms is not None else 999999,
-                node.ip, node.port,
-            ))[:metric_target]
-            metric_batch_index += 1
-            qualified, counts = _three_metric_checks(
-                chunk, domain=domain, pipeline=pipeline,
-                user_agent=user_agent, locations=locations,
-            )
-            processed_metric_keys.update(node.key for node in chunk)
-            _keep_best_by_ip(three_metric, qualified)
-            counts.update({"batch": metric_batch_index, "input": len(chunk),
-                           "three_metric_qualified_total": len(three_metric)})
-            report["metric_batches"].append(counts)
-            if len(three_metric) >= metric_target and not metric_checkpoint_written:
-                write_checkpoint(
-                    checkpoint_dir / "02-three-metric-top5000.json",
-                    rank_final(list(three_metric.values()), count=metric_target),
-                )
-                metric_checkpoint_written = True
-            continue
-
-        if round_index > 0 and remaining < minimum_round_budget + reserve:
-            report["warnings"].append("剩余时间不足以完成下一批官方候选及后续测速，保留上一版订阅")
             break
 
         official, warnings = collect_official_batch(
-            config, exclude_ips=excluded_official_ips | current_official_ips,
+            config,
+            exclude_ips=excluded_official_ips | current_official_ips | tested_current_ips,
             round_index=round_index,
         )
         report["warnings"].extend(warnings)
@@ -367,72 +296,149 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             report["warnings"].append("官方段无法再提供完整的 50,000 个不重复候选")
             break
         current_official_ips.update(node.ip for node in official)
-        batch = deduplicate([*source_candidates, *official]) if round_index == 0 else official
-        tcp_started = time.monotonic()
-        tcp_passed = asyncio.run(scan_tcp(batch, pipeline["tcp"]))
-        tcp_seconds = time.monotonic() - tcp_started
-        strict_limit = int(pipeline["strict_tcp_candidates_per_round"])
-        strict_candidates = sorted(
-            tcp_passed,
-            key=lambda node: (
-                node.tcp_latency_ms if node.tcp_latency_ms is not None else 999999,
-                node.ip,
-                node.port,
-            ),
-        )[:strict_limit]
-        for node in strict_candidates:
-            old = strict_tcp.get(node.ip)
-            if old is None or (node.tcp_latency_ms or 999999) < (old.tcp_latency_ms or 999999):
-                strict_tcp[node.ip] = node
+        raw_batch = deduplicate([*source_candidates, *official]) if round_index == 0 else official
+        batch = [
+            node
+            for node in raw_batch
+            if node.ip not in previous_ips and node.ip not in tested_current_ips
+        ]
+        tested_current_ips.update(node.ip for node in batch)
+
+        prefilter_started = time.monotonic()
+        prefilter_passed = asyncio.run(scan_tcp(batch, pipeline["prefilter_tcp"]))
+        shortlist = rank_tcp(
+            prefilter_passed,
+            count=prefilter_target,
+            minimum_by_country=prefilter_country_reserve,
+        )
+        prefilter_seconds = time.monotonic() - prefilter_started
+        prefilter_shortlisted_max = max(prefilter_shortlisted_max, len(shortlist))
+
+        quality_tcp_started = time.monotonic()
+        quality_tcp = asyncio.run(scan_tcp(shortlist, pipeline["quality_tcp"]))
+        quality_tcp_seconds = time.monotonic() - quality_tcp_started
+        metrics, metric_counts = _three_metric_checks(
+            quality_tcp,
+            domain=domain,
+            pipeline=pipeline,
+            user_agent=user_agent,
+            locations=locations,
+        )
+        _keep_best_by_ip(metric_qualified, metrics)
+        metric_counts.update({
+            "batch": round_index + 1,
+            "input": len(shortlist),
+            "quality_tcp_three_pass_success": len(quality_tcp),
+            "three_metric_qualified_total": len(metric_qualified),
+        })
+        report["metric_batches"].append(metric_counts)
+        write_checkpoint(
+            checkpoint_dir / "02-three-metric-qualified.json",
+            rank_final(metric_qualified.values(), count=len(metric_qualified)),
+        )
+
+        untested_speed = [node for node in metrics if node.ip not in speed_processed_ips]
+        while untested_speed:
+            if max_runtime - (time.monotonic() - monotonic_started) < reserve:
+                report["warnings"].append("已为输出阶段保留时间，停止新的下载测速")
+                untested_speed = []
+                break
+            chunk = rank_final(
+                untested_speed,
+                count=min(speed_batch_size, len(untested_speed)),
+                minimum_by_country=speed_country_reserve,
+            )
+            speed_batch_index += 1
+            qualified, counts = _speed_checks(
+                chunk,
+                pipeline=pipeline,
+                user_agent=user_agent,
+                probe_paths=probe_paths,
+            )
+            speed_processed_ips.update(node.ip for node in chunk)
+            _keep_best_by_ip(current_quality, qualified)
+            counts.update({
+                "batch": speed_batch_index,
+                "round": round_index + 1,
+                "input": len(chunk),
+                "current_speed_qualified_total": len(current_quality),
+            })
+            report["speed_batches"].append(counts)
+            combined = [*current_quality.values(), *previous_quality.values()]
+            candidate_selection = rank_final(
+                combined,
+                count=final_target,
+                minimum_by_country=country_minimums,
+            )
+            if (
+                len(candidate_selection) >= final_target
+                and _country_quotas_met(candidate_selection, country_minimums)
+            ):
+                selected = candidate_selection
+                break
+            untested_speed = [
+                node for node in untested_speed if node.ip not in speed_processed_ips
+            ]
+
         round_index += 1
         report["rounds"].append({
             "round": round_index,
             "link_endpoints": len(source_candidates) if round_index == 1 else 0,
             "official_unique_ips": len({node.ip for node in official}),
             "input": len(batch),
-            "tcp_three_pass_success": len(tcp_passed),
-            "tcp_selected_for_tls_https": len(strict_candidates),
-            "strict_tcp_total": len(strict_tcp),
-            "tcp_duration_seconds": round(tcp_seconds, 3),
+            "prefilter_tcp_three_pass_success_under_1000ms": len(prefilter_passed),
+            "prefilter_shortlisted": len(shortlist),
+            "quality_tcp_three_pass_success_under_300ms": len(quality_tcp),
+            "three_metric_qualified": len(metrics),
+            "current_speed_qualified_total": len(current_quality),
+            "prefilter_duration_seconds": round(prefilter_seconds, 3),
+            "quality_tcp_duration_seconds": round(quality_tcp_seconds, 3),
         })
         print(
-            f"第 {round_index} 轮: 输入={len(batch)}, TCPing 三次成功={len(tcp_passed)}, "
-            f"三项累计={len(three_metric)}/{metric_target}", flush=True,
+            f"第 {round_index} 轮: 输入={len(batch)}, 1000ms 初筛={len(prefilter_passed)}, "
+            f"严格测试={len(shortlist)}, 下载合格累计={len(current_quality)}/{final_target}",
+            flush=True,
         )
+        if selected:
+            break
 
     _save_ip_snapshot(official_snapshot, current_official_ips)
     report["counts"].update({
         "official_previous_excluded": len(prior_official_ips),
         "official_sampled_this_run": len(current_official_ips),
         "official_rounds": round_index,
-        "strict_tcp_qualified": len(strict_tcp),
-        "metric_processed": len(processed_metric_keys),
-        "three_metric_qualified": len(three_metric),
-        "speed_processed": len(speed_processed_keys),
+        "prefilter_shortlisted_max": prefilter_shortlisted_max,
+        "current_unique_tested": len(tested_current_ips),
+        "three_metric_qualified": len(metric_qualified),
+        "speed_processed": len(speed_processed_ips),
         "speed_at_least_minimum": len(current_quality),
-        "rolling_failed_current": len(rolling_failed_current),
-        "rolling_unique_current_tested": len(rolling_tested_current),
-        "rolling_verified_accumulated": len(verified_final),
+        "previous_retested_once": len(previous),
+        "previous_reverified": len(previous_quality),
+        "previous_in_final": sum(node.ip in previous_ips for node in selected),
     })
     sampling_seed = config["sources"].get("cloudflare_ranges", {}).get("_resolved_sampling_seed")
     if sampling_seed is not None:
         report["counts"]["cloudflare_sampling_seed"] = sampling_seed
     report["gates"].extend([
-        _gate("three_metric_qualified", len(three_metric), metric_target),
-        _gate("current_speed_qualified", len(current_quality), final_target),
-        _gate("final_top500", len(selected), int(config["output"]["top_nodes"])),
+        _gate("prefilter_shortlist", prefilter_shortlisted_max, prefilter_target),
+        _gate("final_top200", len(selected), int(config["output"]["top_nodes"])),
         *[
             _gate(f"final_country:{country}", _country_count(selected, country), minimum)
             for country, minimum in country_minimums.items()
         ],
     ])
 
+    if selected and prefilter_shortlisted_max < prefilter_target:
+        report["warnings"].append("未完成一批足量的 5,000 个初筛候选，保留旧订阅")
+        selected = []
     if selected and not _country_quotas_met(selected, country_minimums):
         report["warnings"].append("最终地区最低数量未满足，保留旧订阅")
         selected = []
     if selected and not baseline_passed:
         report["warnings"].append("Google、Cloudflare、GitHub 三次基线未全部通过，保留旧订阅")
         selected = []
+    if selected:
+        write_checkpoint(checkpoint_dir / "04-final-top200.json", selected)
     report["status"] = "ok" if all(item["passed"] for item in report["gates"]) else "degraded"
     report["duration_seconds"] = round((datetime.now(UTC) - started).total_seconds(), 3)
     final_report = publish_outputs(output_dir, selected, report, config["output"])

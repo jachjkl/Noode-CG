@@ -7,6 +7,42 @@ from collections.abc import Iterable
 from .models import NodeResult
 
 
+def _unique_in_order(records: Iterable[NodeResult]) -> list[NodeResult]:
+    unique: list[NodeResult] = []
+    seen: set[str] = set()
+    for node in records:
+        if node.ip in seen:
+            continue
+        unique.append(node)
+        seen.add(node.ip)
+    return unique
+
+
+def _take_with_country_minimums(
+    ordered: list[NodeResult],
+    *,
+    count: int,
+    minimum_by_country: dict[str, int] | None,
+) -> list[NodeResult]:
+    unique = _unique_in_order(ordered)
+    required: set[str] = set()
+    for country, minimum in (minimum_by_country or {}).items():
+        normalized = str(country).upper()
+        matches = [
+            node
+            for node in unique
+            if (node.country or node.country_hint).upper() == normalized
+        ]
+        required.update(node.ip for node in matches[: max(0, int(minimum))])
+
+    chosen: set[str] = set(required)
+    for node in unique:
+        if len(chosen) >= count:
+            break
+        chosen.add(node.ip)
+    return [node for node in unique if node.ip in chosen][:count]
+
+
 def calculate_average_latency(node: NodeResult) -> float | None:
     values = (node.tcp_latency_ms, node.tls_latency_ms, node.http_latency_ms)
     if any(value is None for value in values):
@@ -43,27 +79,31 @@ def rank_final(
             node.port,
         ),
     )
-    unique: list[NodeResult] = []
-    selected_ips: set[str] = set()
-    for node in ordered:
-        if node.ip in selected_ips:
-            continue
-        unique.append(node)
-        selected_ips.add(node.ip)
+    return _take_with_country_minimums(
+        ordered,
+        count=count,
+        minimum_by_country=minimum_by_country,
+    )
 
-    required: set[str] = set()
-    for country, minimum in (minimum_by_country or {}).items():
-        normalized = str(country).upper()
-        matches = [
-            node
-            for node in unique
-            if (node.country or node.country_hint).upper() == normalized
-        ]
-        required.update(node.ip for node in matches[: max(0, int(minimum))])
 
-    chosen: set[str] = set(required)
-    for node in unique:
-        if len(chosen) >= count:
-            break
-        chosen.add(node.ip)
-    return [node for node in unique if node.ip in chosen][:count]
+def rank_tcp(
+    records: Iterable[NodeResult],
+    *,
+    count: int,
+    minimum_by_country: dict[str, int] | None = None,
+) -> list[NodeResult]:
+    ordered = sorted(
+        records,
+        key=lambda node: (
+            node.tcp_loss_rate,
+            node.tcp_latency_ms if node.tcp_latency_ms is not None else math.inf,
+            node.tcp_jitter_ms if node.tcp_jitter_ms is not None else math.inf,
+            node.ip,
+            node.port,
+        ),
+    )
+    return _take_with_country_minimums(
+        ordered,
+        count=count,
+        minimum_by_country=minimum_by_country,
+    )
