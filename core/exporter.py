@@ -21,17 +21,13 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "ip_port": node.ip_port,
         "country": node.country or node.country_hint or "XX",
         "colo": node.colo,
-        "colo_country": node.colo_country,
         "region": node.region,
         "city": node.city,
         "tcp_latency_ms": node.tcp_latency_ms,
         "tls_latency_ms": node.tls_latency_ms,
         "http_latency_ms": node.http_latency_ms,
         "average_latency_ms": node.average_latency_ms,
-        "tcp_jitter_ms": node.tcp_jitter_ms,
-        "tls_jitter_ms": node.tls_jitter_ms,
-        "http_jitter_ms": node.http_jitter_ms,
-        "jitter_ms": node.overall_jitter_ms,
+        "jitter_ms": node.tcp_jitter_ms,
         "loss_rate": node.tcp_loss_rate,
         "speed_mbps": node.speed_mbps,
         "tls_version": node.tls_version,
@@ -79,16 +75,12 @@ def _csv_text(records: list[NodeResult]) -> str:
         "port",
         "country",
         "colo",
-        "colo_country",
         "region",
         "city",
         "tcp_latency_ms",
         "tls_latency_ms",
         "http_latency_ms",
         "average_latency_ms",
-        "tcp_jitter_ms",
-        "tls_jitter_ms",
-        "http_jitter_ms",
         "jitter_ms",
         "loss_rate",
         "speed_mbps",
@@ -113,7 +105,10 @@ def publish_outputs(
     destination.mkdir(parents=True, exist_ok=True)
     minimum = int(options.get("minimum_publish", 1))
     preserve = bool(options.get("preserve_last_good", True))
-    should_publish = len(records) >= minimum or not preserve
+    existing_good = (destination / "nodes.txt").is_file() and bool(
+        (destination / "nodes.txt").read_text(encoding="utf-8").strip()
+    )
+    should_publish = len(records) >= minimum or not preserve or not existing_good
     generated_at = datetime.now(UTC).isoformat()
 
     report = dict(report)
@@ -135,7 +130,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V11.3-JP-TCP-Speed",
+                "project": "Noode-CG V3-Rolling300",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

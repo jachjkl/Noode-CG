@@ -42,16 +42,11 @@ def _read_range_lines(
                 timeout=15,
                 max_bytes=1024 * 1024,
             ).decode("ascii", errors="strict")
-        except Exception as exc:  # An explicitly configured fallback may be used below.
-            warnings.append(f"在线刷新 Cloudflare {kind.upper()} 网段失败: {exc}")
+        except Exception as exc:  # Network fallback is intentional.
+            warnings.append(f"刷新 Cloudflare {kind.upper()} 网段失败，使用内置快照: {exc}")
     if not text:
-        fallback_value = block.get(f"{kind}_fallback")
-        if fallback_value:
-            fallback = resolve_path(config, fallback_value)
-            text = fallback.read_text(encoding="utf-8")
-        else:
-            warnings.append(f"Cloudflare {kind.upper()} 官方网段在线获取失败，且未配置本地回退")
-            return []
+        fallback = resolve_path(config, block[f"{kind}_fallback"])
+        text = fallback.read_text(encoding="utf-8")
 
     ranges: list[str] = []
     for raw in text.splitlines():

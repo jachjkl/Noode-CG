@@ -20,7 +20,7 @@ ROUTES = {
 
 def make_handler(output_dir: Path):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "NoodeCG/10.0.0"
+        server_version = "NoodeCG/3.0.0"
 
         def _headers(self, status: int, content_type: str, length: int) -> None:
             self.send_response(status)
@@ -36,7 +36,7 @@ def make_handler(output_dir: Path):
             if route in {"/", "/healthz"}:
                 payload = json.dumps(
                     {
-                        "service": "Noode-CG V10-Fast200JP10",
+                        "service": "Noode-CG V3-Rolling300",
                         "status": "ok",
                         "routes": sorted(ROUTES),
                     },

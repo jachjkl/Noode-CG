@@ -1,10 +1,8 @@
 # GitHub 部署指南
 
-## 覆盖上传
+## 1. 覆盖上传
 
-解压 `Noode-CG-V11.3-JP-TCP-Speed.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
-
-根目录应直接出现：
+解压 `Noode-CG-V3-Rolling300.zip`，将解压后 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。根目录应直接出现：
 
 ```text
 .github/
@@ -16,41 +14,45 @@ main.py
 requirements.txt
 ```
 
-压缩包没有远程源缓存、官方网段快照、候选列表和历史抽样 IP。
+不要只上传 ZIP，也不要形成 `仓库/Noode-CG/Noode-CG/...`。
 
-## 清理旧版本
+## 2. 一次性清理旧文件
 
-旧仓库进入 **Actions → Cleanup obsolete files → Run workflow**。它会删除旧模块、旧本地输入、旧远程缓存、旧官方 CIDR 文件和旧版本 ZIP，并在提交后删除清理工作流自身。
+网页覆盖上传不会删除旧版文件。进入 **Actions → Cleanup obsolete files → Run workflow**。该工作流会删除旧模块、旧测试、废弃数据和旧压缩包，提交后再删除自身。
 
-## 第一次刷新
+等待它显示绿色成功后，再运行 **Refresh verified endpoints**。新建空仓库可跳过清理。
 
-进入 **Actions → Refresh verified endpoints → Run workflow**。初始 `output/nodes.txt` 为空，第一次成功运行后出现 200 条地址。
+## 3. 自动优选
 
-以后任务在每 8 小时的第 17 分钟自动执行。工作流只提交输出、上一轮 TOP100 和上一轮官方抽样快照。
+刷新任务每 6 小时自动运行，单次最大 350 分钟。同一仓库不会并发运行两份刷新任务。每次任务会：
 
-## 结果检查
+1. 全量刷新 6 个链接源；
+2. 排除上次官方样本并抽取新的 50,000 个官方 IP；
+3. 必要时继续追加互不重复的 50,000 批次，直到得到 3,000 个平均延迟不超过 300ms 的地址或接近运行时限；
+4. 测速并选本轮 TOP300；
+5. 加入上轮 TOP100，全部重新测试后发布最终 TOP300；
+6. 自动提交 `output/`、源缓存、TOP100 快照和官方样本快照。
 
-订阅地址：
+如果接近 GitHub 托管任务时限仍未凑齐 3,000，程序会保留旧订阅，不会伪造或发布未验证地址。下一次六小时任务会换一批官方候选继续运行。
+
+## 4. 订阅地址
 
 ```text
 https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 ```
 
-在 `output/health.json` 查看：
+检查 `output/health.json`：
 
-- `rounds[].prefilter_tcp_three_pass_success_under_1000ms`：三次初筛 TCPing 成功数量；
-- `source_country_lane.link_candidates`：两个链接中本轮提取到的 JP 候选数；
-- `source_country_lane.measurements.tcping_measured`：JP 端点完成 TCPing 测量的数量；
-- `source_country_lane.measurements.download_measured`：JP 端点取得下载速度的数量；
-- `source_country_lane.selected`：仅按 TCPing 和下载结果排序后选出的不同 JP IP 数，应为 10；
-- `source_country_lane.tls_skipped` 与 `https_ttfb_skipped`：应为 `true`；
-- `rounds[].prefilter_shortlisted`：进入严格阶段的数量，应为 5,000；
-- `rounds[].quality_tcp_three_pass_success_under_300ms`：严格 TCP 三次合格数；
-- `metric_batches[].tls_three_pass_success`：TLS 三次合格数；
-- `metric_batches[].https_ttfb_three_pass_success`：TTFB 三次合格数；
-- `speed_batches[].current_speed_qualified_total`：跨轮累计下载合格数；
-- `rolling_attempts[0].previous_tested_this_attempt`：上一轮 TOP100 的唯一一次复测数；
-- `gates.final_top200` 与 `gates.final_country:JP`：200 条和 JP10 发布门槛；
-- `published`：本轮是否覆盖订阅。
+- `status: ok`：所有关键数量门槛通过；
+- `published: true`：本轮 300 已覆盖订阅；
+- `counts.official_previous_excluded`：为避免相邻运行重复而排除的上轮官方 IP 数；
+- `counts.official_sampled_this_run`：本轮抽取的官方 IP 总数；
+- `counts.latency_eligible`：平均延迟不超过 300ms 的累计数量；
+- `counts.previous_loaded / previous_reverified / previous_in_final`：旧 TOP100 的复测情况；
+- `rounds`：每一批 50,000 的 TCP、TLS、HTTP 和合格数量。
 
-若 `published: false`，说明两个链接中不足 10 个不同 JP IP、普通结果不足 200、5,000 初筛或 Runner 基线没有全部满足，旧的非空订阅会保留；JP 不会再因为 TLS/HTTPS 严格测试为 0 而阻止官方池运行。
+## 5. 常见问题
+
+Actions 无法推送时，进入 **Settings → Actions → General → Workflow permissions**，允许工作流读写仓库内容。
+
+目标域名必须在 `config.yaml` 中正确配置并绑定到你的 Worker。GitHub Runner 的网络位置与本地三网不同，GitHub 排名不能等同于电信、联通、移动本地结果。

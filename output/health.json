@@ -1,178 +1,34 @@
 {
-  "status": "ok",
-  "started_at": "2026-08-31T11:49:42.989639+00:00",
+  "status": "packaged-last-known-good",
   "target_domain": "jackoyu.dpdns.org",
-  "vantage": "github-general",
   "counts": {
-    "previous_loaded": 100,
-    "link_source_endpoints": 16831,
-    "link_source_unique_ips": 13605,
-    "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 16669,
-      "bestcf.pages.dev/lzj": 230
-    },
-    "jp_source_candidates": 533,
-    "jp_source_qualified": 10,
-    "jp_source_selected": 10,
-    "jp_source_test_attempts": 1,
-    "official_previous_excluded": 0,
-    "official_sampled_this_run": 50000,
-    "official_snapshot_saved": 50000,
-    "official_rounds": 1,
-    "prefilter_shortlisted_max": 5000,
-    "current_unique_tested": 63566,
-    "three_metric_qualified": 1026,
-    "speed_processed": 918,
-    "speed_at_least_minimum": 391,
-    "previous_retested_once": 85,
-    "previous_reverified": 9,
-    "previous_in_final": 2,
-    "cloudflare_sampling_seed": 3718421089977713205
+    "selected": 300,
+    "selected_countries": {
+      "AT": 1,
+      "AU": 1,
+      "CH": 3,
+      "CN": 67,
+      "DE": 80,
+      "FR": 3,
+      "GB": 6,
+      "HK": 5,
+      "JP": 16,
+      "KR": 15,
+      "NL": 12,
+      "PL": 1,
+      "RU": 2,
+      "SG": 5,
+      "TR": 1,
+      "TW": 2,
+      "US": 80
+    }
   },
-  "gates": [
-    {
-      "name": "network_baseline_three_sites",
-      "actual": 1,
-      "minimum": 1,
-      "passed": true
-    },
-    {
-      "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 16669,
-      "minimum": 10000,
-      "passed": true
-    },
-    {
-      "name": "required_source:bestcf.pages.dev/lzj",
-      "actual": 230,
-      "minimum": 50,
-      "passed": true
-    },
-    {
-      "name": "prefilter_shortlist",
-      "actual": 5000,
-      "minimum": 5000,
-      "passed": true
-    },
-    {
-      "name": "final_top200",
-      "actual": 200,
-      "minimum": 200,
-      "passed": true
-    },
-    {
-      "name": "final_country:JP",
-      "actual": 10,
-      "minimum": 10,
-      "passed": true
-    }
+  "warnings": [
+    "压缩包内为上一轮已知可用的 300 条输出快照；请运行 GitHub Actions 生成 V3-Rolling300 的最新结果。"
   ],
-  "warnings": [],
-  "rounds": [
-    {
-      "round": 1,
-      "link_endpoints": 16831,
-      "official_unique_ips": 50000,
-      "input": 66259,
-      "prefilter_tcp_three_pass_success_under_1000ms": 41077,
-      "prefilter_shortlisted": 5000,
-      "quality_tcp_three_pass_success_under_300ms": 4609,
-      "three_metric_qualified": 1026,
-      "current_speed_qualified_total": 391,
-      "prefilter_duration_seconds": 50.496,
-      "quality_tcp_duration_seconds": 3.462
-    }
-  ],
-  "metric_batches": [
-    {
-      "tls_three_pass_success": 1094,
-      "https_ttfb_three_pass_success": 1026,
-      "foreign_combined_latency_qualified": 1026,
-      "tls_and_https_duration_seconds": 42.828,
-      "batch": 1,
-      "input": 5000,
-      "quality_tcp_three_pass_success": 4609,
-      "three_metric_qualified_total": 1026
-    }
-  ],
-  "speed_batches": [
-    {
-      "speed_tested_once": 400,
-      "speed_duration_seconds": 6.102,
-      "speed_at_least_minimum": 391,
-      "batch": 1,
-      "round": 1,
-      "input": 400,
-      "current_speed_qualified_total": 391
-    }
-  ],
-  "rolling_attempts": [
-    {
-      "tls_three_pass_success": 11,
-      "https_ttfb_three_pass_success": 10,
-      "foreign_combined_latency_qualified": 10,
-      "tls_and_https_duration_seconds": 106.387,
-      "speed_tested_once": 10,
-      "speed_duration_seconds": 4.973,
-      "speed_at_least_minimum": 9,
-      "attempt": 1,
-      "input": 84,
-      "tcp_three_pass_success": 49,
-      "previous_tested_this_attempt": 84,
-      "previous_reverified": 9
-    }
-  ],
-  "network_baseline": {
-    "Google": {
-      "average_ms": 31.903,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "Cloudflare": {
-      "average_ms": 26.974,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "GitHub": {
-      "average_ms": 24.768,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "average_ms": 27.882,
-    "all_targets_passed": true
-  },
-  "source_country_lane": {
-    "country": "JP",
-    "required": 10,
-    "link_candidates": 533,
-    "link_unique_ips": 518,
-    "test_count": 1,
-    "tcping_only_plus_download": true,
-    "tls_skipped": true,
-    "https_ttfb_skipped": true,
-    "measurements": {
-      "input_endpoints": 533,
-      "input_unique_ips": 518,
-      "tcping_attempts_per_endpoint": 3,
-      "tcping_measured": 525,
-      "download_tested_once": 533,
-      "download_measured": 509,
-      "selected_unique_ips": 10,
-      "duration_seconds": 46.772
-    },
-    "qualified": 10,
-    "selected": 10
-  },
-  "duration_seconds": 263.951,
-  "generated_at": "2026-08-31T11:54:06.941148+00:00",
-  "selected": 200,
-  "minimum_publish": 200,
+  "snapshot_generated_at": "2026-08-23T08:35:45.599500+00:00",
+  "selected": 300,
+  "minimum_publish": 300,
   "published": true,
-  "preserved_previous_output": false
+  "preserved_previous_output": true
 }

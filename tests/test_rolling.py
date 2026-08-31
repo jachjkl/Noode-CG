@@ -31,7 +31,7 @@ class RollingSelectionTests(unittest.TestCase):
             self.assertEqual(previous[0].ip, "104.16.0.1")
             self.assertEqual(warnings, [])
 
-    def test_prepare_retest_candidates_deduplicates_current_and_previous(self) -> None:
+    def test_second_selection_combines_current_300_and_previous_100_for_fresh_retest(self) -> None:
         current = [node("104.16.1.1", 900), node("104.17.1.1", 800)]
         previous = [node("104.16.1.1", 999), node("1.0.0.1", 998, "JP")]
 
