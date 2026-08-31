@@ -1,6 +1,6 @@
 {
   "status": "ok",
-  "started_at": "2026-08-31T16:09:37.784619+00:00",
+  "started_at": "2026-08-31T21:28:28.770825+00:00",
   "target_domain": "jackoyu.dpdns.org",
   "vantage": "github-general",
   "counts": {
@@ -12,7 +12,7 @@
     },
     "remote_sources": {
       "zip.cm.edu.kg/all.txt": 16669,
-      "bestcf.pages.dev/lzj": 230
+      "bestcf.pages.dev/lzj": 232
     },
     "jp_source_candidates": 533,
     "jp_source_qualified": 10,
@@ -23,16 +23,16 @@
     "official_snapshot_saved": 50000,
     "official_rounds": 1,
     "prefilter_shortlisted_max": 5000,
-    "current_unique_tested": 63604,
-    "three_metric_qualified": 740,
+    "current_unique_tested": 63605,
+    "three_metric_qualified": 1096,
     "speed_processed": 918,
     "speed_at_least_minimum": 400,
     "previous_retested_once": 100,
     "previous_reverified": 100,
-    "previous_in_final": 95,
+    "previous_in_final": 69,
     "final_country_candidates_rejected": 0,
     "final_forbidden_country_count": 0,
-    "cloudflare_sampling_seed": 12073518272002910678
+    "cloudflare_sampling_seed": 13112286569500503987
   },
   "gates": [
     {
@@ -49,7 +49,7 @@
     },
     {
       "name": "required_source:bestcf.pages.dev/lzj",
-      "actual": 230,
+      "actual": 232,
       "minimum": 50,
       "passed": true
     },
@@ -84,32 +84,32 @@
       "round": 1,
       "link_endpoints": 16831,
       "official_unique_ips": 50000,
-      "input": 66297,
-      "prefilter_tcp_three_pass_success_under_1000ms": 41895,
+      "input": 66298,
+      "prefilter_tcp_three_pass_success_under_1000ms": 41842,
       "prefilter_shortlisted": 5000,
-      "quality_tcp_five_probe_success_under_300ms": 4969,
-      "three_metric_qualified": 740,
+      "quality_tcp_five_probe_success_under_300ms": 4978,
+      "three_metric_qualified": 1096,
       "current_speed_qualified_total": 400,
-      "prefilter_duration_seconds": 49.151,
-      "quality_tcp_duration_seconds": 5.63
+      "prefilter_duration_seconds": 49.689,
+      "quality_tcp_duration_seconds": 5.484
     }
   ],
   "metric_batches": [
     {
-      "tls_three_pass_success": 858,
-      "https_ttfb_three_pass_success": 740,
-      "foreign_combined_latency_qualified": 740,
-      "tls_and_https_duration_seconds": 39.271,
+      "tls_three_pass_success": 1222,
+      "https_ttfb_three_pass_success": 1096,
+      "foreign_combined_latency_qualified": 1096,
+      "tls_and_https_duration_seconds": 42.815,
       "batch": 1,
       "input": 5000,
-      "quality_tcp_five_probe_success": 4969,
-      "three_metric_qualified_total": 740
+      "quality_tcp_five_probe_success": 4978,
+      "three_metric_qualified_total": 1096
     }
   ],
   "speed_batches": [
     {
       "speed_tested_once": 400,
-      "speed_duration_seconds": 3.623,
+      "speed_duration_seconds": 3.653,
       "speed_at_least_minimum": 400,
       "batch": 1,
       "round": 1,
@@ -122,9 +122,9 @@
       "tls_three_pass_success": 100,
       "https_ttfb_three_pass_success": 100,
       "foreign_combined_latency_qualified": 100,
-      "tls_and_https_duration_seconds": 2.529,
+      "tls_and_https_duration_seconds": 1.567,
       "speed_tested_once": 100,
-      "speed_duration_seconds": 0.831,
+      "speed_duration_seconds": 2.003,
       "speed_at_least_minimum": 100,
       "attempt": 1,
       "input": 100,
@@ -135,27 +135,27 @@
   ],
   "network_baseline": {
     "Google": {
-      "average_ms": 30.904,
+      "average_ms": 18.373,
       "successes": 3,
       "attempts": 3,
       "all_attempts_passed": true,
       "errors": []
     },
     "Cloudflare": {
-      "average_ms": 28.786,
+      "average_ms": 15.048,
       "successes": 3,
       "attempts": 3,
       "all_attempts_passed": true,
       "errors": []
     },
     "GitHub": {
-      "average_ms": 27.831,
+      "average_ms": 13.873,
       "successes": 3,
       "attempts": 3,
       "all_attempts_passed": true,
       "errors": []
     },
-    "average_ms": 29.174,
+    "average_ms": 15.765,
     "all_targets_passed": true
   },
   "source_country_lane": {
@@ -171,17 +171,17 @@
       "input_endpoints": 533,
       "input_unique_ips": 518,
       "tcping_attempts_per_endpoint": 3,
-      "tcping_measured": 524,
+      "tcping_measured": 517,
       "download_tested_once": 533,
-      "download_measured": 504,
+      "download_measured": 502,
       "selected_unique_ips": 10,
-      "duration_seconds": 22.325
+      "duration_seconds": 48.49
     },
     "qualified": 10,
     "selected": 10
   },
-  "duration_seconds": 126.968,
-  "generated_at": "2026-08-31T16:11:44.752271+00:00",
+  "duration_seconds": 156.422,
+  "generated_at": "2026-08-31T21:31:05.192724+00:00",
   "selected": 310,
   "minimum_publish": 310,
   "published": true,
