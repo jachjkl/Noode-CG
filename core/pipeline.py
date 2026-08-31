@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import time
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -12,7 +13,7 @@ from .config import resolve_path
 from .exporter import publish_outputs
 from .fetcher import collect_official_batch, collect_source_candidates
 from .http_check import check_http
-from .io_utils import atomic_write_text, write_checkpoint
+from .io_utils import atomic_write_bytes, atomic_write_text, write_checkpoint
 from .isp_test import merge_probe_files
 from .models import NodeResult
 from .network_baseline import measure_network_baseline
@@ -31,11 +32,19 @@ def _gate(name: str, actual: int, minimum: int) -> dict[str, Any]:
 def _load_ip_snapshot(path: Path) -> set[str]:
     if not path.is_file():
         return set()
-    return {line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()}
+    if path.suffix.lower() == ".gz":
+        text = gzip.decompress(path.read_bytes()).decode("utf-8")
+    else:
+        text = path.read_text(encoding="utf-8")
+    return {line.strip() for line in text.splitlines() if line.strip()}
 
 
 def _save_ip_snapshot(path: Path, values: set[str]) -> None:
-    atomic_write_text(path, "\n".join(sorted(values)) + ("\n" if values else ""))
+    text = "\n".join(sorted(values)) + ("\n" if values else "")
+    if path.suffix.lower() == ".gz":
+        atomic_write_bytes(path, gzip.compress(text.encode("utf-8"), compresslevel=9, mtime=0))
+    else:
+        atomic_write_text(path, text)
 
 
 def _three_metric_checks(
@@ -152,12 +161,36 @@ def _country_quotas_met(records: list[NodeResult], minimums: dict[str, int]) -> 
     return all(_country_count(records, country) >= minimum for country, minimum in minimums.items())
 
 
+def _country_of(node: NodeResult) -> str:
+    return str(node.country or node.country_hint or "").upper()
+
+
+def _competition_candidates(
+    current: Iterable[NodeResult],
+    previous: Iterable[NodeResult],
+    source_country_quality: Iterable[NodeResult],
+    *,
+    source_country: str,
+    source_country_count: int,
+) -> list[NodeResult]:
+    """Keep the required country lane sourced only from the configured links."""
+    normalized = source_country.upper()
+    preferred = rank_final(source_country_quality, count=source_country_count)
+    preferred_ips = {item.ip for item in preferred}
+    general = [
+        node
+        for node in [*current, *previous]
+        if _country_of(node) != normalized and node.ip not in preferred_ips
+    ]
+    return [*preferred, *general]
+
+
 def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     started = datetime.now(UTC)
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/10.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/11.0"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -211,6 +244,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     speed_processed_ips: set[str] = set()
     current_quality: dict[str, NodeResult] = {}
     previous_quality: dict[str, NodeResult] = {}
+    source_country_quality: dict[str, NodeResult] = {}
     selected: list[NodeResult] = []
     round_index = speed_batch_index = 0
     prefilter_target = int(pipeline["prefilter_shortlist"])
@@ -220,6 +254,11 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         str(country).upper(): int(minimum)
         for country, minimum in pipeline.get("country_minimums", {}).items()
     }
+    source_country_rule = pipeline.get("jp_source_requirement", {})
+    source_country = str(source_country_rule.get("country", "JP")).upper()
+    source_country_target = int(
+        source_country_rule.get("count", country_minimums.get(source_country, 0))
+    )
     speed_country_reserve = {
         str(country).upper(): int(minimum)
         for country, minimum in pipeline.get("speed_country_reserve", {}).items()
@@ -227,6 +266,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     max_runtime = float(pipeline["max_runtime_seconds"])
     reserve = float(pipeline["postprocess_reserve_seconds"])
     minimum_round_budget = float(pipeline["minimum_round_budget_seconds"])
+    max_official_rounds = int(pipeline.get("max_official_rounds", 5))
     locations = load_locations(resolve_path(config, config["paths"]["locations"]))
     probe_paths = [resolve_path(config, path) for path in config.get("vantage", {}).get("probe_files", [])]
     prefilter_country_reserve = {
@@ -235,10 +275,65 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     }
     prefilter_shortlisted_max = 0
 
+    # The required JP lane is sourced only from the two configured link feeds.
+    # Test every JP candidate once, keep its best ten, and never try to satisfy
+    # this source-specific requirement with Cloudflare's Anycast official pool.
+    source_country_candidates = [
+        node for node in source_candidates if _country_of(node) == source_country
+    ]
+    tested_current_ips.update(node.ip for node in source_country_candidates)
+    if source_country_candidates:
+        source_country_tcp = asyncio.run(
+            scan_tcp(source_country_candidates, pipeline["quality_tcp"])
+        )
+        source_country_metrics, source_country_metric_counts = _three_metric_checks(
+            source_country_tcp,
+            domain=domain,
+            pipeline=pipeline,
+            user_agent=user_agent,
+            locations=locations,
+        )
+        source_country_passed, source_country_speed_counts = _speed_checks(
+            source_country_metrics,
+            pipeline=pipeline,
+            user_agent=user_agent,
+            probe_paths=probe_paths,
+        )
+        speed_processed_ips.update(node.ip for node in source_country_metrics)
+        _keep_best_by_ip(source_country_quality, source_country_passed)
+        report["source_country_lane"] = {
+            **source_country_metric_counts,
+            **source_country_speed_counts,
+            "country": source_country,
+            "required": source_country_target,
+            "link_candidates": len(source_country_candidates),
+            "tcp_three_pass_success": len(source_country_tcp),
+            "qualified": len(source_country_quality),
+        }
+    else:
+        report["source_country_lane"] = {
+            "country": source_country,
+            "required": source_country_target,
+            "link_candidates": 0,
+            "tcp_three_pass_success": 0,
+            "qualified": 0,
+        }
+
+    report["counts"].update({
+        "jp_source_candidates": len(source_country_candidates),
+        "jp_source_qualified": len(source_country_quality),
+    })
+    if len(source_country_quality) < source_country_target:
+        report["warnings"].append(
+            f"两个指定链接中只有 {len(source_country_quality)}/{source_country_target} 个 "
+            f"{source_country} 候选通过正常完整测试；停止官方池补测并保留旧订阅"
+        )
+
     # The previous TOP100 has its own lane: one strict TCP/TLS/TTFB/download
     # recheck, then it competes with current results without being tested again.
-    if previous:
-        previous_retest = prepare_retest_candidates([], previous)
+    previous_general = [node for node in previous if _country_of(node) != source_country]
+    if previous_general:
+        previous_retest = prepare_retest_candidates([], previous_general)
         previous_tcp = asyncio.run(scan_tcp(previous_retest, pipeline["quality_tcp"]))
         previous_metrics, metric_counts = _three_metric_checks(
             previous_tcp,
@@ -264,18 +359,32 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             "previous_reverified": len(previous_quality),
         })
 
-    while True:
-        combined = [*current_quality.values(), *previous_quality.values()]
+    while len(source_country_quality) >= source_country_target:
+        combined = _competition_candidates(
+            current_quality.values(),
+            previous_quality.values(),
+            source_country_quality.values(),
+            source_country=source_country,
+            source_country_count=source_country_target,
+        )
         candidate_selection = rank_final(
             combined,
             count=final_target,
             minimum_by_country=country_minimums,
         )
         if (
+            round_index > 0
+            and
             len(candidate_selection) >= final_target
             and _country_quotas_met(candidate_selection, country_minimums)
         ):
             selected = candidate_selection
+            break
+
+        if round_index >= max_official_rounds:
+            report["warnings"].append(
+                f"已达到最多 {max_official_rounds} 轮官方候选补测限制，保留旧订阅"
+            )
             break
 
         remaining = max_runtime - (time.monotonic() - monotonic_started)
@@ -364,7 +473,13 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
                 "current_speed_qualified_total": len(current_quality),
             })
             report["speed_batches"].append(counts)
-            combined = [*current_quality.values(), *previous_quality.values()]
+            combined = _competition_candidates(
+                current_quality.values(),
+                previous_quality.values(),
+                source_country_quality.values(),
+                source_country=source_country,
+                source_country_count=source_country_target,
+            )
             candidate_selection = rank_final(
                 combined,
                 count=final_target,
@@ -402,17 +517,19 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         if selected:
             break
 
-    _save_ip_snapshot(official_snapshot, current_official_ips)
+    snapshot_values = current_official_ips or prior_official_ips
+    _save_ip_snapshot(official_snapshot, snapshot_values)
     report["counts"].update({
         "official_previous_excluded": len(prior_official_ips),
         "official_sampled_this_run": len(current_official_ips),
+        "official_snapshot_saved": len(snapshot_values),
         "official_rounds": round_index,
         "prefilter_shortlisted_max": prefilter_shortlisted_max,
         "current_unique_tested": len(tested_current_ips),
         "three_metric_qualified": len(metric_qualified),
         "speed_processed": len(speed_processed_ips),
         "speed_at_least_minimum": len(current_quality),
-        "previous_retested_once": len(previous),
+        "previous_retested_once": len(previous_general),
         "previous_reverified": len(previous_quality),
         "previous_in_final": sum(node.ip in previous_ips for node in selected),
     })

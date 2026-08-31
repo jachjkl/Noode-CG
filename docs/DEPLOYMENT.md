@@ -2,7 +2,7 @@
 
 ## 覆盖上传
 
-解压 `Noode-CG-V10-Fast200JP10.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
+解压 `Noode-CG-V11-LinkJP10.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
 
 根目录应直接出现：
 
@@ -39,6 +39,8 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 在 `output/health.json` 查看：
 
 - `rounds[].prefilter_tcp_three_pass_success_under_1000ms`：三次初筛 TCPing 成功数量；
+- `source_country_lane.link_candidates`：两个链接中本轮提取到的 JP 候选数；
+- `source_country_lane.qualified`：完整测速后合格的链接 JP 数，应至少为 10；
 - `rounds[].prefilter_shortlisted`：进入严格阶段的数量，应为 5,000；
 - `rounds[].quality_tcp_three_pass_success_under_300ms`：严格 TCP 三次合格数；
 - `metric_batches[].tls_three_pass_success`：TLS 三次合格数；
@@ -48,4 +50,4 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 - `gates.final_top200` 与 `gates.final_country:JP`：200 条和 JP10 发布门槛；
 - `published`：本轮是否覆盖订阅。
 
-若 `published: false`，说明 200 条、JP10、5,000 初筛或 Runner 基线没有全部满足，旧的非空订阅会保留。
+若 `published: false`，说明链接 JP10、200 条、5,000 初筛或 Runner 基线没有全部满足，旧的非空订阅会保留；程序不会再为缺少 JP 无效扫描官方池。

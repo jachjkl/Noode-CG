@@ -70,6 +70,7 @@ def validate_config(config: dict[str, Any]) -> None:
         "maximum_jitter_ms",
         "current_selection",
         "speed_batch_size",
+        "max_official_rounds",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
         "postprocess_reserve_seconds",
@@ -136,6 +137,17 @@ def validate_config(config: dict[str, Any]) -> None:
         _positive_number(minimum, f"pipeline.country_minimums.{country}")
     if sum(int(value) for value in country_minimums.values()) > int(pipeline["current_selection"]):
         raise ConfigError("pipeline.country_minimums 合计不能超过 current_selection")
+
+    source_country_rule = pipeline.get("jp_source_requirement")
+    if not isinstance(source_country_rule, dict):
+        raise ConfigError("缺少 pipeline.jp_source_requirement")
+    source_country = str(source_country_rule.get("country", ""))
+    if len(source_country) != 2:
+        raise ConfigError("pipeline.jp_source_requirement.country 必须是两个字母")
+    _positive_number(
+        source_country_rule.get("count"),
+        "pipeline.jp_source_requirement.count",
+    )
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")

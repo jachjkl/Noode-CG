@@ -1,5 +1,5 @@
 param(
-    [string]$Destination = "Noode-CG-V10-Fast200JP10.zip"
+    [string]$Destination = "Noode-CG-V11-LinkJP10.zip"
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,7 +24,7 @@ try {
                 $Relative -notmatch '^[^\\/]+\.zip$' -and
                 $Relative -notmatch '^data[\\/]input([\\/]|$)' -and
                 $Relative -notmatch '^data[\\/]sources([\\/]|$)' -and
-                $Relative -notmatch '^data[\\/](previous-top100\.json|previous-official-ips\.txt)$' -and
+                $Relative -notmatch '^data[\\/](previous-top100\.json|previous-official-ips\.txt(?:\.gz)?)$' -and
                 $_.Extension -notin @(".pyc", ".pyo") -and
                 -not ($Segments | Where-Object { $_ -in $ExcludedDirectories })
         } |
