@@ -40,35 +40,63 @@ def _save_ip_snapshot(path: Path, values: set[str]) -> None:
 def _three_metric_checks(
     records: list[NodeResult], *, domain: str, pipeline: dict[str, Any],
     user_agent: str, locations: dict[str, Any],
-) -> tuple[list[NodeResult], dict[str, int]]:
+) -> tuple[list[NodeResult], dict[str, Any]]:
+    started = time.monotonic()
     tls_valid = asyncio.run(check_tls(records, domain, pipeline["tls"]))
     http_valid = asyncio.run(check_http(
         tls_valid, domain, pipeline["http"], pipeline.get("websocket", {}),
         user_agent=user_agent,
     ))
     enrich_locations(http_valid, locations)
+    maximum_combined = float(pipeline["maximum_combined_latency_ms"])
+    location_filter = pipeline.get("location_filter", {})
+    excluded_countries = {
+        str(value).upper() for value in location_filter.get("excluded_countries", ["CN"])
+    }
+    require_country = bool(location_filter.get("require_known_colo_country", True))
+    combined_valid: list[NodeResult] = []
     for node in http_valid:
         calculate_average_latency(node)
-    return http_valid, {
-        "tls_three_attempt_average_under_300ms": len(tls_valid),
-        "https_ttfb_three_attempt_average_under_300ms": len(http_valid),
+        country_valid = bool(node.country) or not require_country
+        foreign_valid = country_valid and node.country not in excluded_countries
+        latency_valid = (
+            node.average_latency_ms is not None
+            and node.average_latency_ms <= maximum_combined
+        )
+        if foreign_valid and latency_valid:
+            combined_valid.append(node)
+        elif not foreign_valid:
+            node.add_error("location", f"已排除国家/地区: {node.country or 'unknown'}")
+        else:
+            node.add_error(
+                "latency",
+                f"TCP/TLS/TTFB 综合平均 {node.average_latency_ms}ms > {maximum_combined:g}ms",
+            )
+    return combined_valid, {
+        "tls_one_pass_success": len(tls_valid),
+        "https_ttfb_one_pass_success": len(http_valid),
+        "foreign_combined_latency_qualified": len(combined_valid),
+        "tls_and_https_duration_seconds": round(time.monotonic() - started, 3),
     }
 
 
 def _speed_checks(
     records: list[NodeResult], *, pipeline: dict[str, Any], user_agent: str,
     probe_paths: list[Path],
-) -> tuple[list[NodeResult], dict[str, int]]:
+) -> tuple[list[NodeResult], dict[str, Any]]:
     merge_probe_files(records, probe_paths)
     options = dict(pipeline["speed"])
     options["candidates"] = len(records)
+    full_started = time.monotonic()
     tested = asyncio.run(test_speed(records, options, user_agent=user_agent))
+    full_seconds = time.monotonic() - full_started
     qualified = [node for node in tested if meets_minimum_speed(
         node, minimum_mbps=float(options["minimum_mbps"])
     )]
     return qualified, {
-        "speed_tested": len(tested),
-        "speed_at_least_16mbps": len(qualified),
+        "speed_tested_once": len(tested),
+        "speed_duration_seconds": round(full_seconds, 3),
+        "speed_at_least_minimum": len(qualified),
     }
 
 
@@ -89,7 +117,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/6.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/8.0"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -141,10 +169,14 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     speed_processed_keys: set[str] = set()
     current_quality: dict[str, NodeResult] = {}
     rolling_failed_current: set[str] = set()
+    rolling_tested_current: set[str] = set()
+    rolling_tested_previous: set[str] = set()
+    verified_final: dict[str, NodeResult] = {}
     selected: list[NodeResult] = []
     round_index = metric_batch_index = speed_batch_index = rolling_attempt_index = 0
     metric_target = int(pipeline["three_metric_shortlist"])
     final_target = int(pipeline["current_selection"])
+    rolling_batch_size = int(pipeline.get("rolling_candidate_batch", final_target * 4))
     max_runtime = float(pipeline["max_runtime_seconds"])
     reserve = float(pipeline["postprocess_reserve_seconds"])
     minimum_round_budget = float(pipeline["minimum_round_budget_seconds"])
@@ -158,29 +190,44 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             report["warnings"].append("已到内部运行时限，保留上一版订阅")
             break
 
-        available = [node for node in current_quality.values() if node.ip not in rolling_failed_current]
-        if len(available) >= final_target and remaining >= minimum_round_budget:
-            current = rank_final(available, count=final_target)
-            retest = prepare_retest_candidates(current, previous)
+        available = [
+            node
+            for node in current_quality.values()
+            if node.ip not in rolling_failed_current and node.ip not in rolling_tested_current
+        ]
+        still_needed = final_target - len(verified_final)
+        if len(available) >= still_needed and remaining >= minimum_round_budget:
+            current = rank_final(available, count=rolling_batch_size)
+            previous_batch = [
+                node for node in previous if node.ip not in rolling_tested_previous
+            ]
+            retest = prepare_retest_candidates(current, previous_batch)
             retest_tcp = asyncio.run(scan_tcp(retest, pipeline["rolling_retest"]))
             retest_metrics, metric_counts = _three_metric_checks(
                 retest_tcp, domain=domain, pipeline=pipeline,
                 user_agent=user_agent, locations=locations,
             )
             retest_quality, speed_counts = _speed_checks(
-                retest_metrics, pipeline=pipeline, user_agent=user_agent, probe_paths=probe_paths
+                retest_metrics, pipeline=pipeline, user_agent=user_agent,
+                probe_paths=probe_paths,
             )
-            selected = rank_final(retest_quality, count=final_target)
+            _keep_best_by_ip(verified_final, retest_quality)
+            selected = rank_final(verified_final.values(), count=final_target)
             passed_ips = {node.ip for node in retest_quality}
             failed = {node.ip for node in current if node.ip not in passed_ips}
             rolling_failed_current.update(failed)
+            rolling_tested_current.update(node.ip for node in current)
+            rolling_tested_previous.update(node.ip for node in previous_batch)
             previous_ips = {node.ip for node in previous}
             rolling_attempt_index += 1
             attempt_counts = {
                 **metric_counts, **speed_counts, "attempt": rolling_attempt_index,
-                "input": len(retest), "tcp_three_attempt_average_under_300ms": len(retest_tcp),
+                "input": len(retest), "tcp_one_pass_success": len(retest_tcp),
                 "current_failed": len(failed),
-                "previous_reverified": sum(node.ip in previous_ips for node in retest_quality),
+                "previous_tested_this_attempt": len(previous_batch),
+                "previous_reverified": sum(node.ip in previous_ips for node in verified_final.values()),
+                "verified_added_this_attempt": len({node.ip for node in retest_quality}),
+                "verified_accumulated": len(verified_final),
                 "final_count": len(selected),
             }
             report["rolling_attempts"].append(attempt_counts)
@@ -248,8 +295,19 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             break
         current_official_ips.update(node.ip for node in official)
         batch = deduplicate([*source_candidates, *official]) if round_index == 0 else official
-        strict_passed = asyncio.run(scan_tcp(batch, pipeline["tcp"]))
-        for node in strict_passed:
+        tcp_started = time.monotonic()
+        tcp_passed = asyncio.run(scan_tcp(batch, pipeline["tcp"]))
+        tcp_seconds = time.monotonic() - tcp_started
+        strict_limit = int(pipeline["strict_tcp_candidates_per_round"])
+        strict_candidates = sorted(
+            tcp_passed,
+            key=lambda node: (
+                node.tcp_latency_ms if node.tcp_latency_ms is not None else 999999,
+                node.ip,
+                node.port,
+            ),
+        )[:strict_limit]
+        for node in strict_candidates:
             old = strict_tcp.get(node.ip)
             if old is None or (node.tcp_latency_ms or 999999) < (old.tcp_latency_ms or 999999):
                 strict_tcp[node.ip] = node
@@ -259,11 +317,13 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             "link_endpoints": len(source_candidates) if round_index == 1 else 0,
             "official_unique_ips": len({node.ip for node in official}),
             "input": len(batch),
-            "tcp_three_attempt_average_under_300ms": len(strict_passed),
+            "tcp_one_pass_success": len(tcp_passed),
+            "tcp_selected_for_tls_https": len(strict_candidates),
             "strict_tcp_total": len(strict_tcp),
+            "tcp_duration_seconds": round(tcp_seconds, 3),
         })
         print(
-            f"第 {round_index} 轮: 输入={len(batch)}, TCP 三次合格={len(strict_passed)}, "
+            f"第 {round_index} 轮: 输入={len(batch)}, TCP 一次成功={len(tcp_passed)}, "
             f"三项累计={len(three_metric)}/{metric_target}", flush=True,
         )
 
@@ -276,8 +336,10 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         "metric_processed": len(processed_metric_keys),
         "three_metric_qualified": len(three_metric),
         "speed_processed": len(speed_processed_keys),
-        "speed_at_least_16mbps": len(current_quality),
+        "speed_at_least_minimum": len(current_quality),
         "rolling_failed_current": len(rolling_failed_current),
+        "rolling_unique_current_tested": len(rolling_tested_current),
+        "rolling_verified_accumulated": len(verified_final),
     })
     sampling_seed = config["sources"].get("cloudflare_ranges", {}).get("_resolved_sampling_seed")
     if sampling_seed is not None:
@@ -289,7 +351,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     ])
 
     if selected and not baseline_passed:
-        report["warnings"].append("Google、Cloudflare、GitHub 基线未全部通过三次测试，保留旧订阅")
+        report["warnings"].append("Google、Cloudflare、GitHub 单次基线未全部通过，保留旧订阅")
         selected = []
     report["status"] = "ok" if all(item["passed"] for item in report["gates"]) else "degraded"
     report["duration_seconds"] = round((datetime.now(UTC) - started).total_seconds(), 3)

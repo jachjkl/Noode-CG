@@ -2,7 +2,7 @@
 
 ## 1. 覆盖上传
 
-解压 `Noode-CG-V6-Average300.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要上传外层 ZIP 代替代码。
+解压 `Noode-CG-V8-OnePassForeign.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要上传外层 ZIP 代替代码。
 
 根目录应直接出现：
 
@@ -49,13 +49,15 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 
 在 `output/health.json` 查看：
 
-- `rounds[].tcp_three_attempt_average_under_300ms`：每批 TCP 三次全部成功且平均值合格数；
+- `rounds[].tcp_one_pass_success`：每批 TCP 一次成功数；
+- `rounds[].tcp_duration_seconds`：全量 TCP 一次测试耗时；
 - `counts.strict_tcp_qualified`：累计严格 TCP 候选；
 - `counts.three_metric_qualified`：TCP、TLS、HTTPS TTFB 三项全部合格的数量；
-- `metric_batches`：TLS 和 HTTPS TTFB 三次全部成功且三次平均值不超过 300ms 的批次记录；
-- `speed_batches[].speed_at_least_16mbps`：达到 2MB/s 的数量；
+- `metric_batches`：TLS、HTTPS TTFB 各一次及三项综合平均延迟记录；
+- `speed_batches[].speed_at_least_minimum`：达到 1Mbps 的数量；
+- `speed_batches[].speed_duration_seconds`：256KiB 单次下载测速耗时；
 - `rolling_attempts`：本轮 500 加旧 TOP100 的补位复测记录；
-- `network_baseline`：Google、Cloudflare、GitHub 三次平均延迟；
+- `network_baseline`：Google、Cloudflare、GitHub 单次基线；
 - `published`：本轮是否真正覆盖订阅。
 
 若 `published: false`，说明严格条件下未达到 500，原订阅仍被保留。下一次六小时任务会使用新的官方样本继续优选。

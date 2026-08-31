@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V6-Average300
+  name: Noode-CG V8-OnePassForeign
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/6.0-average300
+  user_agent: Noode-CG/8.0-one-pass-foreign
 
 paths:
   locations: data/locations.json
@@ -60,27 +60,40 @@ sources:
 pipeline:
   # This target counts only IPs that pass TCP, TLS, and HTTPS TTFB below.
   three_metric_shortlist: 5000
+  maximum_combined_latency_ms: 300
   current_selection: 500
+  # Final verification takes up to 2,000 never-before-retested current nodes at
+  # once and accumulates successes. A node and previous TOP100 entry are not
+  # tested repeatedly in later final-verification rounds.
+  rolling_candidate_batch: 2000
   max_runtime_seconds: 19800
   minimum_round_budget_seconds: 900
   postprocess_reserve_seconds: 6000
   fail_on_quality_gate: false
 
+  # One TCP pass over the entire source + 50,000 official batch. Only the
+  # fastest candidates continue to the one-pass TLS and HTTPS TTFB tests.
+  strict_tcp_candidates_per_round: 15000
+
   tcp:
     concurrency: 800
-    timeout_seconds: 1.5
-    attempts: 3
+    timeout_seconds: 1.0
+    attempts: 1
     require_all_attempts: true
-    maximum_average_latency_ms: 300
+    maximum_average_latency_ms: 900
+    stop_on_failure: true
+    stop_when_average_impossible: true
 
   tls:
     concurrency: 300
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
-    attempts: 3
+    attempts: 1
     require_all_attempts: true
-    maximum_average_latency_ms: 300
+    maximum_average_latency_ms: 900
+    stop_on_failure: true
+    stop_when_average_impossible: true
 
   http:
     concurrency: 250
@@ -88,9 +101,11 @@ pipeline:
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
-    attempts: 3
+    attempts: 1
     require_all_attempts: true
-    maximum_average_ttfb_ms: 300
+    maximum_average_ttfb_ms: 900
+    stop_on_failure: true
+    stop_when_average_impossible: true
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -102,22 +117,28 @@ pipeline:
   speed:
     enabled: true
     domain: speed.cloudflare.com
-    # A full 1 MiB response is required. Partial downloads or results below
-    # 16 Mbps (2 MB/s) are excluded from the current TOP500.
-    path: /__down?bytes=1048576
-    bytes_per_test: 1048576
+    # One 256 KiB response is required. Results below 1 Mbps are excluded.
+    path: /__down?bytes=262144
+    bytes_per_test: 262144
     minimum_completion_ratio: 0.95
     candidates: 5000
-    minimum_mbps: 16.0
-    concurrency: 10
-    timeout_seconds: 10.0
+    minimum_mbps: 1.0
+    concurrency: 32
+    timeout_seconds: 5.0
+    maximum_download_seconds: 4.5
 
   rolling_retest:
     concurrency: 200
-    timeout_seconds: 1.5
-    attempts: 3
+    timeout_seconds: 1.0
+    attempts: 1
     require_all_attempts: true
-    maximum_average_latency_ms: 300
+    maximum_average_latency_ms: 900
+    stop_on_failure: true
+    stop_when_average_impossible: true
+
+  location_filter:
+    require_known_colo_country: true
+    excluded_countries: [CN]
 
 output:
   top_nodes: 500
@@ -136,7 +157,7 @@ vantage:
 network_baseline:
   # These are whole-run diagnostics from the GitHub runner, not fake
   # per-candidate proxy tests. Candidate ranking uses TCP/TLS/Worker HTTP.
-  attempts: 3
+  attempts: 1
   timeout_seconds: 10
   targets:
     - name: Google

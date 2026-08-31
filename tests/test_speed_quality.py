@@ -31,14 +31,14 @@ class SpeedQualityTests(unittest.TestCase):
         self.assertIsNone(_accepted_speed_mbps(900, 1000, 1.0, 0.95))
         self.assertAlmostEqual(_accepted_speed_mbps(1000, 1000, 1.0, 0.95), 0.008)
 
-    def test_minimum_two_megabytes_per_second_is_16_mbps(self) -> None:
+    def test_minimum_one_mbps_is_enforced(self) -> None:
         below = node("1.1.1.1", latency=10)
-        below.speed_mbps = 15.999
+        below.speed_mbps = 0.999
         exact = node("8.8.8.8", latency=10)
-        exact.speed_mbps = 16.0
+        exact.speed_mbps = 1.0
 
-        self.assertFalse(meets_minimum_speed(below, minimum_mbps=16.0))
-        self.assertTrue(meets_minimum_speed(exact, minimum_mbps=16.0))
+        self.assertFalse(meets_minimum_speed(below, minimum_mbps=1.0))
+        self.assertTrue(meets_minimum_speed(exact, minimum_mbps=1.0))
 
 if __name__ == "__main__":
     unittest.main()

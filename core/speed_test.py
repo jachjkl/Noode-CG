@@ -41,7 +41,13 @@ def meets_minimum_speed(node: NodeResult, *, minimum_mbps: float) -> bool:
     return node.speed_mbps is not None and node.speed_mbps >= minimum_mbps
 
 
-async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user_agent: str) -> list[NodeResult]:
+async def test_speed(
+    records: list[NodeResult],
+    options: dict[str, Any],
+    *,
+    user_agent: str,
+    probe_name: str = "speed",
+) -> list[NodeResult]:
     if not options.get("enabled", True) or not records:
         return records
     count = min(len(records), int(options.get("candidates", 600)))
@@ -51,12 +57,14 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
     wanted = int(options.get("bytes_per_test", 262144))
     timeout = float(options.get("timeout_seconds", 8.0))
     minimum_completion_ratio = float(options.get("minimum_completion_ratio", 0.95))
+    maximum_download_seconds = float(options.get("maximum_download_seconds", 0))
     context = make_ssl_context(True, "TLSv1.2")
 
     async def worker(node: NodeResult) -> NodeResult:
         writer = None
         received = 0
         download_elapsed = 0.0
+        download_started: float | None = None
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(
@@ -83,7 +91,16 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
                 raise ValueError(f"测速响应状态异常: {status_line[:2]}")
             download_started = time.perf_counter()
             while received < wanted:
-                chunk = await asyncio.wait_for(reader.read(min(65536, wanted - received)), timeout=timeout)
+                elapsed = time.perf_counter() - download_started
+                if maximum_download_seconds > 0 and elapsed >= maximum_download_seconds:
+                    raise TimeoutError(f"下载超过 {maximum_download_seconds:g} 秒")
+                read_timeout = timeout
+                if maximum_download_seconds > 0:
+                    read_timeout = min(timeout, max(0.01, maximum_download_seconds - elapsed))
+                chunk = await asyncio.wait_for(
+                    reader.read(min(65536, wanted - received)),
+                    timeout=read_timeout,
+                )
                 if not chunk:
                     break
                 received += len(chunk)
@@ -100,7 +117,9 @@ async def test_speed(records: list[NodeResult], options: dict[str, Any], *, user
             node.speed_mbps = None
             node.add_error("speed", exc)
         finally:
-            node.probe_results["speed"] = {
+            if download_started is not None and download_elapsed == 0.0:
+                download_elapsed = max(time.perf_counter() - download_started, 0.001)
+            node.probe_results[probe_name] = {
                 "received_bytes": received,
                 "wanted_bytes": wanted,
                 "completion_ratio": round(received / wanted, 4) if wanted > 0 else 0.0,

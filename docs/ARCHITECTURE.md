@@ -6,28 +6,31 @@
 
 官方候选来自运行时获取的 Cloudflare IPv4 CIDR。每批恰好抽取 50,000 个唯一 IP，链接源不占这 50,000 个名额。`data/previous-official-ips.txt` 保存上一轮所有官方样本，下一轮先排除；同一次运行追加的批次也互相排除。
 
-## 第一层：TCP、TLS、HTTPS TTFB 三项合格 5,000
+## 第一层：三项各一次
+
+每轮的全部链接地址和官方 50,000 都只参与一次 TCP 连接。按延迟排序后，最多 15,000 个继续执行一次 TLS 握手和一次 HTTPS TTFB。
+
+三项都成功后计算：
 
 ```text
 全部链接地址 + 官方 50,000
-  → TCP 连接 3 次，三次平均值 <= 300ms
-  → TLS 握手 3 次，三次平均值 <= 300ms
-  → HTTPS TTFB 3 次，三次平均值 <= 300ms
-  → 三项九次都必须成功，三项平均值都合格才计入候选池
+  (TCP + TLS + HTTPS TTFB) / 3 <= 300ms
+  → 三项都成功且综合平均合格才计入候选池
   → 累计三项合格 5,000
   → 不足则追加另一批官方 50,000
 ```
 
-这里使用算术平均值，不使用中位数。单次可以超过 300ms，但三次必须全部成功，而且该项三次平均值必须不超过 300ms；任何一次超时或连接失败仍会淘汰。原始结果和平均值分别写入 `probe_results.tcp`、`probe_results.tls` 和 `probe_results.https_ttfb`。
+任何一项超时或失败都会淘汰。原始结果分别写入 `probe_results.tcp`、`probe_results.tls` 和 `probe_results.https_ttfb`。
 
 ## 第二层：下载质量
 
 TLS 使用目标 Worker 域名进行证书和 SNI 验证。HTTPS TTFB 请求 `/cdn-cgi/trace`，从请求发送完毕到收到首字节计时；响应还必须包含可验证的 Cloudflare trace。
 
-随后通过候选 IP 连接 `speed.cloudflare.com` 下载 1MiB：
+随后通过候选 IP 连接 `speed.cloudflare.com` 测速一次：
 
+- 下载 256KiB；
 - 正文完成率至少 95%；
-- 速度至少 16Mbps，即 2MB/s；
+- 速度至少 1Mbps；
 - 不满足任一条件的候选不进入本轮 TOP500。
 
 每批 5,000 的下载合格结果会加入累计池。例如第一批只合格 80 个，这 80 个不会丢失；程序继续抽取新的官方 50,000 并形成下一批 5,000，后续合格结果持续加入，直到累计达到 500。
@@ -43,13 +46,13 @@ TLS 使用目标 Worker 域名进行证书和 SNI 验证。HTTPS TTFB 请求 `/c
 运行开始时读取上一轮输出前 100，保存到 `data/previous-top100.json`。本轮 500 与旧 100 合并去重后，清空旧成绩并重新执行：
 
 ```text
-TCP 三次 → TLS 三次 → HTTPS TTFB 三次 → 1MiB 下载且 >= 16Mbps
+TCP 一次 → TLS 一次 → HTTPS TTFB 一次 → 256KiB 下载且 >= 1Mbps
 ```
 
 复测不足 500 时，程序记录失败的本轮候选，从已完成质量测试的后备池换入新候选再次复测；后备池不够才追加官方新批次。最终必须达到 500 才覆盖订阅。
 
 ## Google、Cloudflare、GitHub 基线
 
-三站各从 GitHub Runner 直接测试三次，记录平均值和 `all_attempts_passed`。这是整个任务的网络基线，不是候选 IP 的代理测试。
+三站各从 GitHub Runner 直接测试一次。这是整个任务的网络基线，不是候选 IP 的代理测试。
 
 仅有 Cloudflare 入口 IP 无法组成完整代理。将 `google.com` 或 `github.com` 的 SNI 强行连接到任意 Cloudflare IP 会得到证书或路由错误，不能代表 Clash 节点是否可访问这些网站。真实逐节点平台测试必须拥有完整代理协议参数并启动代理客户端，本仓库不要求上传这些私人参数。

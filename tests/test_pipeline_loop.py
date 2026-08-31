@@ -57,6 +57,7 @@ class PipelineLoopTests(unittest.TestCase):
                 "pipeline": {
                     "three_metric_shortlist": 5,
                     "current_selection": 3,
+                    "strict_tcp_candidates_per_round": 5,
                     "max_runtime_seconds": 10000,
                     "minimum_round_budget_seconds": 1,
                     "postprocess_reserve_seconds": 1,
@@ -77,15 +78,15 @@ class PipelineLoopTests(unittest.TestCase):
             def metrics(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "tls_three_attempt_average_under_300ms": len(prepared),
-                    "https_ttfb_three_attempt_average_under_300ms": len(prepared),
+                    "tls_one_pass_success": len(prepared),
+                    "https_ttfb_one_pass_success": len(prepared),
                 }
 
             def speed(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "speed_tested": len(prepared),
-                    "speed_at_least_16mbps": len(prepared),
+                    "speed_tested_once": len(prepared),
+                    "speed_at_least_minimum": len(prepared),
                 }
 
             with (
@@ -109,7 +110,8 @@ class PipelineLoopTests(unittest.TestCase):
             first_scan = async_scan.await_args_list[0].args[0]
             self.assertEqual(len(first_scan), 7)
             retest_scan = async_scan.await_args_list[1].args[0]
-            self.assertEqual(len(retest_scan), 4)
+            self.assertEqual(len(retest_scan), 6)
+            self.assertEqual(async_scan.await_count, 2)
             self.assertIn("9.9.9.9", {node.ip for node in retest_scan})
             self.assertTrue((output / "nodes.txt").is_file())
             self.assertTrue(checkpoints.is_dir())
@@ -135,6 +137,7 @@ class PipelineLoopTests(unittest.TestCase):
                 "pipeline": {
                     "three_metric_shortlist": 5,
                     "current_selection": 3,
+                    "strict_tcp_candidates_per_round": 5,
                     "max_runtime_seconds": 10000,
                     "minimum_round_budget_seconds": 1,
                     "postprocess_reserve_seconds": 1,
@@ -155,8 +158,8 @@ class PipelineLoopTests(unittest.TestCase):
             def metrics(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "tls_three_attempt_average_under_300ms": len(prepared),
-                    "https_ttfb_three_attempt_average_under_300ms": len(prepared),
+                    "tls_one_pass_success": len(prepared),
+                    "https_ttfb_one_pass_success": len(prepared),
                 }
 
             speed_call = 0
@@ -168,8 +171,8 @@ class PipelineLoopTests(unittest.TestCase):
                 keep = 1 if speed_call == 1 else 2 if speed_call == 2 else len(prepared)
                 qualified = prepared[:keep]
                 return qualified, {
-                    "speed_tested": len(prepared),
-                    "speed_at_least_16mbps": len(qualified),
+                    "speed_tested_once": len(prepared),
+                    "speed_at_least_minimum": len(qualified),
                 }
 
             with (
@@ -193,6 +196,86 @@ class PipelineLoopTests(unittest.TestCase):
             self.assertEqual(len(report["speed_batches"]), 2)
             self.assertEqual(report["speed_batches"][0]["current_speed_qualified_total"], 1)
             self.assertEqual(report["speed_batches"][1]["current_speed_qualified_total"], 3)
+
+    def test_final_verification_accumulates_successes_without_retesting_same_current_ip(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            batches = [
+                [NodeResult(ip=f"104.17.{batch}.{index}") for index in range(1, 5)]
+                for batch in range(2)
+            ]
+            config = {
+                "_base_dir": str(root),
+                "project": {"target_domain": "worker.example.com", "user_agent": "test"},
+                "paths": {"locations": "locations.json", "checkpoints": "checkpoints", "output": "output"},
+                "rolling": {
+                    "previous_limit": 0,
+                    "snapshot_path": "previous.json",
+                    "official_snapshot_path": "previous-official.txt",
+                },
+                "sources": {"remote": [], "cloudflare_ranges": {"official_batch_size": 4}},
+                "pipeline": {
+                    "three_metric_shortlist": 4,
+                    "current_selection": 2,
+                    "rolling_candidate_batch": 4,
+                    "strict_tcp_candidates_per_round": 4,
+                    "max_runtime_seconds": 10000,
+                    "minimum_round_budget_seconds": 1,
+                    "postprocess_reserve_seconds": 1,
+                    "tcp": {},
+                    "rolling_retest": {},
+                },
+                "output": {
+                    "top_nodes": 2,
+                    "minimum_publish": 2,
+                    "preserve_last_good": True,
+                    "write_compatibility_zip": False,
+                },
+                "vantage": {"probe_files": []},
+            }
+            metric_call = 0
+            rolling_inputs: list[set[str]] = []
+
+            def metrics(records: list[NodeResult], **_kwargs):
+                nonlocal metric_call
+                metric_call += 1
+                prepared = [ready(node) for node in records]
+                if metric_call % 2 == 0:
+                    rolling_inputs.append({node.ip for node in prepared})
+                    prepared = prepared[:1]
+                return prepared, {
+                    "tls_one_pass_success": len(prepared),
+                    "https_ttfb_one_pass_success": len(prepared),
+                }
+
+            def speed(records: list[NodeResult], **_kwargs):
+                prepared = [ready(node) for node in records]
+                return prepared, {
+                    "speed_tested_once": len(prepared),
+                    "speed_at_least_minimum": len(prepared),
+                }
+
+            with (
+                patch("core.pipeline.measure_network_baseline", return_value={"all_targets_passed": True}),
+                patch("core.pipeline.load_previous_top", return_value=([], [])),
+                patch("core.pipeline.collect_source_candidates", return_value=([], [])),
+                patch(
+                    "core.pipeline.collect_official_batch",
+                    side_effect=[(batches[0], []), (batches[1], [])],
+                ),
+                patch("core.pipeline.scan_tcp", new=AsyncMock(side_effect=lambda records, _options: list(records))),
+                patch("core.pipeline._three_metric_checks", side_effect=metrics),
+                patch("core.pipeline._speed_checks", side_effect=speed),
+                patch("core.pipeline.load_locations", return_value={}),
+            ):
+                report = run_pipeline(config)
+
+            self.assertEqual(report["status"], "ok")
+            self.assertEqual(report["selected"], 2)
+            self.assertEqual(len(rolling_inputs), 2)
+            self.assertTrue(rolling_inputs[0].isdisjoint(rolling_inputs[1]))
+            self.assertEqual(report["counts"]["rolling_verified_accumulated"], 2)
 
 
 if __name__ == "__main__":

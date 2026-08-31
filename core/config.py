@@ -65,10 +65,13 @@ def validate_config(config: dict[str, Any]) -> None:
     pipeline = config["pipeline"]
     for name in (
         "three_metric_shortlist",
+        "maximum_combined_latency_ms",
         "current_selection",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
         "postprocess_reserve_seconds",
+        "strict_tcp_candidates_per_round",
+        "rolling_candidate_batch",
     ):
         _positive_number(pipeline.get(name), f"pipeline.{name}")
     for stage in ("tcp", "tls", "http"):
@@ -93,16 +96,19 @@ def validate_config(config: dict[str, Any]) -> None:
         "pipeline.http.maximum_average_ttfb_ms",
     )
     for stage in ("tcp", "tls", "http"):
-        if int(pipeline[stage].get("attempts", 0)) != 3:
-            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
+        if int(pipeline[stage].get("attempts", 0)) != 1:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 1")
         if pipeline[stage].get("require_all_attempts") is not True:
             raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
 
     speed = pipeline.get("speed")
     if not isinstance(speed, dict):
         raise ConfigError("缺少 pipeline.speed")
-    for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps"):
+    for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps", "bytes_per_test"):
         _positive_number(speed.get(name), f"pipeline.speed.{name}")
+    _positive_number(speed.get("maximum_download_seconds"), "pipeline.speed.maximum_download_seconds")
+    if int(pipeline["strict_tcp_candidates_per_round"]) < int(pipeline["three_metric_shortlist"]):
+        raise ConfigError("pipeline.strict_tcp_candidates_per_round 不能小于 three_metric_shortlist")
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
@@ -118,6 +124,12 @@ def validate_config(config: dict[str, Any]) -> None:
             block.get("maximum_average_latency_ms"),
             f"pipeline.{stage}.maximum_average_latency_ms",
         )
+        if int(block.get("attempts", 0)) != 1:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 1")
+
+    location_filter = pipeline.get("location_filter")
+    if not isinstance(location_filter, dict):
+        raise ConfigError("缺少 pipeline.location_filter")
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")

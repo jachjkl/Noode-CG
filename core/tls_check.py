@@ -71,11 +71,14 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
     )
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
+    stop_on_failure = bool(options.get("stop_on_failure", False))
+    stop_when_impossible = bool(options.get("stop_when_average_impossible", False))
     maximum_latency = float(options.get("maximum_average_latency_ms", float("inf")))
 
     async def worker(node: NodeResult) -> NodeResult:
         latencies: list[float] = []
         successes = 0
+        early_reason = ""
         for attempt_index in range(attempts):
             try:
                 latency, version, cipher = await _probe_once(node, domain, context, timeout)
@@ -85,6 +88,12 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
                 node.tls_cipher = cipher
             except Exception as exc:
                 node.add_error("tls", f"第 {attempt_index + 1} 次: {exc}")
+                if require_all and stop_on_failure:
+                    early_reason = "必需测试失败，提前终止剩余尝试"
+                    break
+            if stop_when_impossible and sum(latencies) > maximum_latency * attempts:
+                early_reason = "即使剩余延迟为 0，测试平均值也会超限"
+                break
         node.tls_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
         attempts_passed = successes == attempts if require_all else successes > 0
         average_passed = node.tls_latency_ms is not None and node.tls_latency_ms <= maximum_latency
@@ -92,7 +101,7 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
         if attempts_passed and not average_passed:
             node.add_error(
                 "tls",
-                f"三次平均延迟 {node.tls_latency_ms:g}ms > {maximum_latency:g}ms",
+                f"测试平均延迟 {node.tls_latency_ms:g}ms > {maximum_latency:g}ms",
             )
         node.probe_results["tls"] = {
             "attempts": attempts,
@@ -100,8 +109,11 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ms": node.tls_latency_ms,
             "maximum_average_latency_ms": maximum_latency,
+            "early_rejected": bool(early_reason),
             "strict_passed": node.tls_ok,
         }
+        if early_reason:
+            node.add_error("tls", early_reason)
         return node
 
     tested = await run_worker_pool(

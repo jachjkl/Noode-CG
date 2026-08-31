@@ -77,6 +77,25 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [])
         self.assertFalse(record.tcp_ok)
 
+    async def test_tcp_stops_after_first_failed_required_attempt(self) -> None:
+        record = NodeResult(ip="192.0.2.11")
+        probe = AsyncMock(side_effect=TimeoutError("timeout"))
+        with patch("core.tcp_scan._probe_once", new=probe):
+            result = await scan_tcp(
+                [record],
+                {
+                    "timeout_seconds": 1,
+                    "attempts": 3,
+                    "concurrency": 1,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                    "stop_on_failure": True,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertEqual(probe.await_count, 1)
+
     async def test_http_stage_uses_fields_supported_by_node_model(self) -> None:
         record = NodeResult(ip="192.0.2.1", tcp_ok=True)
         response = (200, {"server": "cloudflare", "cf-ray": "test-NRT"}, b"colo=NRT\nloc=JP\n", 25.0)
@@ -163,6 +182,26 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [record])
         self.assertEqual(record.tls_latency_ms, 233.333)
 
+    async def test_tls_stops_after_first_failed_required_attempt(self) -> None:
+        record = NodeResult(ip="192.0.2.12", tcp_ok=True)
+        probe = AsyncMock(side_effect=TimeoutError("timeout"))
+        with patch("core.tls_check._probe_once", new=probe):
+            result = await check_tls(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                    "stop_on_failure": True,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertEqual(probe.await_count, 1)
+
     async def test_https_ttfb_uses_three_attempt_average_threshold(self) -> None:
         record = NodeResult(ip="192.0.2.6", tcp_ok=True, tls_ok=True)
         def response(latency: float) -> tuple[int, dict[str, str], bytes, float]:
@@ -221,6 +260,28 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, [record])
         self.assertEqual(record.http_latency_ms, 233.333)
+
+    async def test_https_stops_after_first_failed_required_attempt(self) -> None:
+        record = NodeResult(ip="192.0.2.13", tcp_ok=True, tls_ok=True)
+        request = AsyncMock(side_effect=TimeoutError("timeout"))
+        with patch("core.http_check._request", new=request):
+            result = await check_http(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "path": "/cdn-cgi/trace",
+                    "accepted_statuses": [200],
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_ttfb_ms": 300,
+                    "stop_on_failure": True,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertEqual(request.await_count, 1)
 
     async def test_https_ttfb_stops_at_first_response_byte(self) -> None:
         record = NodeResult(ip="192.0.2.7", tcp_ok=True, tls_ok=True)

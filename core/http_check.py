@@ -118,6 +118,8 @@ async def check_http(
     require_trace = bool(options.get("require_trace_fields", True))
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
+    stop_on_failure = bool(options.get("stop_on_failure", False))
+    stop_when_impossible = bool(options.get("stop_when_average_impossible", False))
     maximum_ttfb = float(options.get("maximum_average_ttfb_ms", float("inf")))
     path = str(options.get("path", "/cdn-cgi/trace"))
     ws = websocket_options or {}
@@ -125,6 +127,7 @@ async def check_http(
     async def worker(node: NodeResult) -> NodeResult:
         latencies: list[float] = []
         successes = 0
+        early_reason = ""
         for attempt_index in range(attempts):
             try:
                 status, headers, body, ttfb = await _request(
@@ -150,6 +153,9 @@ async def check_http(
                         "http",
                         f"第 {attempt_index + 1} 次: status={status}, colo={colo or '-'}, loc={country or '-'}",
                     )
+                    if require_all and stop_on_failure:
+                        early_reason = "HTTPS 验证失败，提前终止剩余尝试"
+                        break
                     continue
                 successes += 1
                 latencies.append(ttfb)
@@ -157,8 +163,14 @@ async def check_http(
                 node.cf_ray = cf_ray
                 node.colo = colo
                 node.country = country
+                if stop_when_impossible and sum(latencies) > maximum_ttfb * attempts:
+                    early_reason = "即使剩余 TTFB 为 0，测试平均值也会超限"
+                    break
             except Exception as exc:
                 node.add_error("http", f"第 {attempt_index + 1} 次: {exc}")
+                if require_all and stop_on_failure:
+                    early_reason = "必需测试失败，提前终止剩余尝试"
+                    break
 
         node.http_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
         attempts_passed = successes == attempts if require_all else successes > 0
@@ -167,7 +179,7 @@ async def check_http(
         if attempts_passed and not average_passed:
             node.add_error(
                 "https_ttfb",
-                f"三次平均延迟 {node.http_latency_ms:g}ms > {maximum_ttfb:g}ms",
+                f"测试平均延迟 {node.http_latency_ms:g}ms > {maximum_ttfb:g}ms",
             )
         node.probe_results["https_ttfb"] = {
             "attempts": attempts,
@@ -175,8 +187,13 @@ async def check_http(
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ttfb_ms": node.http_latency_ms,
             "maximum_average_ttfb_ms": maximum_ttfb,
+            "trace_country": node.country,
+            "trace_colo": node.colo,
+            "early_rejected": bool(early_reason),
             "strict_passed": node.http_ok,
         }
+        if early_reason:
+            node.add_error("https_ttfb", early_reason)
 
         if node.http_ok and ws.get("enabled", False):
             node.websocket_ok = await _check_websocket(
