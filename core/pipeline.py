@@ -190,7 +190,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/11.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/11.1"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})

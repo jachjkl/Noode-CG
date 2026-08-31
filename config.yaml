@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V11-LinkJP10
+  name: Noode-CG V11.1-LinkJP10
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/11.0-link-jp10
+  user_agent: Noode-CG/11.1-link-jp10
 
 paths:
   locations: data/locations.json

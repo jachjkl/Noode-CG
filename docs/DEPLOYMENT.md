@@ -2,7 +2,7 @@
 
 ## 覆盖上传
 
-解压 `Noode-CG-V11-LinkJP10.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
+解压 `Noode-CG-V11.1-LinkJP10-CIFix.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
 
 根目录应直接出现：
 

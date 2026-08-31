@@ -3,7 +3,7 @@
   "target_domain": "jackoyu.dpdns.org",
   "counts": {},
   "warnings": [
-    "V11 压缩包不携带候选 IP；上传后请运行 Refresh verified endpoints。程序先从两个链接选出最优 JP10，再筛选其余地址。"
+    "V11.1 压缩包不携带候选 IP；已修复 GitHub 覆盖上传残留旧测试导致的 CI 失败。上传后先运行清理，再运行刷新。"
   ],
   "generated_at": "2026-08-31T04:40:59.275224+00:00",
   "selected": 0,
