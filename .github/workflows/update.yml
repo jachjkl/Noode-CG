@@ -2,6 +2,9 @@ name: Refresh verified endpoints
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - data/local-cfdata-candidates.txt
   schedule:
     # Avoid minute 0, when scheduled Actions have the highest queue pressure.
     - cron: "17 */8 * * *"
