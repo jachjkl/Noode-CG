@@ -2,7 +2,7 @@
 
 ## 覆盖上传
 
-解压 `Noode-CG-V11.2-LinkJP10-Retry.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
+解压 `Noode-CG-V11.3-JP-TCP-Speed.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
 
 根目录应直接出现：
 
@@ -40,7 +40,10 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 
 - `rounds[].prefilter_tcp_three_pass_success_under_1000ms`：三次初筛 TCPing 成功数量；
 - `source_country_lane.link_candidates`：两个链接中本轮提取到的 JP 候选数；
-- `source_country_lane.qualified`：完整测速后合格的链接 JP 数，应至少为 10；
+- `source_country_lane.measurements.tcping_measured`：JP 端点完成 TCPing 测量的数量；
+- `source_country_lane.measurements.download_measured`：JP 端点取得下载速度的数量；
+- `source_country_lane.selected`：仅按 TCPing 和下载结果排序后选出的不同 JP IP 数，应为 10；
+- `source_country_lane.tls_skipped` 与 `https_ttfb_skipped`：应为 `true`；
 - `rounds[].prefilter_shortlisted`：进入严格阶段的数量，应为 5,000；
 - `rounds[].quality_tcp_three_pass_success_under_300ms`：严格 TCP 三次合格数；
 - `metric_batches[].tls_three_pass_success`：TLS 三次合格数；
@@ -50,4 +53,4 @@ https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
 - `gates.final_top200` 与 `gates.final_country:JP`：200 条和 JP10 发布门槛；
 - `published`：本轮是否覆盖订阅。
 
-若 `published: false`，说明链接 JP10、200 条、5,000 初筛或 Runner 基线没有全部满足，旧的非空订阅会保留；程序不会再为缺少 JP 无效扫描官方池。
+若 `published: false`，说明两个链接中不足 10 个不同 JP IP、普通结果不足 200、5,000 初筛或 Runner 基线没有全部满足，旧的非空订阅会保留；JP 不会再因为 TLS/HTTPS 严格测试为 0 而阻止官方池运行。

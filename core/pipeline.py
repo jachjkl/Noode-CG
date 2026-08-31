@@ -140,6 +140,79 @@ def _speed_checks(
     }
 
 
+def _rank_source_country_tcp_speed(
+    records: Iterable[NodeResult], *, count: int
+) -> list[NodeResult]:
+    """Rank the link-provided JP lane using only TCPing and download results.
+
+    Failed measurements stay in the ordering instead of being filtered out, so
+    the lane can still select the best available ten from the two source feeds.
+    Multiple ports for the same IP compete and only the best endpoint survives.
+    """
+    ordered = sorted(
+        records,
+        key=lambda node: (
+            node.tcp_latency_ms is None or node.speed_mbps is None,
+            node.tcp_loss_rate,
+            -(node.speed_mbps if node.speed_mbps is not None else -1.0),
+            node.tcp_latency_ms if node.tcp_latency_ms is not None else 999999.0,
+            node.tcp_jitter_ms if node.tcp_jitter_ms is not None else 999999.0,
+            node.ip,
+            node.port,
+        ),
+    )
+    selected: list[NodeResult] = []
+    seen: set[str] = set()
+    for node in ordered:
+        if node.ip in seen:
+            continue
+        selected.append(node)
+        seen.add(node.ip)
+        if len(selected) >= count:
+            break
+    return selected
+
+
+def _source_country_tcp_speed_checks(
+    records: list[NodeResult], *, pipeline: dict[str, Any], rule: dict[str, Any],
+    user_agent: str, probe_paths: list[Path], count: int,
+) -> tuple[list[NodeResult], dict[str, Any]]:
+    """Measure the special JP lane once without TLS or HTTPS-TTFB gates."""
+    started = time.monotonic()
+    tcp_options = dict(pipeline["prefilter_tcp"])
+    tcp_options.update({
+        "attempts": int(rule.get("tcp_attempts", 3)),
+        "require_all_attempts": False,
+        "stop_on_failure": False,
+        "stop_when_average_impossible": False,
+        "return_all": True,
+    })
+    tcp_options.pop("maximum_average_latency_ms", None)
+    tcp_options.pop("maximum_jitter_ms", None)
+    tcp_tested = asyncio.run(scan_tcp(records, tcp_options))
+
+    merge_probe_files(tcp_tested, probe_paths)
+    speed_options = dict(pipeline["speed"])
+    speed_options["candidates"] = len(tcp_tested)
+    speed_tested = asyncio.run(test_speed(
+        tcp_tested,
+        speed_options,
+        user_agent=user_agent,
+        probe_name="jp_source_speed",
+    ))
+    selected = _rank_source_country_tcp_speed(speed_tested, count=count)
+    return selected, {
+        "input_endpoints": len(records),
+        "input_unique_ips": len({node.ip for node in records}),
+        "tcping_attempts_per_endpoint": int(tcp_options["attempts"]),
+        "tcping_measured": sum(node.tcp_latency_ms is not None for node in tcp_tested),
+        "download_tested_once": len(speed_tested),
+        "download_measured": sum(node.speed_mbps is not None for node in speed_tested),
+        "selected_unique_ips": len(selected),
+        "duration_seconds": round(time.monotonic() - started, 3),
+    }
+
+
 def _keep_best_by_ip(target: dict[str, NodeResult], records: list[NodeResult]) -> None:
     for node in records:
         existing = target.get(node.ip)
@@ -276,7 +349,6 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     source_country_target = int(
         source_country_rule.get("count", country_minimums.get(source_country, 0))
     )
-    source_country_max_test_rounds = int(source_country_rule.get("max_test_rounds", 3))
     speed_country_reserve = {
         str(country).upper(): int(minimum)
         for country, minimum in pipeline.get("speed_country_reserve", {}).items()
@@ -294,72 +366,52 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     prefilter_shortlisted_max = 0
 
     # The required JP lane is sourced only from the two configured link feeds.
-    # Test every JP candidate once, keep its best ten, and never try to satisfy
-    # this source-specific requirement with Cloudflare's Anycast official pool.
+    # It is a separate ranking lane: measure TCPing three times and download
+    # once, skip TLS/HTTPS-TTFB, then retain the best ten unique IPs even when
+    # they do not meet the normal pool's strict quality thresholds.
     source_country_candidates = [
         node for node in source_candidates if _country_of(node) == source_country
     ]
     tested_current_ips.update(node.ip for node in source_country_candidates)
-    source_country_attempts: list[dict[str, Any]] = []
-    pending_source_country = list(source_country_candidates)
-    for attempt_index in range(1, source_country_max_test_rounds + 1):
-        if not pending_source_country or len(source_country_quality) >= source_country_target:
-            break
-        attempt_candidates = _fresh_endpoint_candidates(
-            pending_source_country,
-            source=f"{source_country.lower()}-source-attempt-{attempt_index}",
-        )
-        source_country_tcp = asyncio.run(
-            scan_tcp(attempt_candidates, pipeline["quality_tcp"])
-        )
-        source_country_metrics, source_country_metric_counts = _three_metric_checks(
-            source_country_tcp,
-            domain=domain,
-            pipeline=pipeline,
-            user_agent=user_agent,
-            locations=locations,
-        )
-        source_country_passed, source_country_speed_counts = _speed_checks(
-            source_country_metrics,
-            pipeline=pipeline,
-            user_agent=user_agent,
-            probe_paths=probe_paths,
-        )
-        speed_processed_ips.update(node.ip for node in source_country_metrics)
-        _keep_best_by_ip(source_country_quality, source_country_passed)
-        source_country_attempts.append({
-            **source_country_metric_counts,
-            **source_country_speed_counts,
-            "attempt": attempt_index,
-            "input_endpoints": len(attempt_candidates),
-            "input_unique_ips": len({node.ip for node in attempt_candidates}),
-            "tcp_three_pass_success": len(source_country_tcp),
-            "qualified_unique_ips_total": len(source_country_quality),
-        })
-        qualified_ips = set(source_country_quality)
-        pending_source_country = [
-            node for node in source_country_candidates if node.ip not in qualified_ips
-        ]
+    source_country_measured = _fresh_endpoint_candidates(
+        source_country_candidates,
+        source=f"{source_country.lower()}-source-tcp-speed",
+    )
+    source_country_selected, source_country_counts = _source_country_tcp_speed_checks(
+        source_country_measured,
+        pipeline=pipeline,
+        rule=source_country_rule,
+        user_agent=user_agent,
+        probe_paths=probe_paths,
+        count=source_country_target,
+    )
+    source_country_quality = {node.ip: node for node in source_country_selected}
+    speed_processed_ips.update(node.ip for node in source_country_candidates)
 
     report["source_country_lane"] = {
         "country": source_country,
         "required": source_country_target,
         "link_candidates": len(source_country_candidates),
         "link_unique_ips": len({node.ip for node in source_country_candidates}),
-        "attempt_count": len(source_country_attempts),
-        "attempts": source_country_attempts,
+        "test_count": 1,
+        "tcping_only_plus_download": True,
+        "tls_skipped": True,
+        "https_ttfb_skipped": True,
+        "measurements": source_country_counts,
         "qualified": len(source_country_quality),
+        "selected": len(source_country_quality),
     }
 
     report["counts"].update({
         "jp_source_candidates": len(source_country_candidates),
         "jp_source_qualified": len(source_country_quality),
-        "jp_source_test_attempts": len(source_country_attempts),
+        "jp_source_selected": len(source_country_quality),
+        "jp_source_test_attempts": 1,
     })
     if len(source_country_quality) < source_country_target:
         report["warnings"].append(
-            f"两个指定链接中只有 {len(source_country_quality)}/{source_country_target} 个 "
-            f"{source_country} 候选通过正常完整测试；停止官方池补测并保留旧订阅"
+            f"两个指定链接中只有 {len(source_country_quality)}/{source_country_target} 个不同的 "
+            f"{source_country} 候选；无法满足固定数量，停止官方池补测并保留旧订阅"
         )
 
     # The previous TOP100 has its own lane: one strict TCP/TLS/TTFB/download

@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V11.2-LinkJP10
+  name: Noode-CG V11.3-JP-TCP-Speed
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/11.2-link-jp10
+  user_agent: Noode-CG/11.3-jp-tcp-speed
 
 paths:
   locations: data/locations.json
@@ -73,13 +73,13 @@ pipeline:
   country_minimums:
     JP: 10
   # JP nodes are tested once in a dedicated lane and must originate from the
-  # two full link feeds. The ten best normally-qualified JP nodes are kept.
+  # two full link feeds. They skip TLS/HTTPS-TTFB: TCPing is measured three
+  # times, download once, and the best ten different IPs are kept regardless
+  # of the normal pool's 300ms/1Mbps pass thresholds.
   jp_source_requirement:
     country: JP
     count: 10
-    # A successful IP is never retested. Only the still-unqualified JP
-    # candidates get another full three-pass measurement, up to three rounds.
-    max_test_rounds: 3
+    tcp_attempts: 3
   prefilter_country_reserve: {}
   speed_country_reserve: {}
 

@@ -104,4 +104,6 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
         progress_every=max(1000, len(records) // 20),
         progress_label="TCP",
     )
+    if options.get("return_all", False):
+        return tested
     return [node for node in tested if node.tcp_ok]

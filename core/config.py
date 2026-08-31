@@ -149,9 +149,11 @@ def validate_config(config: dict[str, Any]) -> None:
         "pipeline.jp_source_requirement.count",
     )
     _positive_number(
-        source_country_rule.get("max_test_rounds"),
-        "pipeline.jp_source_requirement.max_test_rounds",
+        source_country_rule.get("tcp_attempts"),
+        "pipeline.jp_source_requirement.tcp_attempts",
     )
+    if int(source_country_rule.get("tcp_attempts", 0)) != 3:
+        raise ConfigError("pipeline.jp_source_requirement.tcp_attempts 必须等于 3")
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")

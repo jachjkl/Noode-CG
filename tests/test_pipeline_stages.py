@@ -10,6 +10,23 @@ from core.tls_check import check_tls
 
 
 class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tcp_return_all_keeps_failed_jp_candidates_for_ranking(self) -> None:
+        node = NodeResult(ip="198.18.0.20", country_hint="JP")
+        options = {
+            "attempts": 3,
+            "timeout_seconds": 1,
+            "concurrency": 1,
+            "require_all_attempts": False,
+            "stop_on_failure": False,
+            "return_all": True,
+        }
+        with patch("core.tcp_scan._probe_once", new=AsyncMock(side_effect=TimeoutError("timeout"))):
+            result = await scan_tcp([node], options)
+
+        self.assertEqual(result, [node])
+        self.assertFalse(node.tcp_ok)
+        self.assertEqual(node.tcp_loss_rate, 1.0)
+
     async def test_tcp_stage_uses_fields_supported_by_node_model(self) -> None:
         record = NodeResult(ip="192.0.2.1")
         with patch("core.tcp_scan._probe_once", new=AsyncMock(return_value=12.5)):

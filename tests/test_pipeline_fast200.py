@@ -26,7 +26,7 @@ def qualified(node: NodeResult) -> NodeResult:
 
 
 class FastTwoStagePipelineTests(unittest.TestCase):
-    def test_jp_lane_retries_when_ten_endpoints_are_only_nine_unique_ips(self) -> None:
+    def test_jp_lane_uses_one_tcp_speed_ranking_and_keeps_unique_ips(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "locations.json").write_text("{}", encoding="utf-8")
@@ -59,7 +59,7 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                     "maximum_component_latency_ms": 300,
                     "maximum_jitter_ms": 500,
                     "country_minimums": {"JP": 2},
-                    "jp_source_requirement": {"country": "JP", "count": 2, "max_test_rounds": 3},
+                    "jp_source_requirement": {"country": "JP", "count": 2, "tcp_attempts": 3},
                     "prefilter_country_reserve": {"JP": 1},
                     "speed_country_reserve": {"JP": 1},
                     "max_official_rounds": 2,
@@ -81,19 +81,13 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 "vantage": {"probe_files": []},
             }
             events: list[tuple[str, float]] = []
-            jp_metric_attempt = 0
-
             async def scan(records, options):
                 events.append((str(options["stage"]), float(options["maximum_average_latency_ms"])))
                 return [qualified(node) for node in records]
 
             def metrics(records: list[NodeResult], **kwargs):
-                nonlocal jp_metric_attempt
                 events.append(("metrics", float(kwargs["pipeline"]["maximum_combined_latency_ms"])))
                 prepared = [qualified(node) for node in records]
-                if prepared and all(node.country_hint == "JP" for node in prepared):
-                    jp_metric_attempt += 1
-                    prepared = prepared[:2] if jp_metric_attempt == 1 else prepared
                 return prepared, {
                     "tls_three_pass_success": len(prepared),
                     "https_ttfb_three_pass_success": len(prepared),
@@ -112,6 +106,10 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 patch("core.pipeline.load_previous_top", return_value=([], [])),
                 patch("core.pipeline.collect_source_candidates", return_value=(jp, [])),
                 patch("core.pipeline.collect_official_batch", return_value=(official, [])) as official_call,
+                patch(
+                    "core.pipeline._source_country_tcp_speed_checks",
+                    return_value=([qualified(jp[0]), qualified(jp[2])], {"selected_unique_ips": 2}),
+                ) as jp_lane,
                 patch("core.pipeline.scan_tcp", new=AsyncMock(side_effect=scan)),
                 patch("core.pipeline._three_metric_checks", side_effect=metrics),
                 patch("core.pipeline._speed_checks", side_effect=speed),
@@ -121,19 +119,18 @@ class FastTwoStagePipelineTests(unittest.TestCase):
 
             self.assertEqual(report["status"], "ok")
             self.assertEqual(official_call.call_count, 1)
+            self.assertEqual(jp_lane.call_count, 1)
             self.assertEqual(
-                events[:6],
+                events[:4],
                 [
-                    ("quality", 300.0),
-                    ("metrics", 300.0),
-                    ("speed", 1.0),
+                    ("prefilter", 1000.0),
                     ("quality", 300.0),
                     ("metrics", 300.0),
                     ("speed", 1.0),
                 ],
             )
             self.assertEqual(report["counts"]["jp_source_qualified"], 2)
-            self.assertEqual(report["counts"]["jp_source_test_attempts"], 2)
+            self.assertEqual(report["counts"]["jp_source_test_attempts"], 1)
             compressed = root / "previous-official.txt.gz"
             self.assertTrue(compressed.is_file())
             self.assertEqual(
@@ -213,6 +210,10 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 patch("core.pipeline.load_previous_top", return_value=(previous, [])),
                 patch("core.pipeline.collect_source_candidates", return_value=([source], [])) as sources_call,
                 patch(
+                    "core.pipeline._source_country_tcp_speed_checks",
+                    return_value=([qualified(source)], {"selected_unique_ips": 1}),
+                ),
+                patch(
                     "core.pipeline.collect_official_batch",
                     side_effect=[(official_batches[0], []), (official_batches[1], [])],
                 ) as official_call,
@@ -229,7 +230,7 @@ class FastTwoStagePipelineTests(unittest.TestCase):
             self.assertEqual(official_call.call_count, 2)
             self.assertEqual(
                 [stage for stage, _ in scan_calls],
-                ["quality", "quality", "prefilter", "quality", "prefilter", "quality"],
+                ["quality", "prefilter", "quality", "prefilter", "quality"],
             )
             self.assertEqual(sum("192.0.2.1" in ips for _, ips in scan_calls), 1)
             prefilter_inputs = [ips for stage, ips in scan_calls if stage == "prefilter"]
@@ -247,7 +248,7 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 ["198.51.100.1", "198.51.100.2", "203.0.113.1", "203.0.113.2"],
             )
 
-    def test_insufficient_link_jp_stops_before_official_pool_and_preserves_output(self) -> None:
+    def test_too_few_unique_link_jp_stops_before_official_pool_and_preserves_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "locations.json").write_text("{}", encoding="utf-8")
@@ -272,8 +273,8 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                     "prefilter_shortlist": 2,
                     "speed_batch_size": 2,
                     "current_selection": 2,
-                    "country_minimums": {"JP": 1},
-                    "jp_source_requirement": {"country": "JP", "count": 1},
+                    "country_minimums": {"JP": 2},
+                    "jp_source_requirement": {"country": "JP", "count": 2, "tcp_attempts": 3},
                     "prefilter_country_reserve": {},
                     "speed_country_reserve": {},
                     "max_official_rounds": 2,
@@ -299,6 +300,10 @@ class FastTwoStagePipelineTests(unittest.TestCase):
                 patch("core.pipeline.measure_network_baseline", return_value={"all_targets_passed": True}),
                 patch("core.pipeline.load_previous_top", return_value=([], [])),
                 patch("core.pipeline.collect_source_candidates", return_value=([jp], [])),
+                patch(
+                    "core.pipeline._source_country_tcp_speed_checks",
+                    return_value=([qualified(jp)], {"selected_unique_ips": 1}),
+                ),
                 patch("core.pipeline.collect_official_batch") as official_call,
                 patch("core.pipeline.scan_tcp", new=AsyncMock(side_effect=scan)),
                 patch("core.pipeline._three_metric_checks", return_value=([], {})),
