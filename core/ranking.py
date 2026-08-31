@@ -13,10 +13,21 @@ def calculate_average_latency(node: NodeResult) -> float | None:
         node.average_latency_ms = None
         return None
     node.average_latency_ms = round(statistics.fmean(float(value) for value in values), 3)
+    jitters = [
+        value
+        for value in (node.tcp_jitter_ms, node.tls_jitter_ms, node.http_jitter_ms)
+        if value is not None
+    ]
+    node.overall_jitter_ms = round(max(jitters), 3) if jitters else None
     return node.average_latency_ms
 
 
-def rank_final(records: Iterable[NodeResult], *, count: int) -> list[NodeResult]:
+def rank_final(
+    records: Iterable[NodeResult],
+    *,
+    count: int,
+    minimum_by_country: dict[str, int] | None = None,
+) -> list[NodeResult]:
     prepared = list(records)
     for node in prepared:
         if node.average_latency_ms is None:
@@ -27,17 +38,32 @@ def rank_final(records: Iterable[NodeResult], *, count: int) -> list[NodeResult]
             node.tcp_loss_rate,
             -(node.speed_mbps if node.speed_mbps is not None else -1.0),
             node.average_latency_ms if node.average_latency_ms is not None else math.inf,
+            node.overall_jitter_ms if node.overall_jitter_ms is not None else math.inf,
             node.ip,
             node.port,
         ),
     )
-    selected: list[NodeResult] = []
+    unique: list[NodeResult] = []
     selected_ips: set[str] = set()
     for node in ordered:
         if node.ip in selected_ips:
             continue
-        selected.append(node)
+        unique.append(node)
         selected_ips.add(node.ip)
-        if len(selected) >= count:
+
+    required: set[str] = set()
+    for country, minimum in (minimum_by_country or {}).items():
+        normalized = str(country).upper()
+        matches = [
+            node
+            for node in unique
+            if (node.country or node.country_hint).upper() == normalized
+        ]
+        required.update(node.ip for node in matches[: max(0, int(minimum))])
+
+    chosen: set[str] = set(required)
+    for node in unique:
+        if len(chosen) >= count:
             break
-    return selected
+        chosen.add(node.ip)
+    return [node for node in unique if node.ip in chosen][:count]

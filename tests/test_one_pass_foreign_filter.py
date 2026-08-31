@@ -7,18 +7,19 @@ from core.models import NodeResult
 from core.pipeline import _three_metric_checks
 
 
-class OnePassForeignFilterTests(unittest.TestCase):
-    def test_combined_average_and_colo_country_are_both_required(self) -> None:
+class ThreePassForeignFilterTests(unittest.TestCase):
+    def test_component_limit_combined_average_and_country_are_all_required(self) -> None:
         records = [
-            NodeResult(ip="192.0.2.1", tcp_ok=True, tcp_latency_ms=100.0),
-            NodeResult(ip="192.0.2.2", tcp_ok=True, tcp_latency_ms=100.0),
-            NodeResult(ip="192.0.2.3", tcp_ok=True, tcp_latency_ms=100.0),
+            NodeResult(ip="192.0.2.1", tcp_ok=True, tcp_latency_ms=100.0, tcp_jitter_ms=0.0),
+            NodeResult(ip="192.0.2.2", tcp_ok=True, tcp_latency_ms=100.0, tcp_jitter_ms=0.0),
+            NodeResult(ip="192.0.2.3", tcp_ok=True, tcp_latency_ms=100.0, tcp_jitter_ms=0.0),
         ]
 
         async def tls_once(nodes, _domain, _options):
             for node in nodes:
                 node.tls_ok = True
                 node.tls_latency_ms = 100.0
+                node.tls_jitter_ms = 0.0
             return list(nodes)
 
         async def http_once(nodes, _domain, _http, _websocket, *, user_agent):
@@ -26,11 +27,12 @@ class OnePassForeignFilterTests(unittest.TestCase):
             for node in nodes:
                 node.http_ok = True
                 node.http_status = 200
+                node.http_jitter_ms = 0.0
                 if node.ip == "192.0.2.1":
                     node.http_latency_ms = 700.0
                     node.colo = "NRT"
                 elif node.ip == "192.0.2.2":
-                    node.http_latency_ms = 701.0
+                    node.http_latency_ms = 100.0
                     node.colo = "NRT"
                 else:
                     node.http_latency_ms = 100.0
@@ -44,6 +46,8 @@ class OnePassForeignFilterTests(unittest.TestCase):
             "http": {"attempts": 1},
             "websocket": {},
             "maximum_combined_latency_ms": 300,
+            "maximum_component_latency_ms": 300,
+            "maximum_jitter_ms": 200,
             "location_filter": {
                 "require_known_colo_country": True,
                 "excluded_countries": ["CN"],
@@ -66,8 +70,8 @@ class OnePassForeignFilterTests(unittest.TestCase):
                 locations=locations,
             )
 
-        self.assertEqual([node.ip for node in qualified], ["192.0.2.1"])
-        self.assertEqual(qualified[0].average_latency_ms, 300.0)
+        self.assertEqual([node.ip for node in qualified], ["192.0.2.2"])
+        self.assertEqual(qualified[0].average_latency_ms, 100.0)
         self.assertEqual(qualified[0].country, "JP")
         self.assertEqual(counts["foreign_combined_latency_qualified"], 1)
         self.assertEqual(tls_mock.await_count, 1)

@@ -66,7 +66,10 @@ def validate_config(config: dict[str, Any]) -> None:
     for name in (
         "three_metric_shortlist",
         "maximum_combined_latency_ms",
+        "maximum_component_latency_ms",
+        "maximum_jitter_ms",
         "current_selection",
+        "speed_batch_size",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
         "postprocess_reserve_seconds",
@@ -80,6 +83,7 @@ def validate_config(config: dict[str, Any]) -> None:
             raise ConfigError(f"缺少 pipeline.{stage}")
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
+        _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
     _positive_number(pipeline["tcp"].get("attempts"), "pipeline.tcp.attempts")
     _positive_number(
         pipeline["tcp"].get("maximum_average_latency_ms"),
@@ -96,8 +100,8 @@ def validate_config(config: dict[str, Any]) -> None:
         "pipeline.http.maximum_average_ttfb_ms",
     )
     for stage in ("tcp", "tls", "http"):
-        if int(pipeline[stage].get("attempts", 0)) != 1:
-            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 1")
+        if int(pipeline[stage].get("attempts", 0)) != 3:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
         if pipeline[stage].get("require_all_attempts") is not True:
             raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
 
@@ -109,6 +113,18 @@ def validate_config(config: dict[str, Any]) -> None:
     _positive_number(speed.get("maximum_download_seconds"), "pipeline.speed.maximum_download_seconds")
     if int(pipeline["strict_tcp_candidates_per_round"]) < int(pipeline["three_metric_shortlist"]):
         raise ConfigError("pipeline.strict_tcp_candidates_per_round 不能小于 three_metric_shortlist")
+    if int(pipeline["speed_batch_size"]) > int(pipeline["three_metric_shortlist"]):
+        raise ConfigError("pipeline.speed_batch_size 不能大于 three_metric_shortlist")
+
+    country_minimums = pipeline.get("country_minimums")
+    if not isinstance(country_minimums, dict) or not country_minimums:
+        raise ConfigError("pipeline.country_minimums 必须是非空对象")
+    for country, minimum in country_minimums.items():
+        if len(str(country)) != 2:
+            raise ConfigError("pipeline.country_minimums 国家代码必须是两个字母")
+        _positive_number(minimum, f"pipeline.country_minimums.{country}")
+    if sum(int(value) for value in country_minimums.values()) > int(pipeline["current_selection"]):
+        raise ConfigError("pipeline.country_minimums 合计不能超过 current_selection")
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
@@ -124,12 +140,19 @@ def validate_config(config: dict[str, Any]) -> None:
             block.get("maximum_average_latency_ms"),
             f"pipeline.{stage}.maximum_average_latency_ms",
         )
-        if int(block.get("attempts", 0)) != 1:
-            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 1")
+        _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
+        if int(block.get("attempts", 0)) != 3:
+            raise ConfigError(f"pipeline.{stage}.attempts 必须等于 3")
+        if block.get("require_all_attempts") is not True:
+            raise ConfigError(f"pipeline.{stage}.require_all_attempts 必须为 true")
 
     location_filter = pipeline.get("location_filter")
     if not isinstance(location_filter, dict):
         raise ConfigError("缺少 pipeline.location_filter")
+
+    baseline = config.get("network_baseline")
+    if not isinstance(baseline, dict) or int(baseline.get("attempts", 0)) != 3:
+        raise ConfigError("network_baseline.attempts 必须等于 3")
 
     top_nodes = config["output"].get("top_nodes")
     _positive_number(top_nodes, "output.top_nodes")

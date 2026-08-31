@@ -20,8 +20,10 @@ def enrich_locations(records: list[NodeResult], locations: dict[str, dict[str, A
     for node in records:
         location = locations.get(node.colo, {})
         # The trace `loc` describes the request origin (for Actions, usually the
-        # GitHub runner). The candidate's useful exit location is its CF colo.
-        node.country = str(location.get("cca2") or node.country_hint or "").upper()
+        # GitHub runner). `colo_country` is the actual Cloudflare edge reached;
+        # source-provided country labels describe the endpoint itself.
+        node.colo_country = str(location.get("cca2") or "").upper()
+        node.country = str(node.country_hint or node.colo_country or "").upper()
         node.region = str(location.get("region") or "")
         node.city = str(location.get("city") or "")
     return records

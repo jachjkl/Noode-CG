@@ -48,6 +48,29 @@ class RankingTests(unittest.TestCase):
 
         self.assertEqual(result, [first, other])
 
+    def test_final_selection_reserves_fifteen_japanese_nodes(self) -> None:
+        us_nodes = [
+            measured(f"192.0.2.{index}", tcp=50, tls=60, http=70, speed=100 - index)
+            for index in range(1, 21)
+        ]
+        jp_nodes = [
+            measured(f"198.51.100.{index}", tcp=100, tls=110, http=120, speed=10)
+            for index in range(1, 16)
+        ]
+        for node in us_nodes:
+            node.country = "US"
+        for node in jp_nodes:
+            node.country = "JP"
+
+        result = rank_final(
+            [*us_nodes, *jp_nodes],
+            count=20,
+            minimum_by_country={"JP": 15},
+        )
+
+        self.assertEqual(len(result), 20)
+        self.assertEqual(sum(node.country == "JP" for node in result), 15)
+
 
 if __name__ == "__main__":
     unittest.main()

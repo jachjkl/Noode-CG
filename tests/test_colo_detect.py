@@ -14,7 +14,17 @@ class ColoLocationTests(unittest.TestCase):
         enrich_locations([node], locations)
 
         self.assertEqual(node.country, "JP")
+        self.assertEqual(node.colo_country, "JP")
         self.assertEqual(node.city, "Tokyo")
+
+    def test_source_country_is_preserved_separately_from_colo_country(self) -> None:
+        node = NodeResult(ip="192.0.2.2", country_hint="JP", colo="LAX")
+        locations = {"LAX": {"cca2": "US", "region": "North America", "city": "Los Angeles"}}
+
+        enrich_locations([node], locations)
+
+        self.assertEqual(node.country, "JP")
+        self.assertEqual(node.colo_country, "US")
 
 
 if __name__ == "__main__":

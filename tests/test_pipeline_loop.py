@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +22,84 @@ def ready(node: NodeResult) -> NodeResult:
 
 
 class PipelineLoopTests(unittest.TestCase):
+    def test_pipeline_waits_for_japanese_quota_before_final_publish(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            batches = [
+                [NodeResult(ip=f"192.0.2.{index}", country_hint="US") for index in range(1, 3)],
+                [NodeResult(ip=f"198.51.100.{index}", country_hint="JP") for index in range(1, 3)],
+            ]
+            config = {
+                "_base_dir": str(root),
+                "project": {"target_domain": "worker.example.com", "user_agent": "test"},
+                "paths": {"locations": "locations.json", "checkpoints": "checkpoints", "output": "output"},
+                "rolling": {
+                    "previous_limit": 0,
+                    "snapshot_path": "previous.json",
+                    "official_snapshot_path": "previous-official.txt",
+                },
+                "sources": {"remote": [], "cloudflare_ranges": {"official_batch_size": 2}},
+                "pipeline": {
+                    "three_metric_shortlist": 2,
+                    "speed_batch_size": 2,
+                    "current_selection": 2,
+                    "rolling_candidate_batch": 4,
+                    "strict_tcp_candidates_per_round": 2,
+                    "country_minimums": {"JP": 1},
+                    "speed_country_reserve": {"JP": 1},
+                    "max_runtime_seconds": 10000,
+                    "minimum_round_budget_seconds": 1,
+                    "postprocess_reserve_seconds": 1,
+                    "tcp": {},
+                    "rolling_retest": {},
+                },
+                "output": {
+                    "top_nodes": 2,
+                    "minimum_publish": 2,
+                    "preserve_last_good": True,
+                    "write_compatibility_zip": False,
+                },
+                "vantage": {"probe_files": []},
+            }
+
+            def metrics(records: list[NodeResult], **_kwargs):
+                prepared = [ready(node) for node in records]
+                for node in prepared:
+                    node.country = node.country_hint
+                return prepared, {
+                    "tls_three_pass_success": len(prepared),
+                    "https_ttfb_three_pass_success": len(prepared),
+                }
+
+            def speed(records: list[NodeResult], **_kwargs):
+                prepared = [ready(node) for node in records]
+                return prepared, {
+                    "speed_tested_once": len(prepared),
+                    "speed_at_least_minimum": len(prepared),
+                }
+
+            with (
+                patch("core.pipeline.measure_network_baseline", return_value={"all_targets_passed": True}),
+                patch("core.pipeline.load_previous_top", return_value=([], [])),
+                patch("core.pipeline.collect_source_candidates", return_value=([], [])),
+                patch(
+                    "core.pipeline.collect_official_batch",
+                    side_effect=[(batches[0], []), (batches[1], [])],
+                ) as official_call,
+                patch("core.pipeline.scan_tcp", new=AsyncMock(side_effect=lambda records, _options: list(records))),
+                patch("core.pipeline._three_metric_checks", side_effect=metrics),
+                patch("core.pipeline._speed_checks", side_effect=speed),
+                patch("core.pipeline.load_locations", return_value={}),
+            ):
+                report = run_pipeline(config)
+
+            published = json.loads((root / "output" / "nodes.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "ok")
+            self.assertEqual(official_call.call_count, 2)
+            self.assertEqual(len(published), 2)
+            self.assertGreaterEqual(sum(node["country"] == "JP" for node in published), 1)
+
     def test_full_sources_plus_official_then_previous_top_retest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -56,6 +135,7 @@ class PipelineLoopTests(unittest.TestCase):
                 },
                 "pipeline": {
                     "three_metric_shortlist": 5,
+                    "speed_batch_size": 5,
                     "current_selection": 3,
                     "strict_tcp_candidates_per_round": 5,
                     "max_runtime_seconds": 10000,
@@ -78,8 +158,8 @@ class PipelineLoopTests(unittest.TestCase):
             def metrics(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "tls_one_pass_success": len(prepared),
-                    "https_ttfb_one_pass_success": len(prepared),
+                    "tls_three_pass_success": len(prepared),
+                    "https_ttfb_three_pass_success": len(prepared),
                 }
 
             def speed(records: list[NodeResult], **_kwargs):
@@ -136,6 +216,7 @@ class PipelineLoopTests(unittest.TestCase):
                 "sources": {"remote": [], "cloudflare_ranges": {"official_batch_size": 5}},
                 "pipeline": {
                     "three_metric_shortlist": 5,
+                    "speed_batch_size": 5,
                     "current_selection": 3,
                     "strict_tcp_candidates_per_round": 5,
                     "max_runtime_seconds": 10000,
@@ -158,8 +239,8 @@ class PipelineLoopTests(unittest.TestCase):
             def metrics(records: list[NodeResult], **_kwargs):
                 prepared = [ready(node) for node in records]
                 return prepared, {
-                    "tls_one_pass_success": len(prepared),
-                    "https_ttfb_one_pass_success": len(prepared),
+                    "tls_three_pass_success": len(prepared),
+                    "https_ttfb_three_pass_success": len(prepared),
                 }
 
             speed_call = 0
@@ -217,6 +298,7 @@ class PipelineLoopTests(unittest.TestCase):
                 "sources": {"remote": [], "cloudflare_ranges": {"official_batch_size": 4}},
                 "pipeline": {
                     "three_metric_shortlist": 4,
+                    "speed_batch_size": 4,
                     "current_selection": 2,
                     "rolling_candidate_batch": 4,
                     "strict_tcp_candidates_per_round": 4,
@@ -245,8 +327,8 @@ class PipelineLoopTests(unittest.TestCase):
                     rolling_inputs.append({node.ip for node in prepared})
                     prepared = prepared[:1]
                 return prepared, {
-                    "tls_one_pass_success": len(prepared),
-                    "https_ttfb_one_pass_success": len(prepared),
+                    "tls_three_pass_success": len(prepared),
+                    "https_ttfb_three_pass_success": len(prepared),
                 }
 
             def speed(records: list[NodeResult], **_kwargs):

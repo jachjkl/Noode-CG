@@ -121,6 +121,7 @@ async def check_http(
     stop_on_failure = bool(options.get("stop_on_failure", False))
     stop_when_impossible = bool(options.get("stop_when_average_impossible", False))
     maximum_ttfb = float(options.get("maximum_average_ttfb_ms", float("inf")))
+    maximum_jitter = float(options.get("maximum_jitter_ms", float("inf")))
     path = str(options.get("path", "/cdn-cgi/trace"))
     ws = websocket_options or {}
 
@@ -173,20 +174,31 @@ async def check_http(
                     break
 
         node.http_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
+        node.http_jitter_ms = (
+            round(statistics.pstdev(latencies), 3) if len(latencies) > 1 else 0.0 if latencies else None
+        )
         attempts_passed = successes == attempts if require_all else successes > 0
         average_passed = node.http_latency_ms is not None and node.http_latency_ms <= maximum_ttfb
-        node.http_ok = attempts_passed and average_passed
+        jitter_passed = node.http_jitter_ms is not None and node.http_jitter_ms <= maximum_jitter
+        node.http_ok = attempts_passed and average_passed and jitter_passed
         if attempts_passed and not average_passed:
             node.add_error(
                 "https_ttfb",
                 f"测试平均延迟 {node.http_latency_ms:g}ms > {maximum_ttfb:g}ms",
+            )
+        elif attempts_passed and not jitter_passed:
+            node.add_error(
+                "https_ttfb",
+                f"抖动 {node.http_jitter_ms:g}ms > {maximum_jitter:g}ms",
             )
         node.probe_results["https_ttfb"] = {
             "attempts": attempts,
             "successes": successes,
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ttfb_ms": node.http_latency_ms,
+            "jitter_ms": node.http_jitter_ms,
             "maximum_average_ttfb_ms": maximum_ttfb,
+            "maximum_jitter_ms": maximum_jitter,
             "trace_country": node.country,
             "trace_colo": node.colo,
             "early_rejected": bool(early_reason),

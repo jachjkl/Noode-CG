@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V8-OnePassForeign
+  name: Noode-CG V9-ThreePassJP15
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/8.0-one-pass-foreign
+  user_agent: Noode-CG/9.0-three-pass-jp15
 
 paths:
   locations: data/locations.json
@@ -20,37 +20,30 @@ sources:
   local: []
   # Every valid entry from every link is included. Link entries do not consume
   # any of the 50,000 official-range slots sampled in each round.
-  # If the service is temporarily unavailable, the last committed cache is used.
   remote:
     - name: zip.cm.edu.kg/all.txt
       url: https://zip.cm.edu.kg/all.txt
       required: true
       min_records: 10000
-      min_ratio_to_cache: 0.80
       retries: 3
       retry_delay_seconds: 2
       timeout_seconds: 30
       default_port: 443
-      cache_path: data/sources/zip-cm-edu-kg-all.txt
     - name: bestcf.pages.dev/lzj
       url: https://bestcf.pages.dev/lzj/all.txt
       required: true
       min_records: 50
-      min_ratio_to_cache: 0.50
       retries: 3
       retry_delay_seconds: 2
       timeout_seconds: 30
       default_port: 443
-      cache_path: data/sources/bestcf-lzj.txt
   max_download_bytes: 20971520
   cloudflare_ranges:
     enabled: true
     refresh: true
     ipv4_url: https://www.cloudflare.com/ips-v4/
-    ipv4_fallback: data/cloudflare-ipv4.txt
     include_ipv6: false
     ipv6_url: https://www.cloudflare.com/ips-v6/
-    ipv6_fallback: data/cloudflare-ipv6.txt
     official_batch_size: 50000
     ports: [443]
     # GitHub supplies a different run id/attempt each time. Local runs leave
@@ -61,49 +54,60 @@ pipeline:
   # This target counts only IPs that pass TCP, TLS, and HTTPS TTFB below.
   three_metric_shortlist: 5000
   maximum_combined_latency_ms: 300
+  maximum_component_latency_ms: 300
+  maximum_jitter_ms: 200
   current_selection: 500
-  # Final verification takes up to 2,000 never-before-retested current nodes at
+  speed_batch_size: 1000
+  # Final verification takes up to 800 never-before-retested current nodes at
   # once and accumulates successes. A node and previous TOP100 entry are not
   # tested repeatedly in later final-verification rounds.
-  rolling_candidate_batch: 2000
+  rolling_candidate_batch: 800
   max_runtime_seconds: 19800
   minimum_round_budget_seconds: 900
   postprocess_reserve_seconds: 6000
   fail_on_quality_gate: false
 
-  # One TCP pass over the entire source + 50,000 official batch. Only the
-  # fastest candidates continue to the one-pass TLS and HTTPS TTFB tests.
-  strict_tcp_candidates_per_round: 15000
+  # Three consecutive TCPing attempts run over the entire source + 50,000
+  # official batch. Only the fastest candidates continue to TLS/HTTPS.
+  strict_tcp_candidates_per_round: 10000
+
+  country_minimums:
+    JP: 15
+  speed_country_reserve:
+    JP: 60
 
   tcp:
-    concurrency: 800
+    concurrency: 400
     timeout_seconds: 1.0
-    attempts: 1
+    attempts: 3
     require_all_attempts: true
-    maximum_average_latency_ms: 900
+    maximum_average_latency_ms: 200
+    maximum_jitter_ms: 200
     stop_on_failure: true
     stop_when_average_impossible: true
 
   tls:
-    concurrency: 300
+    concurrency: 150
     timeout_seconds: 4.0
     verify_certificate: true
     minimum_version: TLSv1.2
-    attempts: 1
+    attempts: 3
     require_all_attempts: true
-    maximum_average_latency_ms: 900
+    maximum_average_latency_ms: 300
+    maximum_jitter_ms: 200
     stop_on_failure: true
     stop_when_average_impossible: true
 
   http:
-    concurrency: 250
+    concurrency: 100
     timeout_seconds: 5.0
     path: /cdn-cgi/trace
     require_trace_fields: true
     accepted_statuses: [200]
-    attempts: 1
+    attempts: 3
     require_all_attempts: true
-    maximum_average_ttfb_ms: 900
+    maximum_average_ttfb_ms: 300
+    maximum_jitter_ms: 200
     stop_on_failure: true
     stop_when_average_impossible: true
 
@@ -121,22 +125,24 @@ pipeline:
     path: /__down?bytes=262144
     bytes_per_test: 262144
     minimum_completion_ratio: 0.95
-    candidates: 5000
+    candidates: 1000
     minimum_mbps: 1.0
-    concurrency: 32
+    concurrency: 48
     timeout_seconds: 5.0
     maximum_download_seconds: 4.5
 
   rolling_retest:
     concurrency: 200
     timeout_seconds: 1.0
-    attempts: 1
+    attempts: 3
     require_all_attempts: true
-    maximum_average_latency_ms: 900
+    maximum_average_latency_ms: 200
+    maximum_jitter_ms: 200
     stop_on_failure: true
     stop_when_average_impossible: true
 
   location_filter:
+    require_known_endpoint_country: true
     require_known_colo_country: true
     excluded_countries: [CN]
 
@@ -157,7 +163,7 @@ vantage:
 network_baseline:
   # These are whole-run diagnostics from the GitHub runner, not fake
   # per-candidate proxy tests. Candidate ranking uses TCP/TLS/Worker HTTP.
-  attempts: 1
+  attempts: 3
   timeout_seconds: 10
   targets:
     - name: Google

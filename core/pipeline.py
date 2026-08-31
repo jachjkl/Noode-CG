@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -49,32 +50,62 @@ def _three_metric_checks(
     ))
     enrich_locations(http_valid, locations)
     maximum_combined = float(pipeline["maximum_combined_latency_ms"])
+    maximum_component = float(pipeline["maximum_component_latency_ms"])
+    maximum_jitter = float(pipeline["maximum_jitter_ms"])
     location_filter = pipeline.get("location_filter", {})
     excluded_countries = {
         str(value).upper() for value in location_filter.get("excluded_countries", ["CN"])
     }
-    require_country = bool(location_filter.get("require_known_colo_country", True))
+    require_country = bool(location_filter.get("require_known_endpoint_country", True))
+    require_colo_country = bool(location_filter.get("require_known_colo_country", True))
     combined_valid: list[NodeResult] = []
     for node in http_valid:
         calculate_average_latency(node)
         country_valid = bool(node.country) or not require_country
-        foreign_valid = country_valid and node.country not in excluded_countries
+        colo_country_valid = bool(node.colo_country) or not require_colo_country
+        foreign_valid = (
+            country_valid
+            and colo_country_valid
+            and node.country not in excluded_countries
+            and node.colo_country not in excluded_countries
+        )
+        components = (node.tcp_latency_ms, node.tls_latency_ms, node.http_latency_ms)
+        component_valid = all(
+            value is not None and value <= maximum_component for value in components
+        )
+        jitter_valid = (
+            node.overall_jitter_ms is not None
+            and node.overall_jitter_ms <= maximum_jitter
+        )
         latency_valid = (
             node.average_latency_ms is not None
             and node.average_latency_ms <= maximum_combined
         )
-        if foreign_valid and latency_valid:
+        if foreign_valid and component_valid and jitter_valid and latency_valid:
             combined_valid.append(node)
         elif not foreign_valid:
-            node.add_error("location", f"已排除国家/地区: {node.country or 'unknown'}")
+            node.add_error(
+                "location",
+                f"已排除端点/机房: {node.country or 'unknown'}/{node.colo_country or 'unknown'}",
+            )
+        elif not component_valid:
+            node.add_error(
+                "latency",
+                f"单项延迟超过 {maximum_component:g}ms: {components}",
+            )
+        elif not jitter_valid:
+            node.add_error(
+                "jitter",
+                f"最大抖动 {node.overall_jitter_ms}ms > {maximum_jitter:g}ms",
+            )
         else:
             node.add_error(
                 "latency",
                 f"TCP/TLS/TTFB 综合平均 {node.average_latency_ms}ms > {maximum_combined:g}ms",
             )
     return combined_valid, {
-        "tls_one_pass_success": len(tls_valid),
-        "https_ttfb_one_pass_success": len(http_valid),
+        "tls_three_pass_success": len(tls_valid),
+        "https_ttfb_three_pass_success": len(http_valid),
         "foreign_combined_latency_qualified": len(combined_valid),
         "tls_and_https_duration_seconds": round(time.monotonic() - started, 3),
     }
@@ -112,12 +143,21 @@ def _keep_best_by_ip(target: dict[str, NodeResult], records: list[NodeResult]) -
             target[node.ip] = node
 
 
+def _country_count(records: Iterable[NodeResult], country: str) -> int:
+    normalized = country.upper()
+    return sum((node.country or node.country_hint).upper() == normalized for node in records)
+
+
+def _country_quotas_met(records: list[NodeResult], minimums: dict[str, int]) -> bool:
+    return all(_country_count(records, country) >= minimum for country, minimum in minimums.items())
+
+
 def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     started = datetime.now(UTC)
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
     domain = str(config["project"]["target_domain"])
-    user_agent = str(config["project"].get("user_agent", "Noode-CG/8.0"))
+    user_agent = str(config["project"].get("user_agent", "Noode-CG/9.0"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
     output_dir = resolve_path(config, config["paths"]["output"])
     rolling = config.get("rolling", {})
@@ -176,7 +216,16 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     round_index = metric_batch_index = speed_batch_index = rolling_attempt_index = 0
     metric_target = int(pipeline["three_metric_shortlist"])
     final_target = int(pipeline["current_selection"])
+    speed_batch_size = int(pipeline["speed_batch_size"])
     rolling_batch_size = int(pipeline.get("rolling_candidate_batch", final_target * 4))
+    country_minimums = {
+        str(country).upper(): int(minimum)
+        for country, minimum in pipeline.get("country_minimums", {}).items()
+    }
+    speed_country_reserve = {
+        str(country).upper(): int(minimum)
+        for country, minimum in pipeline.get("speed_country_reserve", {}).items()
+    }
     max_runtime = float(pipeline["max_runtime_seconds"])
     reserve = float(pipeline["postprocess_reserve_seconds"])
     minimum_round_budget = float(pipeline["minimum_round_budget_seconds"])
@@ -184,7 +233,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     probe_paths = [resolve_path(config, path) for path in config.get("vantage", {}).get("probe_files", [])]
     metric_checkpoint_written = False
 
-    while len(selected) < final_target:
+    while len(selected) < final_target or not _country_quotas_met(selected, country_minimums):
         remaining = max_runtime - (time.monotonic() - monotonic_started)
         if remaining <= 0:
             report["warnings"].append("已到内部运行时限，保留上一版订阅")
@@ -195,12 +244,28 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             for node in current_quality.values()
             if node.ip not in rolling_failed_current and node.ip not in rolling_tested_current
         ]
-        still_needed = final_target - len(verified_final)
-        if len(available) >= still_needed and remaining >= minimum_round_budget:
-            current = rank_final(available, count=rolling_batch_size)
-            previous_batch = [
-                node for node in previous if node.ip not in rolling_tested_previous
-            ]
+        previous_batch = [node for node in previous if node.ip not in rolling_tested_previous]
+        still_needed = max(0, final_target - len(verified_final))
+        remaining_minimums = {
+            country: max(0, minimum - _country_count(list(verified_final.values()), country))
+            for country, minimum in country_minimums.items()
+        }
+        retest_supply = [*available, *previous_batch]
+        enough_country_supply = all(
+            _country_count(retest_supply, country) >= minimum
+            for country, minimum in remaining_minimums.items()
+        )
+        if (
+            retest_supply
+            and len(retest_supply) >= still_needed
+            and enough_country_supply
+            and remaining >= minimum_round_budget
+        ):
+            current = rank_final(
+                available,
+                count=rolling_batch_size,
+                minimum_by_country=remaining_minimums,
+            )
             retest = prepare_retest_candidates(current, previous_batch)
             retest_tcp = asyncio.run(scan_tcp(retest, pipeline["rolling_retest"]))
             retest_metrics, metric_counts = _three_metric_checks(
@@ -212,7 +277,11 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
                 probe_paths=probe_paths,
             )
             _keep_best_by_ip(verified_final, retest_quality)
-            selected = rank_final(verified_final.values(), count=final_target)
+            selected = rank_final(
+                verified_final.values(),
+                count=final_target,
+                minimum_by_country=country_minimums,
+            )
             passed_ips = {node.ip for node in retest_quality}
             failed = {node.ip for node in current if node.ip not in passed_ips}
             rolling_failed_current.update(failed)
@@ -222,16 +291,19 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             rolling_attempt_index += 1
             attempt_counts = {
                 **metric_counts, **speed_counts, "attempt": rolling_attempt_index,
-                "input": len(retest), "tcp_one_pass_success": len(retest_tcp),
+                "input": len(retest), "tcp_three_pass_success": len(retest_tcp),
                 "current_failed": len(failed),
                 "previous_tested_this_attempt": len(previous_batch),
                 "previous_reverified": sum(node.ip in previous_ips for node in verified_final.values()),
                 "verified_added_this_attempt": len({node.ip for node in retest_quality}),
                 "verified_accumulated": len(verified_final),
                 "final_count": len(selected),
+                "final_countries": {
+                    country: _country_count(selected, country) for country in country_minimums
+                },
             }
             report["rolling_attempts"].append(attempt_counts)
-            if len(selected) >= final_target:
+            if len(selected) >= final_target and _country_quotas_met(selected, country_minimums):
                 report["counts"]["previous_reverified"] = attempt_counts["previous_reverified"]
                 report["counts"]["previous_in_final"] = sum(node.ip in previous_ips for node in selected)
                 write_checkpoint(checkpoint_dir / "04-final-top500.json", selected)
@@ -240,11 +312,12 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             continue
 
         untested_speed = [node for node in three_metric.values() if node.key not in speed_processed_keys]
-        if len(untested_speed) >= metric_target and remaining >= reserve:
-            chunk = sorted(untested_speed, key=lambda node: (
-                node.average_latency_ms if node.average_latency_ms is not None else 999999,
-                node.ip, node.port,
-            ))[:metric_target]
+        if len(three_metric) >= metric_target and untested_speed and remaining >= reserve:
+            chunk = rank_final(
+                untested_speed,
+                count=speed_batch_size,
+                minimum_by_country=speed_country_reserve,
+            )
             speed_batch_index += 1
             qualified, counts = _speed_checks(
                 chunk, pipeline=pipeline, user_agent=user_agent, probe_paths=probe_paths
@@ -317,13 +390,13 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             "link_endpoints": len(source_candidates) if round_index == 1 else 0,
             "official_unique_ips": len({node.ip for node in official}),
             "input": len(batch),
-            "tcp_one_pass_success": len(tcp_passed),
+            "tcp_three_pass_success": len(tcp_passed),
             "tcp_selected_for_tls_https": len(strict_candidates),
             "strict_tcp_total": len(strict_tcp),
             "tcp_duration_seconds": round(tcp_seconds, 3),
         })
         print(
-            f"第 {round_index} 轮: 输入={len(batch)}, TCP 一次成功={len(tcp_passed)}, "
+            f"第 {round_index} 轮: 输入={len(batch)}, TCPing 三次成功={len(tcp_passed)}, "
             f"三项累计={len(three_metric)}/{metric_target}", flush=True,
         )
 
@@ -348,10 +421,17 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         _gate("three_metric_qualified", len(three_metric), metric_target),
         _gate("current_speed_qualified", len(current_quality), final_target),
         _gate("final_top500", len(selected), int(config["output"]["top_nodes"])),
+        *[
+            _gate(f"final_country:{country}", _country_count(selected, country), minimum)
+            for country, minimum in country_minimums.items()
+        ],
     ])
 
+    if selected and not _country_quotas_met(selected, country_minimums):
+        report["warnings"].append("最终地区最低数量未满足，保留旧订阅")
+        selected = []
     if selected and not baseline_passed:
-        report["warnings"].append("Google、Cloudflare、GitHub 单次基线未全部通过，保留旧订阅")
+        report["warnings"].append("Google、Cloudflare、GitHub 三次基线未全部通过，保留旧订阅")
         selected = []
     report["status"] = "ok" if all(item["passed"] for item in report["gates"]) else "degraded"
     report["duration_seconds"] = round((datetime.now(UTC) - started).total_seconds(), 3)

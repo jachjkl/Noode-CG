@@ -77,6 +77,24 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [])
         self.assertFalse(record.tcp_ok)
 
+    async def test_tcp_rejects_jitter_over_limit_even_when_average_passes(self) -> None:
+        record = NodeResult(ip="192.0.2.14")
+        with patch("core.tcp_scan._probe_once", new=AsyncMock(side_effect=[0.0, 0.0, 600.0])):
+            result = await scan_tcp(
+                [record],
+                {
+                    "timeout_seconds": 1,
+                    "attempts": 3,
+                    "concurrency": 1,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                    "maximum_jitter_ms": 200,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertGreater(record.tcp_jitter_ms, 200)
+
     async def test_tcp_stops_after_first_failed_required_attempt(self) -> None:
         record = NodeResult(ip="192.0.2.11")
         probe = AsyncMock(side_effect=TimeoutError("timeout"))
@@ -202,6 +220,32 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [])
         self.assertEqual(probe.await_count, 1)
 
+    async def test_tls_rejects_jitter_over_limit(self) -> None:
+        record = NodeResult(ip="192.0.2.15", tcp_ok=True)
+        probe = AsyncMock(
+            side_effect=[
+                (0.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (0.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+                (600.0, "TLSv1.3", "TLS_AES_128_GCM_SHA256"),
+            ]
+        )
+        with patch("core.tls_check._probe_once", new=probe):
+            result = await check_tls(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_latency_ms": 300,
+                    "maximum_jitter_ms": 200,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertGreater(record.tls_jitter_ms, 200)
+
     async def test_https_ttfb_uses_three_attempt_average_threshold(self) -> None:
         record = NodeResult(ip="192.0.2.6", tcp_ok=True, tls_ok=True)
         def response(latency: float) -> tuple[int, dict[str, str], bytes, float]:
@@ -282,6 +326,37 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, [])
         self.assertEqual(request.await_count, 1)
+
+    async def test_https_rejects_jitter_over_limit(self) -> None:
+        record = NodeResult(ip="192.0.2.16", tcp_ok=True, tls_ok=True)
+
+        def response(latency: float) -> tuple[int, dict[str, str], bytes, float]:
+            return (
+                200,
+                {"server": "cloudflare", "cf-ray": "test-NRT"},
+                b"colo=NRT\nloc=JP\n",
+                latency,
+            )
+
+        request = AsyncMock(side_effect=[response(0.0), response(0.0), response(600.0)])
+        with patch("core.http_check._request", new=request):
+            result = await check_http(
+                [record],
+                "worker.example.com",
+                {
+                    "timeout_seconds": 1,
+                    "path": "/cdn-cgi/trace",
+                    "accepted_statuses": [200],
+                    "concurrency": 1,
+                    "attempts": 3,
+                    "require_all_attempts": True,
+                    "maximum_average_ttfb_ms": 300,
+                    "maximum_jitter_ms": 200,
+                },
+            )
+
+        self.assertEqual(result, [])
+        self.assertGreater(record.http_jitter_ms, 200)
 
     async def test_https_ttfb_stops_at_first_response_byte(self) -> None:
         record = NodeResult(ip="192.0.2.7", tcp_ok=True, tls_ok=True)

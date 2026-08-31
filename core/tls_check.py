@@ -74,6 +74,7 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
     stop_on_failure = bool(options.get("stop_on_failure", False))
     stop_when_impossible = bool(options.get("stop_when_average_impossible", False))
     maximum_latency = float(options.get("maximum_average_latency_ms", float("inf")))
+    maximum_jitter = float(options.get("maximum_jitter_ms", float("inf")))
 
     async def worker(node: NodeResult) -> NodeResult:
         latencies: list[float] = []
@@ -95,20 +96,28 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
                 early_reason = "即使剩余延迟为 0，测试平均值也会超限"
                 break
         node.tls_latency_ms = round(statistics.fmean(latencies), 3) if latencies else None
+        node.tls_jitter_ms = (
+            round(statistics.pstdev(latencies), 3) if len(latencies) > 1 else 0.0 if latencies else None
+        )
         attempts_passed = successes == attempts if require_all else successes > 0
         average_passed = node.tls_latency_ms is not None and node.tls_latency_ms <= maximum_latency
-        node.tls_ok = attempts_passed and average_passed
+        jitter_passed = node.tls_jitter_ms is not None and node.tls_jitter_ms <= maximum_jitter
+        node.tls_ok = attempts_passed and average_passed and jitter_passed
         if attempts_passed and not average_passed:
             node.add_error(
                 "tls",
                 f"测试平均延迟 {node.tls_latency_ms:g}ms > {maximum_latency:g}ms",
             )
+        elif attempts_passed and not jitter_passed:
+            node.add_error("tls", f"抖动 {node.tls_jitter_ms:g}ms > {maximum_jitter:g}ms")
         node.probe_results["tls"] = {
             "attempts": attempts,
             "successes": successes,
             "latencies_ms": [round(value, 3) for value in latencies],
             "average_ms": node.tls_latency_ms,
+            "jitter_ms": node.tls_jitter_ms,
             "maximum_average_latency_ms": maximum_latency,
+            "maximum_jitter_ms": maximum_jitter,
             "early_rejected": bool(early_reason),
             "strict_passed": node.tls_ok,
         }
