@@ -54,7 +54,7 @@ def _positive_number(value: Any, name: str, *, allow_zero: bool = False) -> None
 
 
 def validate_config(config: dict[str, Any]) -> None:
-    for section in ("project", "paths", "sources", "pipeline", "output"):
+    for section in ("project", "paths", "sources", "pipeline", "handoff", "output"):
         if section not in config or not isinstance(config[section], dict):
             raise ConfigError(f"缺少配置段: {section}")
 
@@ -63,6 +63,13 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ConfigError("project.target_domain 必须是纯域名，不能包含协议或路径")
 
     pipeline = config["pipeline"]
+    source_priority = pipeline.get("source_priority", [])
+    if not isinstance(source_priority, list) or any(
+        not isinstance(value, str) or not value.strip() for value in source_priority
+    ):
+        raise ConfigError("pipeline.source_priority 必须是非空字符串列表")
+    if len(source_priority) != len(set(source_priority)):
+        raise ConfigError("pipeline.source_priority 不能包含重复来源")
     for name in (
         "prefilter_shortlist",
         "maximum_combined_latency_ms",
@@ -167,6 +174,13 @@ def validate_config(config: dict[str, Any]) -> None:
 
     ranges = config["sources"].get("cloudflare_ranges", {})
     _positive_number(ranges.get("official_batch_size"), "sources.cloudflare_ranges.official_batch_size")
+
+    handoff = config["handoff"]
+    for name in ("target", "max_official_rounds", "max_per_colo", "max_replenishment_rounds"):
+        _positive_number(handoff.get(name), f"handoff.{name}")
+    for name in ("pool_path", "health_path", "accumulator_path", "attempted_path"):
+        if not str(handoff.get(name, "")).strip():
+            raise ConfigError(f"handoff.{name} 不能为空")
 
     location_filter = pipeline.get("location_filter")
     if not isinstance(location_filter, dict):

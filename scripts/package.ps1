@@ -1,10 +1,15 @@
-param(
-    [string]$Destination = "Noode-CG-V12.1-Hybrid310-NoCN-TCP5-Speed3.zip"
+﻿param(
+    [string]$Destination = "Noode-CG-V13.1-WindowsNotify-Mirror.zip"
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$DestinationPath = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Destination))
+$DestinationPath = if ([IO.Path]::IsPathRooted($Destination)) {
+    [IO.Path]::GetFullPath($Destination)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $RepoRoot $Destination))
+}
 $StagingRoot = Join-Path ([IO.Path]::GetTempPath()) ("noode-cg-package-" + [Guid]::NewGuid().ToString("N"))
 $StagingProject = Join-Path $StagingRoot "Noode-CG"
 
@@ -24,8 +29,10 @@ try {
                 $Relative -notmatch '^[^\\/]+\.zip$' -and
                 $Relative -notmatch '^data[\\/]input([\\/]|$)' -and
                 $Relative -notmatch '^data[\\/]sources([\\/]|$)' -and
+                $Relative -notmatch '^data[\\/]handoff([\\/]|$)' -and
                 $Relative -notmatch '^data[\\/](previous-top100\.json|previous-official-ips\.txt(?:\.gz)?)$' -and
                 $Relative -notmatch '^data[\\/]local-cfdata-candidates\.txt$' -and
+                $Relative -notmatch '^data[\\/]local-cfdata-last\.log$' -and
                 $Relative -notmatch '^output[\\/](nodes\.txt|nodes\.json|nodes\.csv|api\.json|health\.json|ip\.zip)$' -and
                 $_.Extension -notin @(".pyc", ".pyo") -and
                 -not ($Segments | Where-Object { $_ -in $ExcludedDirectories })

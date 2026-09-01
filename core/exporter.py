@@ -38,6 +38,9 @@ def _public_node(node: NodeResult) -> dict[str, Any]:
         "websocket_ok": node.websocket_ok,
         "score": node.score,
         "probe_results": node.probe_results,
+        # Preserve provenance so the next TOP100 re-test can keep local/link
+        # measurement priority instead of silently becoming runner-only.
+        "sources": list(node.sources),
     }
 
 
@@ -135,7 +138,7 @@ def publish_outputs(
         atomic_write_json(
             destination / "api.json",
             {
-                "project": "Noode-CG V12.1-CFData-Hybrid310-NoCN",
+                "project": "Noode-CG V13.1-Cloud5000-Local300",
                 "generated_at": generated_at,
                 "count": len(records),
                 "format": "edgetunnel-address-feed",

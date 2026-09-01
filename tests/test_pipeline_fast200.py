@@ -27,6 +27,100 @@ def qualified(node: NodeResult) -> NodeResult:
 
 
 class FastTwoStagePipelineTests(unittest.TestCase):
+    def test_local_vantage_candidate_is_shortlisted_before_runner_only_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            jp = NodeResult(ip="198.18.0.10", country_hint="JP")
+            jp.add_source("fixed-source")
+            local = NodeResult(ip="198.51.100.10", country_hint="US")
+            local.add_source("local-cfdata")
+            official = NodeResult(ip="198.51.100.11", country_hint="US")
+            official.add_source("cloudflare-official-ipv4-round-1")
+            config = {
+                "_base_dir": str(root),
+                "project": {"target_domain": "worker.example.com", "user_agent": "test"},
+                "paths": {"locations": "locations.json", "checkpoints": "checkpoints", "output": "output"},
+                "rolling": {
+                    "previous_limit": 1,
+                    "snapshot_path": "previous.json",
+                    "official_snapshot_path": "previous-official.txt.gz",
+                },
+                "sources": {
+                    "local": [{"name": "local-cfdata", "path": "unused.txt"}],
+                    "remote": [],
+                    "cloudflare_ranges": {"official_batch_size": 1},
+                },
+                "pipeline": {
+                    "source_priority": ["local-cfdata"],
+                    "prefilter_shortlist": 1,
+                    "speed_batch_size": 1,
+                    "current_selection": 2,
+                    "maximum_combined_latency_ms": 300,
+                    "maximum_component_latency_ms": 300,
+                    "maximum_jitter_ms": 500,
+                    "country_minimums": {"JP": 1},
+                    "jp_source_requirement": {"country": "JP", "count": 1, "tcp_attempts": 3},
+                    "prefilter_country_reserve": {},
+                    "speed_country_reserve": {},
+                    "max_official_rounds": 1,
+                    "max_runtime_seconds": 10000,
+                    "minimum_round_budget_seconds": 1,
+                    "postprocess_reserve_seconds": 1,
+                    "prefilter_tcp": {"stage": "prefilter"},
+                    "quality_tcp": {"stage": "quality"},
+                    "speed": {"minimum_mbps": 3},
+                },
+                "output": {
+                    "top_nodes": 2,
+                    "minimum_publish": 2,
+                    "preserve_last_good": True,
+                    "write_compatibility_zip": False,
+                },
+                "vantage": {"probe_files": []},
+            }
+
+            async def scan(records, _options):
+                return [qualified(node) for node in records]
+
+            def metrics(records: list[NodeResult], **_kwargs):
+                prepared = [qualified(node) for node in records]
+                return prepared, {
+                    "tls_three_pass_success": len(prepared),
+                    "https_ttfb_three_pass_success": len(prepared),
+                }
+
+            def speed(records: list[NodeResult], **_kwargs):
+                prepared = [qualified(node) for node in records]
+                return prepared, {
+                    "speed_tested_once": len(prepared),
+                    "speed_at_least_minimum": len(prepared),
+                }
+
+            with (
+                patch("core.pipeline.measure_network_baseline", return_value={"all_targets_passed": True}),
+                patch("core.pipeline.load_previous_top", return_value=([], [])),
+                patch("core.pipeline.collect_source_candidates", return_value=([jp, local], [])),
+                patch(
+                    "core.pipeline._source_country_tcp_speed_checks",
+                    return_value=([qualified(jp)], {"selected_unique_ips": 1}),
+                ),
+                patch("core.pipeline.collect_official_batch", return_value=([official], [])),
+                patch("core.pipeline.scan_tcp", new=AsyncMock(side_effect=scan)),
+                patch("core.pipeline._three_metric_checks", side_effect=metrics),
+                patch("core.pipeline._speed_checks", side_effect=speed),
+                patch("core.pipeline.load_locations", return_value={}),
+            ):
+                report = run_pipeline(config)
+
+            published = json.loads((root / "output" / "nodes.json").read_text(encoding="utf-8"))
+            self.assertEqual({node["ip"] for node in published}, {jp.ip, local.ip})
+            self.assertEqual(report["selection_vantage"]["mode"], "local-assisted")
+            self.assertEqual(
+                report["selection_vantage"]["selected_source_counts"]["local-cfdata"],
+                1,
+            )
+
     def test_jp_lane_uses_one_tcp_speed_ranking_and_keeps_unique_ips(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

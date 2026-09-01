@@ -15,6 +15,7 @@ class ExporterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             node = NodeResult(ip="104.16.1.2", port=443, country="JP", colo="NRT", score=900)
+            node.add_source("local-cfdata")
             report = publish_outputs(
                 output,
                 [node],
@@ -24,6 +25,10 @@ class ExporterTests(unittest.TestCase):
             self.assertTrue(report["published"])
             self.assertEqual((output / "nodes.txt").read_text(encoding="utf-8"), "104.16.1.2:443#JP\n")
             self.assertEqual(json.loads((output / "api.json").read_text(encoding="utf-8"))["count"], 1)
+            self.assertEqual(
+                json.loads((output / "nodes.json").read_text(encoding="utf-8"))[0]["sources"],
+                ["local-cfdata"],
+            )
             with zipfile.ZipFile(output / "ip.zip") as archive:
                 self.assertEqual(archive.read("443/JP.txt"), b"104.16.1.2\n")
 

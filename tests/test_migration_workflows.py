@@ -10,9 +10,11 @@ class MigrationWorkflowTests(unittest.TestCase):
             Path(__file__).parents[1] / ".github" / "workflows" / "cleanup-legacy.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("tests/test_pipeline_loop.py", workflow)
-        self.assertIn("output/nodes.txt", workflow)
-        self.assertIn("output/nodes.json", workflow)
-        self.assertIn("data/previous-top100.json", workflow)
+        self.assertIn("scripts/run-local-cfdata.ps1", workflow)
+        self.assertIn("data/local-cfdata-candidates.txt", workflow)
+        self.assertNotIn("            output/nodes.txt\n", workflow)
+        self.assertNotIn("            output/nodes.json\n", workflow)
+        self.assertNotIn("            data/previous-top100.json\n", workflow)
 
         ci = (
             Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml"
@@ -24,6 +26,7 @@ class MigrationWorkflowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for name in ("nodes\\.txt", "nodes\\.json", "nodes\\.csv", "api\\.json", "health\\.json"):
             self.assertIn(name, package_script)
+        self.assertIn(r"data[\\/]handoff", package_script)
 
 
 if __name__ == "__main__":

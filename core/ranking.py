@@ -18,6 +18,21 @@ def _unique_in_order(records: Iterable[NodeResult]) -> list[NodeResult]:
     return unique
 
 
+def _source_rank(node: NodeResult, source_priority: list[str] | None) -> int:
+    """Return the best configured measurement-vantage tier for a node.
+
+    A GitHub-hosted runner can verify protocol compatibility, but its network
+    route is not representative of the subscriber's Windows connection.  A
+    node already discovered by the local CFData pass therefore needs to stay
+    ahead of a runner-only node after both have passed the same strict gates.
+    """
+    priorities = source_priority or []
+    for index, label in enumerate(priorities):
+        if label in node.sources:
+            return index
+    return len(priorities)
+
+
 def _take_with_country_minimums(
     ordered: list[NodeResult],
     *,
@@ -63,6 +78,7 @@ def rank_final(
     *,
     count: int,
     minimum_by_country: dict[str, int] | None = None,
+    source_priority: list[str] | None = None,
 ) -> list[NodeResult]:
     prepared = list(records)
     for node in prepared:
@@ -71,6 +87,7 @@ def rank_final(
     ordered = sorted(
         prepared,
         key=lambda node: (
+            _source_rank(node, source_priority),
             node.tcp_loss_rate,
             -(node.speed_mbps if node.speed_mbps is not None else -1.0),
             node.average_latency_ms if node.average_latency_ms is not None else math.inf,
@@ -91,10 +108,12 @@ def rank_tcp(
     *,
     count: int,
     minimum_by_country: dict[str, int] | None = None,
+    source_priority: list[str] | None = None,
 ) -> list[NodeResult]:
     ordered = sorted(
         records,
         key=lambda node: (
+            _source_rank(node, source_priority),
             node.tcp_loss_rate,
             node.tcp_latency_ms if node.tcp_latency_ms is not None else math.inf,
             node.tcp_jitter_ms if node.tcp_jitter_ms is not None else math.inf,

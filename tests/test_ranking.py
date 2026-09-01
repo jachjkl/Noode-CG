@@ -38,6 +38,42 @@ class RankingTests(unittest.TestCase):
 
         self.assertEqual(result, [fast, slow, lossy])
 
+    def test_configured_local_and_link_sources_outrank_runner_only_results(self) -> None:
+        local = measured("192.0.2.10", tcp=250, tls=250, http=250, loss=0.1, speed=5)
+        local.add_source("local-cfdata")
+        linked = measured("192.0.2.11", tcp=200, tls=200, http=200, loss=0.0, speed=10)
+        linked.add_source("zip.cm.edu.kg/all.txt")
+        runner_only = measured("192.0.2.12", tcp=20, tls=20, http=20, loss=0.0, speed=100)
+        runner_only.add_source("cloudflare-official-ipv4-round-1")
+
+        result = rank_final(
+            [runner_only, linked, local],
+            count=3,
+            source_priority=["local-cfdata", "zip.cm.edu.kg/all.txt"],
+        )
+
+        self.assertEqual(result, [local, linked, runner_only])
+
+    def test_tcp_shortlist_keeps_preferred_vantage_candidates_ahead_of_runner_only(self) -> None:
+        local = NodeResult(ip="192.0.2.20")
+        local.tcp_latency_ms = 250
+        local.tcp_jitter_ms = 10
+        local.tcp_loss_rate = 0
+        local.add_source("local-cfdata")
+        runner_only = NodeResult(ip="192.0.2.21")
+        runner_only.tcp_latency_ms = 20
+        runner_only.tcp_jitter_ms = 1
+        runner_only.tcp_loss_rate = 0
+        runner_only.add_source("cloudflare-official-ipv4-round-1")
+
+        result = rank_tcp(
+            [runner_only, local],
+            count=1,
+            source_priority=["local-cfdata"],
+        )
+
+        self.assertEqual(result, [local])
+
     def test_final_count_uses_unique_ips_even_when_ports_differ(self) -> None:
         first = measured("1.1.1.1", tcp=10, tls=10, http=10, speed=100)
         duplicate = measured("1.1.1.1", tcp=20, tls=20, http=20, speed=90)

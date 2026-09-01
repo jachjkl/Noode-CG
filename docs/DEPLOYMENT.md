@@ -1,79 +1,79 @@
-# GitHub 部署指南
+# V13.1 部署说明
 
-## 覆盖上传
+## 1. 上传代码包
 
-解压 `Noode-CG-V12.1-Hybrid310-NoCN-TCP5-Speed3.zip`，把其中 `Noode-CG` 文件夹里的全部内容上传到 GitHub 仓库根目录。不要直接上传外层 ZIP。
+1. 解压 `Noode-CG-V13.1-WindowsNotify-Mirror.zip`。
+2. 打开解压后的 `Noode-CG` 文件夹。
+3. 在 GitHub 仓库根目录选择 **Add file → Upload files**。
+4. 上传 `Noode-CG` 文件夹里面的全部内容，而不是上传 ZIP 文件或再套一层 `Noode-CG` 目录。
+5. 覆盖同名文件并提交到 `main`。
 
-根目录应直接出现：
+仓库根目录应该直接看到 `.github`、`core`、`scripts`、`tests`、`config.yaml`、`main.py` 和 `README.md`。
 
-```text
-.github/
-core/
-data/
-output/
-config.yaml
-main.py
-requirements.txt
-```
+## 2. 一次性清理旧文件
 
-压缩包没有远程源缓存、官方网段快照、候选列表和历史抽样 IP。
+进入 **Actions → Cleanup obsolete files → Run workflow**。该工作流会删除旧版流水线、旧 CFData 本地任务脚本和旧发布 ZIP，但保留当前历史订阅与上一轮 TOP100。清理成功后它会把自己一并删除，所以只需执行一次。
 
-## 清理旧版本
+## 3. 安装 Windows 自托管 Runner
 
-旧仓库进入 **Actions → Cleanup obsolete files → Run workflow**。它会删除旧模块、旧缓存、旧动态订阅和旧 TOP100，防止历史 CN 继续显示，并在提交后删除清理工作流自身。
+在仓库打开 **Settings → Actions → Runners → New self-hosted runner**，选择 **Windows / x64**。在管理员 PowerShell 中逐条执行 GitHub 页面为这个仓库生成的下载、解压和配置命令。配置时必须满足：
 
-## 第一次刷新
+- Runner 名称可自定义，例如 `Noode-CG-Home`；
+- 额外标签加入 `noode-cg`；默认的 `self-hosted`、`windows`、`x64` 标签要保留；
+- 选择把 Runner 安装为 Windows 服务，并让服务自动启动；
+- 服务账号优先选择当前 Windows 用户，以确保可以访问 `D:\桌面\软件\Noode-CG-Local`；
+- Runner 的工作目录使用独立目录，例如 `D:\actions-runner`，不要放在本项目或下载目录中。
 
-进入 **Actions → Refresh verified endpoints → Run workflow**。清理后 `output/nodes.txt` 暂时不存在，第一次成功运行后出现 310 条地址。
-
-以后任务在每 8 小时的第 17 分钟自动执行。工作流只提交输出、上一轮 TOP100 和上一轮官方抽样快照。
-
-## 结果检查
-
-订阅地址：
-
-```text
-https://raw.githubusercontent.com/<用户名>/<仓库名>/main/output/nodes.txt
-```
-
-在 `output/health.json` 查看：
-
-- `rounds[].prefilter_tcp_three_pass_success_under_1000ms`：三次初筛 TCPing 成功数量；
-- `source_country_lane.link_candidates`：两个链接中本轮提取到的 JP 候选数；
-- `source_country_lane.measurements.tcping_measured`：JP 端点完成 TCPing 测量的数量；
-- `source_country_lane.measurements.download_measured`：JP 端点取得下载速度的数量；
-- `source_country_lane.selected`：仅按 TCPing 和下载结果排序后选出的不同 JP IP 数，应为 10；
-- `source_country_lane.tls_skipped` 与 `https_ttfb_skipped`：应为 `true`；
-- `rounds[].prefilter_shortlisted`：进入严格阶段的数量，应为 5,000；
-- `rounds[].quality_tcp_five_probe_success_under_300ms`：严格 TCP 五次测试后平均不超过 300ms 的数量；
-- `metric_batches[].tls_three_pass_success`：TLS 三次合格数；
-- `metric_batches[].https_ttfb_three_pass_success`：TTFB 三次合格数；
-- `speed_batches[].current_speed_qualified_total`：跨轮累计下载合格数；
-- `rolling_attempts[0].previous_tested_this_attempt`：上一轮 TOP100 的唯一一次复测数；
-- `counts.final_country_candidates_rejected`：在最终竞争层被排除的 CN/未知地区数量；
-- `counts.final_forbidden_country_count`：最终结果中的禁用地区数量，必须为 0；
-- `gates.final_top310`、`gates.final_country:JP` 和 `gates.final_no_forbidden_or_unknown_country`：310 条、JP10 和无 CN 发布门槛；
-- `published`：本轮是否覆盖订阅。
-
-若 `published: false`，说明两个链接中不足 10 个不同 JP IP、严格非 JP 结果不足 300、5,000 初筛或 Runner 基线没有全部满足。首次迁移已清除旧动态订阅，因此不会继续显示历史 CN。
-
-## 安装本地开机优选
-
-本地自动推送必须使用一个通过 `git clone` 得到的仓库，而不是浏览器下载的普通文件夹。先在 Git Credential Manager 中完成一次 GitHub 登录，然后执行：
+如果 GitHub 页面给出的配置命令没有标签参数，可在命令尾加入：
 
 ```powershell
-git clone https://github.com/jachjkl/Noode-CG.git D:\Noode-CG
-powershell -ExecutionPolicy Bypass -File D:\Noode-CG\scripts\install-local-cfdata-task.ps1 `
-  -RepositoryPath D:\Noode-CG `
-  -CfDataExe "D:\桌面\软件\cfdata-windows-amd64.exe"
+--labels noode-cg
 ```
 
-计划任务在当前用户登录且网络可用时执行；脚本会等待网络、使用 CFData 本地优选、写入 `data/local-cfdata-candidates.txt`，再用现有 Git 凭据提交和推送。推送候选会自动触发 `Refresh verified endpoints`。脚本强制关闭 CFData 自带 GitHub 上传，因此不会读取或提交仓库 Token。
+注册 Token 是短期的一次性凭据，只粘贴到本机配置命令，不写入仓库、配置文件或截图。安装完成后，Runners 页面应显示该 Runner 为 **Idle**。
 
-手动试运行：
+## 4. 保证本地直连
+
+先安装 Windows 控制器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Noode-CG\scripts\run-local-cfdata.ps1 `
-  -RepositoryPath D:\Noode-CG `
-  -CfDataExe "D:\桌面\软件\cfdata-windows-amd64.exe"
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-controller.ps1
 ```
+
+它会创建 `D:\桌面\软件\Noode-CG-Local\开始云端和本地优选.cmd`，并在当前用户启动目录注册隐藏通知器。手动程序只以最小化窗口运行，不置顶；自托管 Runner 作为 Windows 服务时不显示测速窗口。
+
+运行任务前关闭 Clash 系统代理、TUN/虚拟网卡代理和 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量。工作流检测到代理后会发出 Windows 通知并等待关闭，而不是立刻用代理线路测速；30 分钟仍未关闭时，本轮停止并保留历史订阅。
+
+交接池读取支持直连和 `gh-proxy.com`、`ghfast.top`、`gh.ddlc.top` 三个镜像。镜像结果必须通过云端 SHA-256 校验。第三方镜像只处理公开的压缩交接池，不会收到 GitHub Token；Actions 任务领取和最终推送仍需要 GitHub 连接。
+
+## 5. 首次运行
+
+可以双击 D 盘的 `开始云端和本地优选.cmd`，也可以进入 **Actions → Cloud TOP5000 to local TOP300 → Run workflow**，`continuation` 保持未选中。流程是：
+
+1. Ubuntu 云端获取链接全量和官方随机池，生成新的 TOP5000；
+2. Windows Runner 自动领取本地任务，复测 TOP5000 + 上次 TOP100；
+3. 满 300 条则提交新订阅；不足时保存合格结果并自动请求下一批不重复 TOP5000；
+4. GitHub 写入暂时失败时，本地保存待推送结果；下次先恢复推送；
+5. 推送成功后自动清理本地日志、缓存和运行数据，并发出完成通知；
+6. 订阅始终使用：
+
+```text
+https://raw.githubusercontent.com/jachjkl/Noode-CG/main/output/nodes.txt
+```
+
+不要使用 GitHub 的 `/blob/` 页面地址作为订阅。
+
+## 6. 开机和每六小时运行
+
+工作流使用固定六小时计划。电脑关机时 Windows 本地 job 会等待，仓库中的最近一次成功订阅不会被删除。并发规则只保留最新任务；电脑开机后 Runner 服务自动上线并立即领取等待中的最新 job。电脑持续开机时，计划任务每六小时重新运行。
+
+如果关机超过 GitHub 对离线自托管 job 的排队期限，开机后可以手动点一次 **Run workflow**；正常每六小时调度会不断产生新的最新任务，因此通常不需要额外的 Windows 计划任务。
+
+## 7. 查看状态
+
+- `data/handoff/cloud-health.json`：云端输入数、官方抽样数和交接池数量；
+- `output/health.json`：本地实际测试、累计合格数、最终数量和是否请求下一批；
+- `output/nodes.txt`：最终订阅；
+- `output/nodes.json`：每个节点的 TCP/TLS/TTFB、抖动、丢包、速度和 colo 明细。
+
+如果本地步骤一直显示 queued，检查 Runner 服务是否正在运行以及标签是否包含 `noode-cg`。如果直接网络检查失败，关闭代理后在 Actions 页面重新运行。

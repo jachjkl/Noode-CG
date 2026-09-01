@@ -319,6 +319,11 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     started = datetime.now(UTC)
     monotonic_started = time.monotonic()
     pipeline = config["pipeline"]
+    source_priority = [
+        str(value)
+        for value in pipeline.get("source_priority", [])
+        if str(value).strip()
+    ]
     domain = str(config["project"]["target_domain"])
     user_agent = str(config["project"].get("user_agent", "Noode-CG/11.2"))
     checkpoint_dir = resolve_path(config, config["paths"]["checkpoints"])
@@ -524,6 +529,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             combined,
             count=final_target,
             minimum_by_country=country_minimums,
+            source_priority=source_priority,
         )
         if (
             round_index > 0
@@ -572,6 +578,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             prefilter_passed,
             count=prefilter_target,
             minimum_by_country=prefilter_country_reserve,
+            source_priority=source_priority,
         )
         prefilter_seconds = time.monotonic() - prefilter_started
         prefilter_shortlisted_max = max(prefilter_shortlisted_max, len(shortlist))
@@ -609,6 +616,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
                 untested_speed,
                 count=min(speed_batch_size, len(untested_speed)),
                 minimum_by_country=speed_country_reserve,
+                source_priority=source_priority,
             )
             speed_batch_index += 1
             qualified, counts = _speed_checks(
@@ -637,6 +645,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
                 combined,
                 count=final_target,
                 minimum_by_country=country_minimums,
+                source_priority=source_priority,
             )
             if (
                 len(candidate_selection) >= final_target
@@ -695,6 +704,26 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             for node in selected
         ),
     })
+    selected_source_counts = {
+        label: sum(label in node.sources for node in selected)
+        for label in source_priority
+    }
+    local_candidate_count = sum(local_counts.values())
+    report["selection_vantage"] = {
+        "mode": "local-assisted" if local_candidate_count else "cloud-fallback",
+        "local_candidates_loaded": local_candidate_count,
+        "source_priority": source_priority,
+        "selected_source_counts": selected_source_counts,
+        "runner_only_selected": sum(
+            not any(label in node.sources for label in source_priority)
+            for node in selected
+        ),
+    }
+    if not local_candidate_count:
+        report["warnings"].append(
+            "未加载 data/local-cfdata-candidates.txt；本次只能按链接来源和 GitHub "
+            "Runner 线路兜底，不能代表订阅者本机延迟"
+        )
     sampling_seed = config["sources"].get("cloudflare_ranges", {}).get("_resolved_sampling_seed")
     if sampling_seed is not None:
         report["counts"]["cloudflare_sampling_seed"] = sampling_seed

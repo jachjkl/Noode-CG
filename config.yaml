@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V12.1-CFData-Hybrid310-NoCN
+  name: Noode-CG V13.1-Cloud5000-Local300
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/12.1-cfdata-hybrid310-nocn
+  user_agent: Noode-CG/13.1-cloud5000-local300
 
 paths:
   locations: data/locations.json
@@ -17,13 +17,7 @@ rolling:
   official_snapshot_path: data/previous-official-ips.txt.gz
 
 sources:
-  # Optional candidates produced by the Windows CFData startup task. They are
-  # only candidates: GitHub runs the same strict verification before publish.
-  local:
-    - name: local-cfdata
-      path: data/local-cfdata-candidates.txt
-      required: false
-      default_port: 443
+  local: []
   # Every valid entry from every link is included. Link entries do not consume
   # any of the 50,000 official-range slots sampled in each round.
   remote:
@@ -57,18 +51,23 @@ sources:
     sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
+  # Cloud preparation gives the two full feeds priority, then fills from the
+  # official random pool. Windows locally re-tests every handed-off endpoint.
+  source_priority:
+    - zip.cm.edu.kg/all.txt
+    - bestcf.pages.dev/lzj
   # Stage 1 keeps the fastest 5,000 IPs whose three TCPing attempts average
   # no more than 1,000ms. Stage 2 applies the strict 300ms quality rules.
   prefilter_shortlist: 5000
   maximum_combined_latency_ms: 300
   maximum_component_latency_ms: 300
   maximum_jitter_ms: 500
-  # 300 strict non-JP addresses plus the dedicated JP10 lane.
-  current_selection: 310
-  # Download only the best 400 at a time and stop as soon as 300 strict
+  # Final total is 300, including the dedicated JP10 lane.
+  current_selection: 300
+  # Download only the best 400 at a time and stop as soon as 290 strict
   # non-JP addresses plus JP10 are ready.
   speed_batch_size: 400
-  # Keep drawing new disjoint official batches until TOP310 is complete.
+  # Keep drawing new disjoint official batches until TOP300 is complete.
   # Thirty rounds cover the available official IPv4 space; runtime and range
   # exhaustion remain the only safety stops.
   max_official_rounds: 30
@@ -163,17 +162,31 @@ pipeline:
     excluded_countries: [CN]
 
 output:
-  top_nodes: 310
-  minimum_publish: 310
+  top_nodes: 300
+  minimum_publish: 300
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true
+
+handoff:
+  # Cloud stage always hands 5,000 new unique candidates to Windows.
+  target: 5000
+  max_official_rounds: 30
+  pool_path: data/handoff/cloud-top5000.json.gz
+  health_path: data/handoff/cloud-health.json
+  # Local successes survive automatic replenishment runs until TOP300 fills.
+  accumulator_path: data/handoff/local-qualified.json.gz
+  attempted_path: data/handoff/local-attempted-ips.txt.gz
+  # Soft cap: spread results across locally observed Cloudflare colos when
+  # possible, then relax the cap rather than publish fewer than 300.
+  max_per_colo: 50
+  max_replenishment_rounds: 30
 
 vantage:
   # A GitHub-hosted runner is only one network vantage point. For genuine
   # CT/CU/CM measurements, run the same command on self-hosted runners and
   # merge their data under data/probes/.
-  name: ${NOODE_VANTAGE:-github-general}
+  name: ${NOODE_VANTAGE:-windows-self-hosted-local-network}
   probe_files: []
 
 network_baseline:
