@@ -90,8 +90,8 @@ jobs:
       - name: Validate the installed local application
         run: |
           $version = (Get-Content -Raw -LiteralPath "VERSION").Trim()
-          if ($version -ne "13.6") {
-            throw "Local application version $version is not 13.6. Re-run scripts\install-windows-controller.ps1 from the V13.6 package."
+          if ($version -ne "13.6.1") {
+            throw "Local application version $version is not 13.6.1. Re-run scripts\install-windows-controller.ps1 from the V13.6.1 package."
           }
           Write-Host "Local application V$version is ready; no GitHub checkout is required."
       - name: Use the Runner-local Python runtime
@@ -134,7 +134,7 @@ jobs:
       - name: Encode bounded local result for cloud publish
         id: local-status
         run: |
-          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          $health = Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" | ConvertFrom-Json
           $needsMore = [bool]$health.needs_more
           ./scripts/local-runtime.ps1 -Mode Save
           $archive = Join-Path $env:RUNNER_TEMP "noode-local-result-$env:GITHUB_RUN_ID.zip"
@@ -161,7 +161,7 @@ jobs:
       - name: Notify Windows user that cloud publish is starting
         continue-on-error: true
         run: |
-          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          $health = Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" | ConvertFrom-Json
           if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
             ./scripts/notify-user.ps1 -Title "Noode-CG 本地优选已完成" -Message "已得到300个有效IP，结果已交给Ubuntu云端发布。"
           } else {
@@ -223,7 +223,7 @@ jobs:
       - name: Notify successful cloud publication
         continue-on-error: true
         run: |
-          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          $health = Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" | ConvertFrom-Json
           if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
             ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" -Message "300个有效IP已由Ubuntu成功发布到GitHub。"
           } else {
