@@ -2,7 +2,7 @@
 
 ## 1. 上传代码包
 
-1. 解压 `Noode-CG-V13.6.2-ReplenishFix.zip`。
+1. 解压 `Noode-CG-V13.6.2-ConcurrencyFix.zip`。
 2. 打开解压后的 `Noode-CG` 文件夹。
 3. 在 GitHub 仓库根目录选择 **Add file → Upload files**。
 4. 上传 `Noode-CG` 文件夹里面的全部内容，而不是上传 ZIP 文件或再套一层 `Noode-CG` 目录。
@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-controller.ps
 - `D:\桌面\软件\Noode-CG-Local\runtime\python`：Runner 专用 Python；
 - `D:\桌面\软件\Noode-CG-Local\app`：本地测速应用副本。
 
-V13.6.2 的 Windows 作业直接使用这两个目录，不再从 `github.com` 执行 `git fetch`、`git pull` 或 `git push`。安装器只对这个本地目录授予 `NETWORK SERVICE` 所需权限。它还强制 Windows PowerShell 5.1 以 UTF-8 读取 Python 生成的 JSON，并让自动补池命令显式指定仓库。每次上传新版本后都必须重新运行一次安装器，确保 GitHub 工作流版本和 D 盘应用版本一致。
+V13.6.2 的 Windows 作业直接使用这两个目录，不再从 `github.com` 执行 `git fetch`、`git pull` 或 `git push`。安装器只对这个本地目录授予 `NETWORK SERVICE` 所需权限。它还强制 Windows PowerShell 5.1 以 UTF-8 读取 Python 生成的 JSON，让自动补池命令显式指定仓库，并让自动派生的补池任务等待父任务结束，避免父任务在发布成功后被标成取消。每次上传包含本地程序改动的新版本后必须重新运行一次安装器，确保 GitHub 工作流版本和 D 盘应用版本一致；仅更新本次并发修复时不需要重装本地程序。
 
 手动程序使用正常可见窗口显示 Actions 各阶段状态；成功后自动关闭，失败时保留窗口和日志。自托管 Runner 作为 Windows 服务时不显示单独测速窗口。
 

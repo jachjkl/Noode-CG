@@ -69,7 +69,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("$env:NOODE_PYTHON main.py local-select", workflow)
         self.assertIn("continuation=true", workflow)
         self.assertIn("actions: write", workflow)
-        self.assertIn("cancel-in-progress: true", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
         self.assertNotIn("data/local-cfdata-candidates.txt", workflow)
 
     def test_rejects_url_as_domain(self) -> None:
