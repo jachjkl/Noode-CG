@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Destination = "Noode-CG-V13.6.1-UTF8Fix.zip"
+    [string]$Destination = "Noode-CG-V13.6.2-ReplenishFix.zip"
 )
 
 $ErrorActionPreference = "Stop"

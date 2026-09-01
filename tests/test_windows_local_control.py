@@ -83,6 +83,15 @@ class WindowsLocalControlTests(unittest.TestCase):
             workflow,
         )
 
+    def test_replenish_dispatch_explicitly_targets_repository_without_checkout(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        replenish = workflow.split("  replenish-cloud-pool:", 1)[1]
+        self.assertNotIn("uses: actions/checkout", replenish)
+        self.assertIn('--repo "${GITHUB_REPOSITORY}"', replenish)
+        self.assertIn("actions: write", replenish)
+
     def test_windows_job_does_not_fetch_or_push_github_directly(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"
