@@ -1,189 +1,60 @@
 {
-  "status": "ok",
-  "started_at": "2026-08-31T21:28:28.770825+00:00",
-  "target_domain": "jackoyu.dpdns.org",
-  "vantage": "github-general",
+  "status": "degraded",
+  "stage": "local-self-hosted-selection",
+  "started_at": "2026-09-01T14:47:27.872009+00:00",
+  "generated_at": "2026-09-01T14:51:11.217138+00:00",
+  "vantage": "windows-self-hosted-local-network",
+  "handoff_generated_at": "2026-09-01T14:41:17.330273+00:00",
+  "cycle_round": 1,
+  "max_replenishment_rounds": 30,
   "counts": {
+    "cloud_pool": 5000,
     "previous_loaded": 100,
-    "link_source_endpoints": 16831,
-    "link_source_unique_ips": 13605,
-    "local_sources": {
-      "local-cfdata": 0
-    },
-    "remote_sources": {
-      "zip.cm.edu.kg/all.txt": 16669,
-      "bestcf.pages.dev/lzj": 232
-    },
-    "jp_source_candidates": 533,
-    "jp_source_qualified": 10,
-    "jp_source_selected": 10,
-    "jp_source_test_attempts": 1,
-    "official_previous_excluded": 50000,
-    "official_sampled_this_run": 50000,
-    "official_snapshot_saved": 50000,
-    "official_rounds": 1,
-    "prefilter_shortlisted_max": 5000,
-    "current_unique_tested": 63605,
-    "three_metric_qualified": 1096,
-    "speed_processed": 918,
-    "speed_at_least_minimum": 400,
-    "previous_retested_once": 100,
-    "previous_reverified": 100,
-    "previous_in_final": 69,
-    "final_country_candidates_rejected": 0,
-    "final_forbidden_country_count": 0,
-    "cloudflare_sampling_seed": 13112286569500503987
+    "combined_unique": 5100,
+    "new_unique_tested": 5100,
+    "accumulated_loaded": 0,
+    "jp_candidates": 518,
+    "jp_selected": 10,
+    "general_candidates": 4580,
+    "tcp_qualified": 2164,
+    "metric_qualified": 7,
+    "speed_tested": 7,
+    "speed_qualified": 4,
+    "qualified_accumulated": 14,
+    "final_target": 300,
+    "final_selected": 0
   },
-  "gates": [
-    {
-      "name": "network_baseline_three_sites",
-      "actual": 1,
-      "minimum": 1,
-      "passed": true
-    },
-    {
-      "name": "required_source:zip.cm.edu.kg/all.txt",
-      "actual": 16669,
-      "minimum": 10000,
-      "passed": true
-    },
-    {
-      "name": "required_source:bestcf.pages.dev/lzj",
-      "actual": 232,
-      "minimum": 50,
-      "passed": true
-    },
-    {
-      "name": "prefilter_shortlist",
-      "actual": 5000,
-      "minimum": 5000,
-      "passed": true
-    },
-    {
-      "name": "final_top310",
-      "actual": 310,
-      "minimum": 310,
-      "passed": true
-    },
-    {
-      "name": "final_country:JP",
-      "actual": 10,
-      "minimum": 10,
-      "passed": true
-    },
-    {
-      "name": "final_no_forbidden_or_unknown_country",
-      "actual": 1,
-      "minimum": 1,
-      "passed": true
-    }
-  ],
-  "warnings": [],
-  "rounds": [
-    {
-      "round": 1,
-      "link_endpoints": 16831,
-      "official_unique_ips": 50000,
-      "input": 66298,
-      "prefilter_tcp_three_pass_success_under_1000ms": 41842,
-      "prefilter_shortlisted": 5000,
-      "quality_tcp_five_probe_success_under_300ms": 4978,
-      "three_metric_qualified": 1096,
-      "current_speed_qualified_total": 400,
-      "prefilter_duration_seconds": 49.689,
-      "quality_tcp_duration_seconds": 5.484
-    }
-  ],
-  "metric_batches": [
-    {
-      "tls_three_pass_success": 1222,
-      "https_ttfb_three_pass_success": 1096,
-      "foreign_combined_latency_qualified": 1096,
-      "tls_and_https_duration_seconds": 42.815,
-      "batch": 1,
-      "input": 5000,
-      "quality_tcp_five_probe_success": 4978,
-      "three_metric_qualified_total": 1096
-    }
-  ],
+  "jp_measurements": {
+    "input_endpoints": 518,
+    "input_unique_ips": 518,
+    "tcping_attempts_per_endpoint": 3,
+    "tcping_measured": 326,
+    "download_tested_once": 518,
+    "download_measured": 279,
+    "selected_unique_ips": 10,
+    "duration_seconds": 56.297
+  },
+  "metric_measurements": {
+    "tls_three_pass_success": 8,
+    "https_ttfb_three_pass_success": 7,
+    "foreign_combined_latency_qualified": 7,
+    "tls_and_https_duration_seconds": 131.829
+  },
   "speed_batches": [
     {
-      "speed_tested_once": 400,
-      "speed_duration_seconds": 3.653,
-      "speed_at_least_minimum": 400,
-      "batch": 1,
-      "round": 1,
-      "input": 400,
-      "current_speed_qualified_total": 400
+      "speed_tested_once": 7,
+      "speed_duration_seconds": 4.578,
+      "speed_at_least_minimum": 4,
+      "input": 7,
+      "qualified_total": 4
     }
   ],
-  "rolling_attempts": [
-    {
-      "tls_three_pass_success": 100,
-      "https_ttfb_three_pass_success": 100,
-      "foreign_combined_latency_qualified": 100,
-      "tls_and_https_duration_seconds": 1.567,
-      "speed_tested_once": 100,
-      "speed_duration_seconds": 2.003,
-      "speed_at_least_minimum": 100,
-      "attempt": 1,
-      "input": 100,
-      "tcp_five_probe_success": 100,
-      "previous_tested_this_attempt": 100,
-      "previous_reverified": 100
-    }
+  "warnings": [
+    "本地复测只得到 14/300 条，保留上一轮历史订阅"
   ],
-  "network_baseline": {
-    "Google": {
-      "average_ms": 18.373,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "Cloudflare": {
-      "average_ms": 15.048,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "GitHub": {
-      "average_ms": 13.873,
-      "successes": 3,
-      "attempts": 3,
-      "all_attempts_passed": true,
-      "errors": []
-    },
-    "average_ms": 15.765,
-    "all_targets_passed": true
-  },
-  "source_country_lane": {
-    "country": "JP",
-    "required": 10,
-    "link_candidates": 533,
-    "link_unique_ips": 518,
-    "test_count": 1,
-    "tcping_only_plus_download": true,
-    "tls_skipped": true,
-    "https_ttfb_skipped": true,
-    "measurements": {
-      "input_endpoints": 533,
-      "input_unique_ips": 518,
-      "tcping_attempts_per_endpoint": 3,
-      "tcping_measured": 517,
-      "download_tested_once": 533,
-      "download_measured": 502,
-      "selected_unique_ips": 10,
-      "duration_seconds": 48.49
-    },
-    "qualified": 10,
-    "selected": 10
-  },
-  "duration_seconds": 156.422,
-  "generated_at": "2026-08-31T21:31:05.192724+00:00",
-  "selected": 310,
-  "minimum_publish": 310,
-  "published": true,
-  "preserved_previous_output": false
+  "needs_more": true,
+  "selected": 0,
+  "minimum_publish": 300,
+  "published": false,
+  "preserved_previous_output": true
 }
