@@ -45,6 +45,7 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("git checkout --force", local_section)
         self.assertNotIn("uses: actions/checkout", local_section)
         self.assertIn("-ExecutionPolicy Bypass -File", local_section)
+        self.assertIn("PSExecutionPolicyPreference: Bypass", local_section)
         self.assertNotIn("shell: powershell\n", local_section)
 
     def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
@@ -61,9 +62,12 @@ class WindowsLocalControlTests(unittest.TestCase):
         )
         self.assertIn("workflow run $workflow", manual)
         self.assertIn("jachjkl/Noode-CG", manual)
-        self.assertIn("run watch $runId", manual)
+        self.assertIn('$watchArguments = @("run", "watch"', manual)
         self.assertIn("foreach ($run in @($parsed))", manual)
         self.assertNotIn("return @($output | ConvertFrom-Json)", manual)
+        self.assertIn("run watch --help", manual)
+        self.assertIn('$watchArguments += "--compact"', manual)
+        self.assertNotIn("$Repository --compact --exit-status", manual)
         self.assertIn("manual-start.ps1", launcher)
         self.assertNotIn("/min", launcher.lower())
         self.assertNotIn("WindowStyle Minimized", launcher)

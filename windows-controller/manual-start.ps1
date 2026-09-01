@@ -86,7 +86,16 @@ try {
 
     Write-Status "运行页面：$runUrl" Cyan
     Write-Status "下面持续显示各阶段状态；关闭此窗口不会停止 GitHub Actions。" DarkGray
-    & $script:gh.Source run watch $runId --repo $Repository --compact --exit-status 2>&1 |
+    $watchArguments = @("run", "watch", [string]$runId, "--repo", $Repository, "--exit-status")
+    $watchHelp = (& $script:gh.Source run watch --help 2>&1 | Out-String)
+    if ($watchHelp -match "(?m)^\s+--compact\b") {
+        $watchArguments += "--compact"
+        Write-Status "GitHub CLI 支持 compact 状态显示。" DarkGray
+    }
+    else {
+        Write-Status "当前 GitHub CLI 不支持 compact，已自动使用兼容显示模式。" Yellow
+    }
+    & $script:gh.Source @watchArguments 2>&1 |
         Tee-Object -FilePath $log -Append
     if ($LASTEXITCODE -ne 0) {
         Write-Status "任务失败，正在下载详细日志……" Red

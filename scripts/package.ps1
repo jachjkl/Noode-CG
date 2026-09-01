@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Destination = "Noode-CG-V13.3-PS51-Runner-Fix.zip"
+    [string]$Destination = "Noode-CG-V13.4-GHCLI-SetupPython-Fix.zip"
 )
 
 $ErrorActionPreference = "Stop"
