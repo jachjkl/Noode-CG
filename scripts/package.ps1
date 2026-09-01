@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Destination = "Noode-CG-V13.1-WindowsNotify-Mirror.zip"
+    [string]$Destination = "Noode-CG-V13.2-VisibleLog-NoTray-Fix.zip"
 )
 
 $ErrorActionPreference = "Stop"

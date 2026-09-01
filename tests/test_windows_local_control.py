@@ -33,17 +33,31 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("handoff_sha256", workflow)
         self.assertIn("sync-cloud-handoff.ps1", workflow)
 
-    def test_manual_controller_is_minimized_and_triggers_cloud_workflow(self) -> None:
-        manual = (ROOT / "windows-controller" / "开始云端和本地优选.ps1").read_text(
+    def test_windows_checkout_avoids_checkout_submodule_shell_bug(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        local_section = workflow.split("  local-select:", 1)[1].split(
+            "  replenish-cloud-pool:", 1
+        )[0]
+        self.assertIn("Checkout on Windows without Git submodule shell", local_section)
+        self.assertIn("git fetch --no-tags", local_section)
+        self.assertIn("git checkout --force", local_section)
+        self.assertNotIn("uses: actions/checkout", local_section)
+
+    def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
+        manual = (ROOT / "windows-controller" / "manual-start.ps1").read_text(
             encoding="utf-8-sig"
         )
         launcher = (ROOT / "windows-controller" / "开始云端和本地优选.cmd").read_text(
             encoding="utf-8-sig"
         )
-        self.assertIn("gh workflow run update.yml", manual)
+        self.assertIn("workflow run $workflow", manual)
         self.assertIn("jachjkl/Noode-CG", manual)
-        self.assertIn("/min", launcher.lower())
-        self.assertIn("-WindowStyle Minimized", launcher)
+        self.assertIn("run watch $runId", manual)
+        self.assertIn("manual-start.ps1", launcher)
+        self.assertNotIn("/min", launcher.lower())
+        self.assertNotIn("WindowStyle Minimized", launcher)
 
     def test_notifications_use_hidden_user_watcher_and_runtime_is_cleaned(self) -> None:
         watcher = (ROOT / "windows-controller" / "notification-watcher.ps1").read_text(
@@ -58,7 +72,8 @@ class WindowsLocalControlTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("NotifyIcon", watcher)
+        self.assertIn("ToastNotificationManager", watcher)
+        self.assertNotIn("NotifyIcon", watcher)
         self.assertIn("NoodeCGNotificationWatcher", watcher)
         self.assertIn("notifications", notifier)
         self.assertIn("Save", runtime)
@@ -76,6 +91,7 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn(r"D:\桌面\软件\Noode-CG-Local", installer)
         self.assertIn("Startup", installer)
         self.assertIn("notification-watcher.ps1", installer)
+        self.assertIn("manual-start.ps1", installer)
 
 
 if __name__ == "__main__":

@@ -11,14 +11,22 @@ $mutex = [System.Threading.Mutex]::new(
 )
 if (-not $createdNew) { exit 0 }
 
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
 $queue = Join-Path $LocalRoot "notifications"
 New-Item -ItemType Directory -Path $queue -Force | Out-Null
-$icon = New-Object System.Windows.Forms.NotifyIcon
-$icon.Icon = [System.Drawing.SystemIcons]::Information
-$icon.Text = "Noode-CG 本地优选"
-$icon.Visible = $true
+
+function Show-NativeToast {
+    param([string]$Title, [string]$Message)
+    [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+    [void][Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
+    [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $safeTitle = [Security.SecurityElement]::Escape($Title)
+    $safeMessage = [Security.SecurityElement]::Escape($Message)
+    $xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$safeTitle</text><text>$safeMessage</text></binding></visual></toast>")
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Noode-CG").Show($toast)
+}
+
 try {
     while ($true) {
         $requests = @(Get-ChildItem -LiteralPath $queue -Filter "*.json" -File -ErrorAction SilentlyContinue |
@@ -27,18 +35,10 @@ try {
             try {
                 $payload = Get-Content -Raw -Encoding UTF8 -LiteralPath $request.FullName |
                     ConvertFrom-Json
-                $icon.BalloonTipTitle = [string]$payload.title
-                $icon.BalloonTipText = [string]$payload.message
-                $icon.BalloonTipIcon = switch ([string]$payload.level) {
-                    "Warning" { [System.Windows.Forms.ToolTipIcon]::Warning }
-                    "Error" { [System.Windows.Forms.ToolTipIcon]::Error }
-                    default { [System.Windows.Forms.ToolTipIcon]::Info }
-                }
-                $icon.ShowBalloonTip(10000)
-                Start-Sleep -Milliseconds 800
+                Show-NativeToast -Title ([string]$payload.title) -Message ([string]$payload.message)
             }
             catch {
-                Write-Warning "忽略损坏的通知请求 $($request.Name): $($_.Exception.Message)"
+                & msg.exe $env:USERNAME "Noode-CG: 通知发送失败，请查看 GitHub Actions。" 2>$null
             }
             finally {
                 Remove-Item -LiteralPath $request.FullName -Force -ErrorAction SilentlyContinue
@@ -48,8 +48,6 @@ try {
     }
 }
 finally {
-    $icon.Visible = $false
-    $icon.Dispose()
     $mutex.ReleaseMutex()
     $mutex.Dispose()
 }
