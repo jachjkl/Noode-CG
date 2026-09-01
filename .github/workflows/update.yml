@@ -9,15 +9,12 @@ on:
         default: false
         type: boolean
   schedule:
-    # Every six hours. A pending local job is picked up immediately when the
-    # Windows runner service comes online after boot.
     - cron: "17 */6 * * *"
 
 permissions: {}
 
 concurrency:
   group: noode-cg-cloud-local-refresh
-  # Keep only the newest cloud pool while the Windows computer is offline.
   cancel-in-progress: true
 
 jobs:
@@ -26,6 +23,7 @@ jobs:
     timeout-minutes: 90
     outputs:
       handoff_sha256: ${{ steps.handoff-hash.outputs.sha256 }}
+      handoff_ref: ${{ steps.handoff-commit.outputs.ref }}
     permissions:
       contents: write
     env:
@@ -49,6 +47,7 @@ jobs:
         shell: bash
         run: echo "sha256=$(sha256sum data/handoff/cloud-top5000.json.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Commit cloud handoff only
+        id: handoff-commit
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -59,10 +58,11 @@ jobs:
             data/previous-official-ips.txt.gz
           if git diff --cached --quiet; then
             echo "Cloud handoff unchanged"
-            exit 0
+          else
+            git commit -m "chore(data): prepare cloud TOP5000 [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
-          git commit -m "chore(data): prepare cloud TOP5000 [skip ci]"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   local-select:
     needs: cloud-prepare
@@ -71,53 +71,46 @@ jobs:
     defaults:
       run:
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
-    permissions:
-      contents: write
+        working-directory: 'D:\桌面\软件\Noode-CG-Local\app'
+    permissions: {}
     outputs:
       needs_more: ${{ steps.local-status.outputs.needs_more }}
+      result_sha256: ${{ steps.local-status.outputs.result_sha256 }}
+      result_payload_0: ${{ steps.local-status.outputs.result_payload_0 }}
+      result_payload_1: ${{ steps.local-status.outputs.result_payload_1 }}
+      result_payload_2: ${{ steps.local-status.outputs.result_payload_2 }}
+      result_payload_3: ${{ steps.local-status.outputs.result_payload_3 }}
+      result_payload_4: ${{ steps.local-status.outputs.result_payload_4 }}
+      result_payload_5: ${{ steps.local-status.outputs.result_payload_5 }}
     env:
       NOODE_VANTAGE: windows-self-hosted-local-network
       NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
       PSExecutionPolicyPreference: Bypass
     steps:
-      - name: Checkout on Windows without Git submodule shell
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
-        env:
-          NOODE_REPOSITORY_TOKEN: ${{ github.token }}
+      - name: Validate the installed local application
         run: |
-          $ErrorActionPreference = "Stop"
-          git init .
-          if ($LASTEXITCODE -ne 0) { throw "git init failed" }
-          git remote remove origin 2>$null
-          git remote add origin "https://github.com/$env:GITHUB_REPOSITORY.git"
-          if ($LASTEXITCODE -ne 0) { throw "git remote add failed" }
-          $credential = "x-access-token:$env:NOODE_REPOSITORY_TOKEN"
-          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($credential))
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $basic"
-          if ($LASTEXITCODE -ne 0) { throw "git credential setup failed" }
-          git fetch --no-tags --prune --depth=1 origin "+refs/heads/$env:GITHUB_REF_NAME`:refs/remotes/origin/$env:GITHUB_REF_NAME"
-          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-          git checkout --force -B $env:GITHUB_REF_NAME "refs/remotes/origin/$env:GITHUB_REF_NAME"
-          if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
-          git clean -ffdx
-          if ($LASTEXITCODE -ne 0) { throw "git clean failed" }
+          $version = (Get-Content -Raw -LiteralPath "VERSION").Trim()
+          if ($version -ne "13.6") {
+            throw "Local application version $version is not 13.6. Re-run scripts\install-windows-controller.ps1 from the V13.6 package."
+          }
+          Write-Host "Local application V$version is ready; no GitHub checkout is required."
       - name: Use the Runner-local Python runtime
         run: |
           $python = Join-Path $env:NOODE_LOCAL_ROOT "runtime\python\python.exe"
           if (-not (Test-Path -LiteralPath $python)) {
-            throw "Runner Python is missing at $python. Run scripts\install-windows-controller.ps1 once on this computer."
+            throw "Runner Python is missing at $python. Re-run scripts\install-windows-controller.ps1."
           }
           & $python --version
           if ($LASTEXITCODE -ne 0) { throw "Runner Python failed to start" }
-          "NOODE_PYTHON=$python" >> $env:GITHUB_ENV
+          $utf8 = New-Object Text.UTF8Encoding($false)
+          [IO.File]::AppendAllText($env:GITHUB_ENV, "NOODE_PYTHON=$python`n", $utf8)
       - name: Verify Python requirements in the Runner-local runtime
         run: |
           & $env:NOODE_PYTHON -c "import yaml; print('Runner Python dependencies are ready')"
           if ($LASTEXITCODE -ne 0) {
             throw "Runner Python dependencies are missing. Re-run scripts\install-windows-controller.ps1."
           }
-      - name: Restore and publish a result saved during an earlier GitHub outage
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
+      - name: Restore a result saved during an earlier cloud publish outage
         run: |
           $manifest = Join-Path $env:NOODE_LOCAL_ROOT "pending-publish\manifest.json"
           if (-not (Test-Path -LiteralPath $manifest)) {
@@ -125,24 +118,10 @@ jobs:
             exit 0
           }
           ./scripts/local-runtime.ps1 -Mode Restore
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- output data/previous-top100.json data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
-          git diff --cached --quiet
-          if ($LASTEXITCODE -ne 0) {
-            git commit -m "chore(data): recover pending local result [skip ci]"
-            if ($LASTEXITCODE -ne 0) { throw "Pending result commit failed" }
-            git pull --rebase origin $env:GITHUB_REF_NAME
-            if ($LASTEXITCODE -ne 0) { throw "Pending result rebase failed" }
-            git push origin "HEAD:$env:GITHUB_REF_NAME"
-            if ($LASTEXITCODE -ne 0) { throw "Pending result push failed" }
-          }
-          ./scripts/local-runtime.ps1 -Mode ClearPending
+          Write-Host "Pending result restored and will be included in this cloud publish payload."
       - name: Validate or download cloud handoff through checked mirrors
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
-        run: ./scripts/sync-cloud-handoff.ps1 -ExpectedSha256 "${{ needs.cloud-prepare.outputs.handoff_sha256 }}"
+        run: ./scripts/sync-cloud-handoff.ps1 -ExpectedSha256 "${{ needs.cloud-prepare.outputs.handoff_sha256 }}" -Branch "${{ needs.cloud-prepare.outputs.handoff_ref }}"
       - name: Require direct local network
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
         run: ./scripts/assert-direct-network.ps1
       - name: Validate configuration
         run: |
@@ -152,56 +131,112 @@ jobs:
         run: |
           & $env:NOODE_PYTHON main.py local-select
           if ($LASTEXITCODE -ne 0) { throw "Local selection failed" }
-      - name: Read local result
+      - name: Encode bounded local result for cloud publish
         id: local-status
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
         run: |
           $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
           $needsMore = [bool]$health.needs_more
-          "needs_more=$($needsMore.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "Local selected=$($health.counts.final_selected)/$($health.counts.final_target), needs_more=$needsMore"
-      - name: Commit local result or accumulator
-        id: publish-local
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
-        run: |
           ./scripts/local-runtime.ps1 -Mode Save
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- output data/previous-top100.json data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
-          git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Local result unchanged"
-            ./scripts/local-runtime.ps1 -Mode ClearPending
-            exit 0
+          $archive = Join-Path $env:RUNNER_TEMP "noode-local-result-$env:GITHUB_RUN_ID.zip"
+          if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
+          & $env:NOODE_PYTHON scripts/result_payload.py pack --root . --archive $archive
+          if ($LASTEXITCODE -ne 0) { throw "Local result payload creation failed" }
+          $payload = [Convert]::ToBase64String([IO.File]::ReadAllBytes($archive))
+          if ($payload.Length -gt 450000) {
+            throw "Local result payload is too large for the Runner control channel: $($payload.Length) characters"
           }
-          git commit -m "chore(data): local network TOP300 [skip ci]"
-          if ($LASTEXITCODE -ne 0) { throw "Local result commit failed" }
-          git pull --rebase origin $env:GITHUB_REF_NAME
-          if ($LASTEXITCODE -ne 0) { throw "Local result rebase failed" }
-          git push origin "HEAD:$env:GITHUB_REF_NAME"
-          if ($LASTEXITCODE -ne 0) { throw "Local result push failed" }
-          ./scripts/local-runtime.ps1 -Mode ClearPending
-      - name: Notify Windows user
+          $sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+          $utf8 = New-Object Text.UTF8Encoding($false)
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "needs_more=$($needsMore.ToString().ToLowerInvariant())`n", $utf8)
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "result_sha256=$sha256`n", $utf8)
+          $chunkSize = 75000
+          for ($index = 0; $index -lt 6; $index++) {
+            $offset = $index * $chunkSize
+            $chunk = if ($offset -lt $payload.Length) {
+              $payload.Substring($offset, [Math]::Min($chunkSize, $payload.Length - $offset))
+            } else { "" }
+            [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "result_payload_$index=$chunk`n", $utf8)
+          }
+          Write-Host "Local selected=$($health.counts.final_selected)/$($health.counts.final_target), payload=$($payload.Length) chars, needs_more=$needsMore"
+      - name: Notify Windows user that cloud publish is starting
         continue-on-error: true
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
         run: |
           $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
           if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
-            ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" `
-              -Message "已得到300个有效IP并成功推送到GitHub。"
-          }
-          else {
+            ./scripts/notify-user.ps1 -Title "Noode-CG 本地优选已完成" -Message "已得到300个有效IP，结果已交给Ubuntu云端发布。"
+          } else {
             $qualified = [int]$health.counts.qualified_accumulated
-            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" `
-              -Message "当前累计合格 $qualified/300，云端将自动生成下一批5000。"
+            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" -Message "当前累计合格 $qualified/300，结果将由云端保存后生成下一批5000。"
           }
-      - name: Clear local logs and caches after successful push
-        continue-on-error: true
+
+  cloud-publish:
+    needs: [cloud-prepare, local-select]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - name: Decode, verify and apply the local result
+        shell: bash
+        run: |
+          payload_b64="$RUNNER_TEMP/noode-local-result.b64"
+          payload_zip="$RUNNER_TEMP/noode-local-result.zip"
+          cat > "$payload_b64" <<'NOODE_PAYLOAD'
+          ${{ needs.local-select.outputs.result_payload_0 }}${{ needs.local-select.outputs.result_payload_1 }}${{ needs.local-select.outputs.result_payload_2 }}${{ needs.local-select.outputs.result_payload_3 }}${{ needs.local-select.outputs.result_payload_4 }}${{ needs.local-select.outputs.result_payload_5 }}
+          NOODE_PAYLOAD
+          tr -d '\r\n ' < "$payload_b64" | base64 --decode > "$payload_zip"
+          echo "${{ needs.local-select.outputs.result_sha256 }}  $payload_zip" | sha256sum --check --strict
+          python3 scripts/result_payload.py unpack --archive "$payload_zip" --destination .
+      - name: Publish local result from Ubuntu
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- \
+            output \
+            data/previous-top100.json \
+            data/handoff/local-qualified.json.gz \
+            data/handoff/local-attempted-ips.txt.gz
+          if git diff --cached --quiet; then
+            echo "Local result unchanged"
+            exit 0
+          fi
+          git commit -m "chore(data): publish local network result [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+  local-cleanup:
+    needs: cloud-publish
+    runs-on: [self-hosted, windows, x64, noode-cg]
+    timeout-minutes: 10
+    permissions: {}
+    defaults:
+      run:
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
-        run: ./scripts/local-runtime.ps1 -Mode ClearRuntime
+        working-directory: 'D:\桌面\软件\Noode-CG-Local\app'
+    env:
+      NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
+    steps:
+      - name: Notify successful cloud publication
+        continue-on-error: true
+        run: |
+          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
+            ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" -Message "300个有效IP已由Ubuntu成功发布到GitHub。"
+          } else {
+            ./scripts/notify-user.ps1 -Title "Noode-CG 本轮结果已保存" -Message "合格结果已由Ubuntu保存，准备继续补池。"
+          }
+      - name: Clear local pending data, logs and caches
+        continue-on-error: true
+        run: |
+          ./scripts/local-runtime.ps1 -Mode ClearPending
+          ./scripts/local-runtime.ps1 -Mode ClearRuntime
 
   replenish-cloud-pool:
-    needs: local-select
+    needs: [local-select, cloud-publish, local-cleanup]
     if: needs.local-select.outputs.needs_more == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
