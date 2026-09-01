@@ -90,8 +90,8 @@ jobs:
       - name: Validate the installed local application
         run: |
           $version = (Get-Content -Raw -LiteralPath "VERSION").Trim()
-          if ($version -ne "13.6.1") {
-            throw "Local application version $version is not 13.6.1. Re-run scripts\install-windows-controller.ps1 from the V13.6.1 package."
+          if ($version -ne "13.6.2") {
+            throw "Local application version $version is not 13.6.2. Re-run scripts\install-windows-controller.ps1 from the V13.6.2 package."
           }
           Write-Host "Local application V$version is ready; no GitHub checkout is required."
       - name: Use the Runner-local Python runtime
@@ -247,4 +247,4 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Dispatch a fresh disjoint cloud TOP5000
-        run: gh workflow run update.yml --ref "${GITHUB_REF_NAME}" -f continuation=true
+        run: gh workflow run update.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" -f continuation=true
