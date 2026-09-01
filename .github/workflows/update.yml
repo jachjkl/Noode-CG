@@ -15,7 +15,9 @@ permissions: {}
 
 concurrency:
   group: noode-cg-cloud-local-refresh
-  cancel-in-progress: true
+  # A run can dispatch its own replenishment run. Queue that child until the
+  # parent finishes instead of letting it cancel the parent during publication.
+  cancel-in-progress: false
 
 jobs:
   cloud-prepare:
