@@ -101,11 +101,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
           git clean -ffdx
           if ($LASTEXITCODE -ne 0) { throw "git clean failed" }
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Use the Runner-local Python runtime
+        run: |
+          $python = Join-Path $env:NOODE_LOCAL_ROOT "runtime\python\python.exe"
+          if (-not (Test-Path -LiteralPath $python)) {
+            throw "Runner Python is missing at $python. Run scripts\install-windows-controller.ps1 once on this computer."
+          }
+          & $python --version
+          if ($LASTEXITCODE -ne 0) { throw "Runner Python failed to start" }
+          "NOODE_PYTHON=$python" >> $env:GITHUB_ENV
+      - name: Verify Python requirements in the Runner-local runtime
+        run: |
+          & $env:NOODE_PYTHON -c "import yaml; print('Runner Python dependencies are ready')"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Runner Python dependencies are missing. Re-run scripts\install-windows-controller.ps1."
+          }
       - name: Restore and publish a result saved during an earlier GitHub outage
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
         run: |
@@ -134,8 +144,14 @@ jobs:
       - name: Require direct local network
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
         run: ./scripts/assert-direct-network.ps1
-      - run: python main.py validate
-      - run: python main.py local-select
+      - name: Validate configuration
+        run: |
+          & $env:NOODE_PYTHON main.py validate
+          if ($LASTEXITCODE -ne 0) { throw "Configuration validation failed" }
+      - name: Run local selection
+        run: |
+          & $env:NOODE_PYTHON main.py local-select
+          if ($LASTEXITCODE -ne 0) { throw "Local selection failed" }
       - name: Read local result
         id: local-status
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
