@@ -1,32 +1,41 @@
-name: Refresh verified endpoints
+name: Cloud TOP5000 to local TOP300
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - data/local-cfdata-candidates.txt
+    inputs:
+      continuation:
+        description: Continue an unfinished local TOP300 cycle
+        required: false
+        default: false
+        type: boolean
   schedule:
-    # Avoid minute 0, when scheduled Actions have the highest queue pressure.
-    - cron: "17 */8 * * *"
+    # Every six hours. A pending local job is picked up immediately when the
+    # Windows runner service comes online after boot.
+    - cron: "17 */6 * * *"
 
 permissions: {}
 
 concurrency:
-  group: noode-cg-refresh
-  cancel-in-progress: false
+  group: noode-cg-cloud-local-refresh
+  # Keep only the newest cloud pool while the Windows computer is offline.
+  cancel-in-progress: true
 
 jobs:
-  refresh:
+  cloud-prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 90
+    outputs:
+      handoff_sha256: ${{ steps.handoff-hash.outputs.sha256 }}
     permissions:
       contents: write
     env:
-      NOODE_VANTAGE: github-general
+      NOODE_VANTAGE: github-cloud-prepare
       NOODE_RUN_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
+      NOODE_CONTINUATION: ${{ inputs.continuation || 'false' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.ref_name }}
           fetch-depth: 1
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -34,20 +43,136 @@ jobs:
           cache: pip
       - run: python -m pip install --disable-pip-version-check -r requirements.txt
       - run: python main.py validate
-      - run: python main.py run
-      - name: Commit changed outputs
+      - run: python main.py prepare-handoff
+      - name: Export trusted handoff SHA-256
+        id: handoff-hash
+        shell: bash
+        run: echo "sha256=$(sha256sum data/handoff/cloud-top5000.json.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Commit cloud handoff only
         shell: bash
         run: |
-          if [ -z "$(git status --porcelain -- output data/previous-top100.json data/previous-official-ips.txt.gz)" ]; then
-            echo "No output changes"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- output data/previous-top100.json data/previous-official-ips.txt.gz
+          git add -A -- \
+            data/handoff/cloud-top5000.json.gz \
+            data/handoff/cloud-health.json \
+            data/previous-official-ips.txt.gz
           if git diff --cached --quiet; then
-            echo "No staged changes"
+            echo "Cloud handoff unchanged"
             exit 0
           fi
-          git commit -m "chore(data): refresh verified endpoints [skip ci]"
+          git commit -m "chore(data): prepare cloud TOP5000 [skip ci]"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+  local-select:
+    needs: cloud-prepare
+    runs-on: [self-hosted, windows, x64, noode-cg]
+    timeout-minutes: 240
+    permissions:
+      contents: write
+    outputs:
+      needs_more: ${{ steps.local-status.outputs.needs_more }}
+    env:
+      NOODE_VANTAGE: windows-self-hosted-local-network
+      NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Restore and publish a result saved during an earlier GitHub outage
+        shell: powershell
+        run: |
+          $manifest = Join-Path $env:NOODE_LOCAL_ROOT "pending-publish\manifest.json"
+          if (-not (Test-Path -LiteralPath $manifest)) {
+            Write-Host "No pending local result"
+            exit 0
+          }
+          ./scripts/local-runtime.ps1 -Mode Restore
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- output data/previous-top100.json data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore(data): recover pending local result [skip ci]"
+            if ($LASTEXITCODE -ne 0) { throw "Pending result commit failed" }
+            git pull --rebase origin $env:GITHUB_REF_NAME
+            if ($LASTEXITCODE -ne 0) { throw "Pending result rebase failed" }
+            git push origin "HEAD:$env:GITHUB_REF_NAME"
+            if ($LASTEXITCODE -ne 0) { throw "Pending result push failed" }
+          }
+          ./scripts/local-runtime.ps1 -Mode ClearPending
+      - name: Validate or download cloud handoff through checked mirrors
+        shell: powershell
+        run: ./scripts/sync-cloud-handoff.ps1 -ExpectedSha256 "${{ needs.cloud-prepare.outputs.handoff_sha256 }}"
+      - name: Require direct local network
+        shell: powershell
+        run: ./scripts/assert-direct-network.ps1
+      - run: python main.py validate
+      - run: python main.py local-select
+      - name: Read local result
+        id: local-status
+        shell: powershell
+        run: |
+          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          $needsMore = [bool]$health.needs_more
+          "needs_more=$($needsMore.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "Local selected=$($health.counts.final_selected)/$($health.counts.final_target), needs_more=$needsMore"
+      - name: Commit local result or accumulator
+        id: publish-local
+        shell: powershell
+        run: |
+          ./scripts/local-runtime.ps1 -Mode Save
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- output data/previous-top100.json data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Local result unchanged"
+            ./scripts/local-runtime.ps1 -Mode ClearPending
+            exit 0
+          }
+          git commit -m "chore(data): local network TOP300 [skip ci]"
+          if ($LASTEXITCODE -ne 0) { throw "Local result commit failed" }
+          git pull --rebase origin $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) { throw "Local result rebase failed" }
+          git push origin "HEAD:$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw "Local result push failed" }
+          ./scripts/local-runtime.ps1 -Mode ClearPending
+      - name: Notify Windows user
+        continue-on-error: true
+        shell: powershell
+        run: |
+          $health = Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json
+          if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
+            ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" `
+              -Message "已得到300个有效IP并成功推送到GitHub。"
+          }
+          else {
+            $qualified = [int]$health.counts.qualified_accumulated
+            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" `
+              -Message "当前累计合格 $qualified/300，云端将自动生成下一批5000。"
+          }
+      - name: Clear local logs and caches after successful push
+        continue-on-error: true
+        shell: powershell
+        run: ./scripts/local-runtime.ps1 -Mode ClearRuntime
+
+  replenish-cloud-pool:
+    needs: local-select
+    if: needs.local-select.outputs.needs_more == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Dispatch a fresh disjoint cloud TOP5000
+        run: gh workflow run update.yml --ref "${GITHUB_REF_NAME}" -f continuation=true
