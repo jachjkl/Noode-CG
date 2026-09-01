@@ -1,26 +1,26 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-01T15:24:45.075865+00:00",
-  "generated_at": "2026-09-01T15:26:34.367812+00:00",
+  "started_at": "2026-09-01T15:28:29.794404+00:00",
+  "generated_at": "2026-09-01T15:29:52.753649+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-01T15:24:24.919380+00:00",
+  "handoff_generated_at": "2026-09-01T15:28:09.718704+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
     "cloud_pool": 5000,
     "previous_loaded": 100,
-    "combined_unique": 5023,
+    "combined_unique": 5021,
     "new_unique_tested": 5000,
-    "accumulated_loaded": 23,
+    "accumulated_loaded": 21,
     "jp_candidates": 0,
     "jp_selected": 10,
     "general_candidates": 5000,
-    "tcp_qualified": 3425,
-    "metric_qualified": 5,
-    "speed_tested": 5,
-    "speed_qualified": 11,
-    "qualified_accumulated": 21,
+    "tcp_qualified": 2891,
+    "metric_qualified": 48,
+    "speed_tested": 48,
+    "speed_qualified": 33,
+    "qualified_accumulated": 43,
     "final_target": 300,
     "final_selected": 0
   },
@@ -35,22 +35,22 @@
     "duration_seconds": 0.0
   },
   "metric_measurements": {
-    "tls_three_pass_success": 6,
-    "https_ttfb_three_pass_success": 5,
-    "foreign_combined_latency_qualified": 5,
-    "tls_and_https_duration_seconds": 70.484
+    "tls_three_pass_success": 72,
+    "https_ttfb_three_pass_success": 48,
+    "foreign_combined_latency_qualified": 48,
+    "tls_and_https_duration_seconds": 37.89
   },
   "speed_batches": [
     {
-      "speed_tested_once": 5,
-      "speed_duration_seconds": 3.469,
-      "speed_at_least_minimum": 1,
-      "input": 5,
-      "qualified_total": 11
+      "speed_tested_once": 48,
+      "speed_duration_seconds": 5.141,
+      "speed_at_least_minimum": 22,
+      "input": 48,
+      "qualified_total": 33
     }
   ],
   "warnings": [
-    "本地复测只得到 21/300 条，保留上一轮历史订阅"
+    "本地复测只得到 43/300 条，保留上一轮历史订阅"
   ],
   "needs_more": true,
   "selected": 0,
