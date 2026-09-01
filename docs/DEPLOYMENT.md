@@ -1,8 +1,8 @@
-# V13.4 部署说明
+# V13.5 部署说明
 
 ## 1. 上传代码包
 
-1. 解压 `Noode-CG-V13.4-GHCLI-SetupPython-Fix.zip`。
+1. 解压 `Noode-CG-V13.5-RunnerPython-Fix.zip`。
 2. 打开解压后的 `Noode-CG` 文件夹。
 3. 在 GitHub 仓库根目录选择 **Add file → Upload files**。
 4. 上传 `Noode-CG` 文件夹里面的全部内容，而不是上传 ZIP 文件或再套一层 `Noode-CG` 目录。
@@ -40,7 +40,7 @@
 powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-controller.ps1
 ```
 
-它会创建 `D:\桌面\软件\Noode-CG-Local\开始云端和本地优选.cmd`，并在当前用户启动目录注册无托盘图标的通知接收器。手动程序使用正常可见窗口显示 Actions 各阶段状态；成功后自动关闭，失败时保留窗口和日志。自托管 Runner 作为 Windows 服务时不显示单独测速窗口。
+它会创建 `D:\桌面\软件\Noode-CG-Local\开始云端和本地优选.cmd`，在当前用户启动目录注册无托盘图标的通知接收器，并把电脑现有的 Python 复制成 `D:\桌面\软件\Noode-CG-Local\runtime\python` 下的 Runner 专用运行环境。该环境已授予 `NETWORK SERVICE` 只读与执行权限，不会再由 Actions 修改注册表或临时安装 Python。手动程序使用正常可见窗口显示 Actions 各阶段状态；成功后自动关闭，失败时保留窗口和日志。自托管 Runner 作为 Windows 服务时不显示单独测速窗口。
 
 运行任务前关闭 Clash 系统代理、TUN/虚拟网卡代理和 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量。工作流检测到代理后会发出 Windows 通知并等待关闭，而不是立刻用代理线路测速；30 分钟仍未关闭时，本轮停止并保留历史订阅。
 

@@ -66,7 +66,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('cron: "17 */6 * * *"', workflow)
         self.assertIn("runs-on: [self-hosted, windows, x64, noode-cg]", workflow)
         self.assertIn("python main.py prepare-handoff", workflow)
-        self.assertIn("python main.py local-select", workflow)
+        self.assertIn("$env:NOODE_PYTHON main.py local-select", workflow)
         self.assertIn("continuation=true", workflow)
         self.assertIn("actions: write", workflow)
         self.assertIn("cancel-in-progress: true", workflow)

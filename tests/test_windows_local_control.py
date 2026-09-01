@@ -48,6 +48,26 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("PSExecutionPolicyPreference: Bypass", local_section)
         self.assertNotIn("shell: powershell\n", local_section)
 
+    def test_windows_job_uses_prepared_runner_python_without_setup_action(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        local_section = workflow.split("  local-select:", 1)[1].split(
+            "  replenish-cloud-pool:", 1
+        )[0]
+        self.assertNotIn("actions/setup-python", local_section)
+        self.assertNotIn("-m pip install", local_section)
+        self.assertIn(r"runtime\python\python.exe", local_section)
+        self.assertIn("NOODE_PYTHON", local_section)
+        self.assertIn("import yaml", local_section)
+
+        installer = (ROOT / "scripts" / "install-windows-controller.ps1").read_text(
+            encoding="utf-8-sig"
+        )
+        self.assertIn("Prepare-RunnerPython", installer)
+        self.assertIn("NETWORK SERVICE", installer)
+        self.assertIn("runtime", installer)
+
     def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
         manual_path = ROOT / "windows-controller" / "manual-start.ps1"
         self.assertTrue(
