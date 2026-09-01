@@ -119,6 +119,35 @@ function Install-LocalApplication {
     }
 }
 
+function Save-ExistingRuntimeState {
+    $appRoot = Join-Path $InstallRoot "app"
+    if (-not (Test-Path -LiteralPath $appRoot -PathType Container)) { return }
+    $stateFiles = @(
+        "output\nodes.txt",
+        "output\health.json",
+        "data\previous-top100.json",
+        "data\handoff\local-qualified.json.gz",
+        "data\handoff\local-attempted-ips.txt.gz"
+    )
+    $hasState = @($stateFiles | Where-Object {
+        Test-Path -LiteralPath (Join-Path $appRoot $_) -PathType Leaf
+    }).Count -gt 0
+    if (-not $hasState) {
+        Write-Host "旧本地应用没有待保存的运行状态。"
+        return
+    }
+    $runtimeScript = Join-Path $appRoot "scripts\local-runtime.ps1"
+    if (-not (Test-Path -LiteralPath $runtimeScript -PathType Leaf)) {
+        throw "检测到旧运行状态，但缺少保存脚本；为避免丢失数据，安装已停止。"
+    }
+    Write-Host "正在保存旧版本尚未发布的本地运行状态。"
+    & $runtimeScript -Mode Save -RepoRoot $appRoot -LocalRoot $InstallRoot
+    $manifest = Join-Path $InstallRoot "pending-publish\manifest.json"
+    if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
+        throw "旧运行状态保存失败；为避免丢失数据，安装已停止。"
+    }
+}
+
 function Install-PowerShellScript {
     param([string]$SourcePath, [string]$DestinationPath)
     $content = [IO.File]::ReadAllText($SourcePath, [Text.Encoding]::UTF8)
@@ -134,6 +163,7 @@ Copy-Item -LiteralPath (Join-Path $source "开始云端和本地优选.cmd") `
     -Destination (Join-Path $InstallRoot "开始云端和本地优选.cmd") -Force
 Install-PowerShellScript -SourcePath (Join-Path $PSScriptRoot "notify-user.ps1") `
     -DestinationPath (Join-Path $InstallRoot "notify-user.ps1")
+Save-ExistingRuntimeState
 Install-LocalApplication
 Prepare-RunnerPython
 

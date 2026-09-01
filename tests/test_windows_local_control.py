@@ -69,6 +69,20 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("NETWORK SERVICE", installer)
         self.assertIn("runtime", installer)
 
+    def test_windows_powershell_reads_python_json_as_utf8(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        utf8_read = (
+            'Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" '
+            '| ConvertFrom-Json'
+        )
+        self.assertEqual(workflow.count(utf8_read), 3)
+        self.assertNotIn(
+            'Get-Content -Raw -LiteralPath "output/health.json" | ConvertFrom-Json',
+            workflow,
+        )
+
     def test_windows_job_does_not_fetch_or_push_github_directly(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"
@@ -148,6 +162,16 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("notification-watcher.ps1", installer)
         self.assertIn("manual-start.ps1", installer)
         self.assertIn("UTF8Encoding($true)", installer)
+
+    def test_installer_saves_unpublished_runtime_before_replacing_app(self) -> None:
+        installer = (ROOT / "scripts" / "install-windows-controller.ps1").read_text(
+            encoding="utf-8-sig"
+        )
+        self.assertIn("function Save-ExistingRuntimeState", installer)
+        self.assertIn(
+            "Save-ExistingRuntimeState\nInstall-LocalApplication\nPrepare-RunnerPython",
+            installer.replace("\r\n", "\n"),
+        )
 
 
 if __name__ == "__main__":

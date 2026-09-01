@@ -1,8 +1,8 @@
-# V13.6 部署说明
+# V13.6.1 部署说明
 
 ## 1. 上传代码包
 
-1. 解压 `Noode-CG-V13.6-NoLocalGit.zip`。
+1. 解压 `Noode-CG-V13.6.1-UTF8Fix.zip`。
 2. 打开解压后的 `Noode-CG` 文件夹。
 3. 在 GitHub 仓库根目录选择 **Add file → Upload files**。
 4. 上传 `Noode-CG` 文件夹里面的全部内容，而不是上传 ZIP 文件或再套一层 `Noode-CG` 目录。
@@ -21,7 +21,7 @@
 - Runner 名称可自定义，例如 `Noode-CG-Home`；
 - 额外标签加入 `noode-cg`；默认的 `self-hosted`、`windows`、`x64` 标签要保留；
 - 选择把 Runner 安装为 Windows 服务，并让服务自动启动；
-- 服务账号可以使用默认的 `NT AUTHORITY\NETWORK SERVICE`；V13.6 安装器会只对 `D:\桌面\软件\Noode-CG-Local` 授予所需权限；
+- 服务账号可以使用默认的 `NT AUTHORITY\NETWORK SERVICE`；V13.6.1 安装器会只对 `D:\桌面\软件\Noode-CG-Local` 授予所需权限；
 - Runner 的工作目录使用独立目录，例如 `D:\actions-runner`，不要放在本项目或下载目录中。
 
 如果 GitHub 页面给出的配置命令没有标签参数，可在命令尾加入：
@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-controller.ps
 - `D:\桌面\软件\Noode-CG-Local\runtime\python`：Runner 专用 Python；
 - `D:\桌面\软件\Noode-CG-Local\app`：本地测速应用副本。
 
-V13.6 的 Windows 作业直接使用这两个目录，不再从 `github.com` 执行 `git fetch`、`git pull` 或 `git push`。安装器只对这个本地目录授予 `NETWORK SERVICE` 所需的修改/执行权限，不会让 Actions 修改注册表或临时安装 Python。每次上传新版本后都必须重新运行一次安装器，确保 GitHub 工作流版本和 D 盘应用版本一致。
+V13.6.1 的 Windows 作业直接使用这两个目录，不再从 `github.com` 执行 `git fetch`、`git pull` 或 `git push`。安装器只对这个本地目录授予 `NETWORK SERVICE` 所需的修改/执行权限，不会让 Actions 修改注册表或临时安装 Python。每次上传新版本后都必须重新运行一次安装器，确保 GitHub 工作流版本和 D 盘应用版本一致。V13.6.1 还强制 Windows PowerShell 5.1 以 UTF-8 读取 Python 生成的 JSON，避免中文警告导致 `ConvertFrom-Json` 误判文件损坏。
 
 手动程序使用正常可见窗口显示 Actions 各阶段状态；成功后自动关闭，失败时保留窗口和日志。自托管 Runner 作为 Windows 服务时不显示单独测速窗口。
 
@@ -83,4 +83,4 @@ https://raw.githubusercontent.com/jachjkl/Noode-CG/main/output/nodes.txt
 - `output/nodes.txt`：最终订阅；
 - `output/nodes.json`：每个节点的 TCP/TLS/TTFB、抖动、丢包、速度和 colo 明细。
 
-如果本地步骤一直显示 queued，检查 Runner 服务是否正在运行以及标签是否包含 `noode-cg`。如果提示 D 盘应用版本不是 13.6，请在解压后的 V13.6 `Noode-CG` 目录重新运行 `scripts\install-windows-controller.ps1`。如果直接网络检查失败，关闭代理后在 Actions 页面重新运行。
+如果本地步骤一直显示 queued，检查 Runner 服务是否正在运行以及标签是否包含 `noode-cg`。如果提示 D 盘应用版本不是 13.6.1，请在解压后的 V13.6.1 `Noode-CG` 目录重新运行 `scripts\install-windows-controller.ps1`。如果直接网络检查失败，关闭代理后在 Actions 页面重新运行。
