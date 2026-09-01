@@ -1,26 +1,26 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-01T16:06:48.501298+00:00",
-  "generated_at": "2026-09-01T16:08:05.071337+00:00",
+  "started_at": "2026-09-01T16:11:06.684033+00:00",
+  "generated_at": "2026-09-01T16:12:35.220977+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-01T16:06:28.320425+00:00",
+  "handoff_generated_at": "2026-09-01T16:09:47.375911+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
     "cloud_pool": 5000,
     "previous_loaded": 100,
-    "combined_unique": 5083,
+    "combined_unique": 5115,
     "new_unique_tested": 5000,
-    "accumulated_loaded": 83,
+    "accumulated_loaded": 115,
     "jp_candidates": 0,
     "jp_selected": 10,
     "general_candidates": 5000,
-    "tcp_qualified": 3364,
-    "metric_qualified": 55,
-    "speed_tested": 55,
-    "speed_qualified": 105,
-    "qualified_accumulated": 115,
+    "tcp_qualified": 3025,
+    "metric_qualified": 27,
+    "speed_tested": 27,
+    "speed_qualified": 120,
+    "qualified_accumulated": 130,
     "final_target": 300,
     "final_selected": 0
   },
@@ -35,22 +35,22 @@
     "duration_seconds": 0.0
   },
   "metric_measurements": {
-    "tls_three_pass_success": 57,
-    "https_ttfb_three_pass_success": 55,
-    "foreign_combined_latency_qualified": 55,
-    "tls_and_https_duration_seconds": 38.344
+    "tls_three_pass_success": 72,
+    "https_ttfb_three_pass_success": 27,
+    "foreign_combined_latency_qualified": 27,
+    "tls_and_https_duration_seconds": 51.063
   },
   "speed_batches": [
     {
-      "speed_tested_once": 55,
-      "speed_duration_seconds": 2.75,
-      "speed_at_least_minimum": 32,
-      "input": 55,
-      "qualified_total": 105
+      "speed_tested_once": 27,
+      "speed_duration_seconds": 4.937,
+      "speed_at_least_minimum": 15,
+      "input": 27,
+      "qualified_total": 120
     }
   ],
   "warnings": [
-    "本地复测只得到 115/300 条，保留上一轮历史订阅"
+    "本地复测只得到 130/300 条，保留上一轮历史订阅"
   ],
   "needs_more": true,
   "selected": 0,
