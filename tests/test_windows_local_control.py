@@ -44,9 +44,16 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("git fetch --no-tags", local_section)
         self.assertIn("git checkout --force", local_section)
         self.assertNotIn("uses: actions/checkout", local_section)
+        self.assertIn("-ExecutionPolicy Bypass -File", local_section)
+        self.assertNotIn("shell: powershell\n", local_section)
 
     def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
-        manual = (ROOT / "windows-controller" / "manual-start.ps1").read_text(
+        manual_path = ROOT / "windows-controller" / "manual-start.ps1"
+        self.assertTrue(
+            manual_path.read_bytes().startswith(b"\xef\xbb\xbf"),
+            "Windows PowerShell 5.1 requires a UTF-8 BOM for this localized script",
+        )
+        manual = manual_path.read_text(
             encoding="utf-8-sig"
         )
         launcher = (ROOT / "windows-controller" / "开始云端和本地优选.cmd").read_text(
@@ -55,6 +62,8 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("workflow run $workflow", manual)
         self.assertIn("jachjkl/Noode-CG", manual)
         self.assertIn("run watch $runId", manual)
+        self.assertIn("foreach ($run in @($parsed))", manual)
+        self.assertNotIn("return @($output | ConvertFrom-Json)", manual)
         self.assertIn("manual-start.ps1", launcher)
         self.assertNotIn("/min", launcher.lower())
         self.assertNotIn("WindowStyle Minimized", launcher)
@@ -92,6 +101,7 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("Startup", installer)
         self.assertIn("notification-watcher.ps1", installer)
         self.assertIn("manual-start.ps1", installer)
+        self.assertIn("UTF8Encoding($true)", installer)
 
 
 if __name__ == "__main__":

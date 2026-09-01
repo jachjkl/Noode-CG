@@ -1,8 +1,8 @@
-# V13.2 部署说明
+# V13.3 部署说明
 
 ## 1. 上传代码包
 
-1. 解压 `Noode-CG-V13.2-VisibleLog-NoTray-Fix.zip`。
+1. 解压 `Noode-CG-V13.3-PS51-Runner-Fix.zip`。
 2. 打开解压后的 `Noode-CG` 文件夹。
 3. 在 GitHub 仓库根目录选择 **Add file → Upload files**。
 4. 上传 `Noode-CG` 文件夹里面的全部内容，而不是上传 ZIP 文件或再套一层 `Noode-CG` 目录。

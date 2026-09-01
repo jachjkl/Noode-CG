@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Repository = "jachjkl/Noode-CG",
     [string]$Branch = "main",
     [string]$LocalRoot = "D:\桌面\软件\Noode-CG-Local"
@@ -35,7 +35,10 @@ function Get-Runs {
         --json databaseId,status,conclusion,url,createdAt,event 2>> $log
     if ($LASTEXITCODE -ne 0) { throw "无法读取 GitHub Actions 运行列表。" }
     if (-not $output) { return @() }
-    return @($output | ConvertFrom-Json)
+    $parsed = (($output | Out-String) | ConvertFrom-Json)
+    foreach ($run in @($parsed)) {
+        Write-Output $run
+    }
 }
 
 try {

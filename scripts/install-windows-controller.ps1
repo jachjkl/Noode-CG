@@ -7,14 +7,22 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $source = Join-Path $repoRoot "windows-controller"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $InstallRoot "notifications") -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $source "notification-watcher.ps1") `
-    -Destination (Join-Path $InstallRoot "notification-watcher.ps1") -Force
-Copy-Item -LiteralPath (Join-Path $source "manual-start.ps1") `
-    -Destination (Join-Path $InstallRoot "manual-start.ps1") -Force
+
+function Install-PowerShellScript {
+    param([string]$SourcePath, [string]$DestinationPath)
+    $content = [IO.File]::ReadAllText($SourcePath, [Text.Encoding]::UTF8)
+    $utf8WithBom = New-Object Text.UTF8Encoding($true)
+    [IO.File]::WriteAllText($DestinationPath, $content, $utf8WithBom)
+}
+
+Install-PowerShellScript -SourcePath (Join-Path $source "notification-watcher.ps1") `
+    -DestinationPath (Join-Path $InstallRoot "notification-watcher.ps1")
+Install-PowerShellScript -SourcePath (Join-Path $source "manual-start.ps1") `
+    -DestinationPath (Join-Path $InstallRoot "manual-start.ps1")
 Copy-Item -LiteralPath (Join-Path $source "开始云端和本地优选.cmd") `
     -Destination (Join-Path $InstallRoot "开始云端和本地优选.cmd") -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot "notify-user.ps1") `
-    -Destination (Join-Path $InstallRoot "notify-user.ps1") -Force
+Install-PowerShellScript -SourcePath (Join-Path $PSScriptRoot "notify-user.ps1") `
+    -DestinationPath (Join-Path $InstallRoot "notify-user.ps1")
 
 $startup = [Environment]::GetFolderPath("Startup")
 $vbsPath = Join-Path $startup "Noode-CG-Notifier.vbs"
