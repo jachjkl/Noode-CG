@@ -1,29 +1,29 @@
 {
-  "status": "degraded",
+  "status": "ok",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-01T16:39:01.806390+00:00",
-  "generated_at": "2026-09-01T16:40:17.656084+00:00",
+  "started_at": "2026-09-01T16:42:24.005695+00:00",
+  "generated_at": "2026-09-01T16:43:41.830772+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-01T16:33:37.720582+00:00",
+  "handoff_generated_at": "2026-09-01T16:42:01.774470+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
     "cloud_pool": 5000,
     "previous_loaded": 100,
-    "combined_unique": 5242,
+    "combined_unique": 5268,
     "new_unique_tested": 5000,
-    "accumulated_loaded": 242,
+    "accumulated_loaded": 268,
     "jp_candidates": 0,
     "jp_selected": 10,
     "general_candidates": 5000,
-    "tcp_qualified": 2872,
-    "metric_qualified": 72,
-    "speed_tested": 72,
-    "speed_qualified": 258,
-    "qualified_accumulated": 268,
+    "tcp_qualified": 3220,
+    "metric_qualified": 87,
+    "speed_tested": 87,
+    "speed_qualified": 298,
+    "qualified_accumulated": 308,
     "general_target": 290,
     "final_target": 300,
-    "final_selected": 0
+    "final_selected": 300
   },
   "jp_measurements": {
     "input_endpoints": 0,
@@ -36,27 +36,25 @@
     "duration_seconds": 0.0
   },
   "metric_measurements": {
-    "tls_three_pass_success": 117,
-    "https_ttfb_three_pass_success": 72,
-    "foreign_combined_latency_qualified": 72,
-    "tls_and_https_duration_seconds": 37.422
+    "tls_three_pass_success": 108,
+    "https_ttfb_three_pass_success": 87,
+    "foreign_combined_latency_qualified": 87,
+    "tls_and_https_duration_seconds": 38.14
   },
   "speed_batches": [
     {
-      "speed_tested_once": 72,
-      "speed_duration_seconds": 7.906,
-      "speed_at_least_minimum": 26,
-      "input": 72,
-      "qualified_total": 258
+      "speed_tested_once": 87,
+      "speed_duration_seconds": 8.313,
+      "speed_at_least_minimum": 40,
+      "input": 87,
+      "qualified_total": 298
     }
   ],
-  "warnings": [
-    "本地复测只得到 268/300 条，保留上一轮历史订阅"
-  ],
-  "needs_more": true,
+  "warnings": [],
+  "needs_more": false,
   "forced_rerank": false,
-  "selected": 0,
+  "selected": 300,
   "minimum_publish": 300,
-  "published": false,
-  "preserved_previous_output": true
+  "published": true,
+  "preserved_previous_output": false
 }
