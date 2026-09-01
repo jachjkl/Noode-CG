@@ -78,6 +78,7 @@ jobs:
     env:
       NOODE_VANTAGE: windows-self-hosted-local-network
       NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
+      PSExecutionPolicyPreference: Bypass
     steps:
       - name: Checkout on Windows without Git submodule shell
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
