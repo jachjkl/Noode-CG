@@ -76,10 +76,27 @@ jobs:
       NOODE_VANTAGE: windows-self-hosted-local-network
       NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 1
+      - name: Checkout on Windows without Git submodule shell
+        shell: powershell
+        env:
+          NOODE_REPOSITORY_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          git init .
+          if ($LASTEXITCODE -ne 0) { throw "git init failed" }
+          git remote remove origin 2>$null
+          git remote add origin "https://github.com/$env:GITHUB_REPOSITORY.git"
+          if ($LASTEXITCODE -ne 0) { throw "git remote add failed" }
+          $credential = "x-access-token:$env:NOODE_REPOSITORY_TOKEN"
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($credential))
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $basic"
+          if ($LASTEXITCODE -ne 0) { throw "git credential setup failed" }
+          git fetch --no-tags --prune --depth=1 origin "+refs/heads/$env:GITHUB_REF_NAME`:refs/remotes/origin/$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          git checkout --force -B $env:GITHUB_REF_NAME "refs/remotes/origin/$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
+          git clean -ffdx
+          if ($LASTEXITCODE -ne 0) { throw "git clean failed" }
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
