@@ -1,29 +1,30 @@
 {
-  "status": "ok",
+  "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-01T16:42:24.005695+00:00",
-  "generated_at": "2026-09-01T16:43:41.830772+00:00",
+  "started_at": "2026-09-01T17:31:04.418470+00:00",
+  "generated_at": "2026-09-01T17:31:52.682451+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-01T16:42:01.774470+00:00",
+  "handoff_generated_at": "2026-09-01T17:30:18.844117+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
     "cloud_pool": 5000,
     "previous_loaded": 100,
-    "combined_unique": 5268,
-    "new_unique_tested": 5000,
+    "combined_unique": 5282,
+    "new_unique_tested": 5014,
     "accumulated_loaded": 268,
     "jp_candidates": 0,
     "jp_selected": 10,
-    "general_candidates": 5000,
-    "tcp_qualified": 3220,
-    "metric_qualified": 87,
-    "speed_tested": 87,
-    "speed_qualified": 298,
-    "qualified_accumulated": 308,
-    "general_target": 290,
-    "final_target": 300,
-    "final_selected": 300
+    "general_candidates": 5014,
+    "tcp_qualified": 1133,
+    "metric_qualified": 44,
+    "speed_tested": 44,
+    "speed_qualified": 264,
+    "ordinary_current_rules_qualified": 110,
+    "qualified_accumulated": 120,
+    "general_target": 300,
+    "final_target": 310,
+    "final_selected": 0
   },
   "jp_measurements": {
     "input_endpoints": 0,
@@ -36,25 +37,36 @@
     "duration_seconds": 0.0
   },
   "metric_measurements": {
-    "tls_three_pass_success": 108,
-    "https_ttfb_three_pass_success": 87,
-    "foreign_combined_latency_qualified": 87,
-    "tls_and_https_duration_seconds": 38.14
+    "tls_three_pass_success": 114,
+    "https_ttfb_three_pass_success": 44,
+    "foreign_combined_latency_qualified": 44,
+    "tls_and_https_duration_seconds": 12.656
   },
   "speed_batches": [
     {
-      "speed_tested_once": 87,
-      "speed_duration_seconds": 8.313,
-      "speed_at_least_minimum": 40,
-      "input": 87,
-      "qualified_total": 298
+      "speed_tested_once": 44,
+      "speed_duration_seconds": 5.078,
+      "speed_at_least_minimum": 6,
+      "input": 44,
+      "qualified_total": 264
     }
   ],
-  "warnings": [],
-  "needs_more": false,
+  "warnings": [
+    "本地复测只得到 120/310 条，保留上一轮历史订阅"
+  ],
+  "needs_more": true,
   "forced_rerank": false,
-  "selected": 300,
+  "local_rules": {
+    "tcp_max_ms": 300.0,
+    "tls_max_ms": 300.0,
+    "http_ttfb_max_ms": 300.0,
+    "average_max_ms": 300.0,
+    "jitter_max_ms": 300.0,
+    "loss_max_percent": 20.0,
+    "speed_min_mbps": 3.0
+  },
+  "selected": 0,
   "minimum_publish": 300,
-  "published": true,
-  "preserved_previous_output": false
+  "published": false,
+  "preserved_previous_output": true
 }
