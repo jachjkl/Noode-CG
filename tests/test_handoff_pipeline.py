@@ -375,6 +375,59 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertFalse((handoff_dir / "local-qualified.json.gz").exists())
             self.assertFalse((handoff_dir / "local-attempted-ips.txt.gz").exists())
 
+    def test_local_pass_restores_embedded_cloud_state_without_git_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            old_us = qualified(NodeResult(ip="198.51.100.40"))
+            old_jp = qualified(NodeResult(ip="198.18.0.40"), country="JP")
+            previous = NodeResult(ip="203.0.113.40", country_hint="US")
+            new_us = NodeResult(ip="198.51.100.41", country_hint="US")
+            handoff_dir = root / "data" / "handoff"
+            handoff_dir.mkdir(parents=True)
+            (handoff_dir / "cloud-top5000.json.gz").write_bytes(gzip.compress(json.dumps({
+                "schema": 1,
+                "nodes": [new_us.to_dict()],
+                "state": {
+                    "previous_top100": [previous.to_dict()],
+                    "accumulated": [old_us.to_dict(), old_jp.to_dict()],
+                    "attempted_ips": [old_us.ip, old_jp.ip],
+                },
+            }).encode(), mtime=0))
+            config = self._local_config(root, target=3, jp_count=1)
+            scanned: set[str] = set()
+
+            async def scan(records, _options):
+                scanned.update(node.ip for node in records)
+                return [qualified(node) for node in records]
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+                patch(
+                    "core.handoff._three_metric_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"foreign_combined_latency_qualified": len(records)},
+                    ),
+                ),
+                patch(
+                    "core.handoff._speed_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"speed_at_least_minimum": len(records)},
+                    ),
+                ),
+                patch("core.handoff._source_country_tcp_speed_checks", return_value=([], {})),
+                patch("core.handoff.load_locations", return_value={}),
+            ):
+                report = run_local_selection(config)
+
+            self.assertTrue(report["published"])
+            self.assertEqual(report["counts"]["previous_loaded"], 1)
+            self.assertEqual(report["counts"]["accumulated_loaded"], 2)
+            self.assertEqual(scanned, {new_us.ip, previous.ip})
+
     @staticmethod
     def _local_config(root: Path, *, target: int, jp_count: int) -> dict:
         return {

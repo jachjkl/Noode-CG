@@ -67,8 +67,49 @@ function Prepare-RunnerPython {
         Move-Item -LiteralPath $stagingRoot -Destination $targetRoot
 
         # S-1-5-20 is NT AUTHORITY\NETWORK SERVICE on every Windows locale.
-        & icacls.exe $InstallRoot /grant "*S-1-5-20:(OI)(CI)(RX)" /T /C /Q | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "无法授予 NETWORK SERVICE 读取 Runner 运行环境的权限。" }
+        & icacls.exe $InstallRoot /grant "*S-1-5-20:(OI)(CI)(M)" /T /C /Q | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "无法授予 NETWORK SERVICE 使用 Runner 运行环境的权限。" }
+    }
+    finally {
+        if (Test-Path -LiteralPath $stagingRoot) {
+            Assert-ChildPath -ParentPath $InstallRoot -ChildPath $stagingRoot
+            Remove-Item -LiteralPath $stagingRoot -Recurse -Force
+        }
+    }
+}
+
+function Install-LocalApplication {
+    $appRoot = Join-Path $InstallRoot "app"
+    $stagingRoot = Join-Path $InstallRoot ("app-staging-" + [Guid]::NewGuid().ToString("N"))
+    Assert-ChildPath -ParentPath $InstallRoot -ChildPath $appRoot
+    Assert-ChildPath -ParentPath $InstallRoot -ChildPath $stagingRoot
+    New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+    try {
+        Write-Host "正在安装不依赖 GitHub checkout 的本地应用：$appRoot"
+        & robocopy.exe $repoRoot $stagingRoot /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP `
+            /XD (Join-Path $repoRoot ".git") (Join-Path $repoRoot ".venv") `
+                (Join-Path $repoRoot "venv") (Join-Path $repoRoot "__pycache__") `
+                (Join-Path $repoRoot ".pytest_cache") (Join-Path $repoRoot ".ruff_cache") `
+                (Join-Path $repoRoot "data\checkpoints") `
+            /XF "*.pyc" "*.pyo" "Noode-CG-*.zip" "Noode-CG.zip" `
+                "nodes.txt" "nodes.json" "nodes.csv" "api.json" "health.json" "ip.zip" `
+                "previous-top100.json" "previous-official-ips.txt" "previous-official-ips.txt.gz" `
+                "cloud-top5000.json.gz" "cloud-health.json" `
+                "local-qualified.json.gz" "local-attempted-ips.txt.gz"
+        if ($LASTEXITCODE -ge 8) {
+            throw "复制本地应用失败，robocopy 退出码 $LASTEXITCODE。"
+        }
+        $versionPath = Join-Path $stagingRoot "VERSION"
+        if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
+            throw "本地应用缺少 VERSION 文件。"
+        }
+        if (Test-Path -LiteralPath $appRoot) {
+            Assert-ChildPath -ParentPath $InstallRoot -ChildPath $appRoot
+            Remove-Item -LiteralPath $appRoot -Recurse -Force
+        }
+        Move-Item -LiteralPath $stagingRoot -Destination $appRoot
+        & icacls.exe $appRoot /grant "*S-1-5-20:(OI)(CI)(M)" /T /C /Q | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "无法授予 NETWORK SERVICE 使用本地应用的权限。" }
     }
     finally {
         if (Test-Path -LiteralPath $stagingRoot) {
@@ -93,6 +134,7 @@ Copy-Item -LiteralPath (Join-Path $source "开始云端和本地优选.cmd") `
     -Destination (Join-Path $InstallRoot "开始云端和本地优选.cmd") -Force
 Install-PowerShellScript -SourcePath (Join-Path $PSScriptRoot "notify-user.ps1") `
     -DestinationPath (Join-Path $InstallRoot "notify-user.ps1")
+Install-LocalApplication
 Prepare-RunnerPython
 
 $startup = [Environment]::GetFolderPath("Startup")

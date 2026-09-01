@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Destination = "Noode-CG-V13.5-RunnerPython-Fix.zip"
+    [string]$Destination = "Noode-CG-V13.6-NoLocalGit.zip"
 )
 
 $ErrorActionPreference = "Stop"

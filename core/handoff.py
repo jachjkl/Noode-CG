@@ -67,13 +67,31 @@ def _load_previous(config: dict[str, Any]) -> tuple[list[NodeResult], list[str]]
     )
 
 
-def _write_handoff(path: Path, nodes: list[NodeResult], report: dict[str, Any]) -> None:
+def _nodes_from_payload(value: Any) -> list[NodeResult]:
+    if not isinstance(value, list):
+        return []
+    return _unique_by_ip(
+        NodeResult.from_dict(item)
+        for item in value
+        if isinstance(item, dict)
+    )
+
+
+def _write_handoff(
+    path: Path,
+    nodes: list[NodeResult],
+    report: dict[str, Any],
+    *,
+    state: dict[str, Any] | None = None,
+) -> None:
     payload = {
         "schema": HANDOFF_SCHEMA,
         "generated_at": datetime.now(UTC).isoformat(),
         "report": report,
         "nodes": [node.to_dict() for node in nodes],
     }
+    if state:
+        payload["state"] = state
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     atomic_write_bytes(path, gzip.compress(encoded, compresslevel=9, mtime=0))
 
@@ -158,12 +176,7 @@ def load_cloud_handoff(path: str | Path) -> tuple[list[NodeResult], dict[str, An
         raise ValueError(f"云端交接池损坏: {exc}") from exc
     if payload.get("schema") != HANDOFF_SCHEMA or not isinstance(payload.get("nodes"), list):
         raise ValueError("云端交接池格式不受支持")
-    nodes = [
-        NodeResult.from_dict(item)
-        for item in payload["nodes"]
-        if isinstance(item, dict)
-    ]
-    return _unique_by_ip(nodes), payload
+    return _nodes_from_payload(payload["nodes"]), payload
 
 
 def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
@@ -282,7 +295,23 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         "warnings": warnings,
     }
     if status == "ok":
-        _write_handoff(pool_path, selected, report)
+        accumulator_value = handoff.get("accumulator_path")
+        accumulator_path = (
+            resolve_path(config, accumulator_value) if accumulator_value else None
+        )
+        accumulated: list[NodeResult] = []
+        if accumulator_path and accumulator_path.is_file():
+            accumulated, _ = load_cloud_handoff(accumulator_path)
+        _write_handoff(
+            pool_path,
+            selected,
+            report,
+            state={
+                "previous_top100": [node.to_dict() for node in previous],
+                "accumulated": [node.to_dict() for node in accumulated],
+                "attempted_ips": sorted(attempted_ips),
+            },
+        )
     else:
         report["warnings"].append("新交接池不足目标数量，保留上一版云端交接文件")
     atomic_write_json(health_path, report)
@@ -297,7 +326,13 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     started = datetime.now(UTC)
     handoff_path = resolve_path(config, config["handoff"]["pool_path"])
     cloud_nodes, cloud_payload = load_cloud_handoff(handoff_path)
-    previous, warnings = _load_previous(config)
+    local_previous, warnings = _load_previous(config)
+    embedded_state = cloud_payload.get("state", {})
+    if not isinstance(embedded_state, dict):
+        embedded_state = {}
+    embedded_previous = _nodes_from_payload(embedded_state.get("previous_top100"))
+    previous_limit = int(config.get("rolling", {}).get("previous_limit", 100))
+    previous = _unique_by_ip([*local_previous, *embedded_previous])[:previous_limit]
     handoff = config["handoff"]
     accumulator_value = handoff.get("accumulator_path")
     accumulator_path = resolve_path(config, accumulator_value) if accumulator_value else None
@@ -307,7 +342,16 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     accumulator_payload: dict[str, Any] = {}
     if accumulator_path and accumulator_path.is_file():
         accumulated, accumulator_payload = load_cloud_handoff(accumulator_path)
+    embedded_accumulated = _nodes_from_payload(embedded_state.get("accumulated"))
+    accumulated = _unique_by_ip([*accumulated, *embedded_accumulated])
     attempted_ips = _load_ip_set(attempted_path) if attempted_path else set()
+    embedded_attempted = embedded_state.get("attempted_ips")
+    if isinstance(embedded_attempted, list):
+        attempted_ips.update(
+            str(value).strip()
+            for value in embedded_attempted
+            if isinstance(value, str) and value.strip()
+        )
     incoming = _unique_by_ip([
         *_fresh(cloud_nodes, "cloud-handoff"),
         *_fresh(previous, "previous-top100"),

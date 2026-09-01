@@ -31,18 +31,19 @@ class WindowsLocalControlTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("handoff_sha256", workflow)
+        self.assertIn("handoff_ref", workflow)
+        self.assertIn("-Branch \"${{ needs.cloud-prepare.outputs.handoff_ref }}\"", workflow)
         self.assertIn("sync-cloud-handoff.ps1", workflow)
 
-    def test_windows_checkout_avoids_checkout_submodule_shell_bug(self) -> None:
+    def test_windows_job_uses_installed_app_and_bypass_shell(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"
         )
         local_section = workflow.split("  local-select:", 1)[1].split(
-            "  replenish-cloud-pool:", 1
+            "  cloud-publish:", 1
         )[0]
-        self.assertIn("Checkout on Windows without Git submodule shell", local_section)
-        self.assertIn("git fetch --no-tags", local_section)
-        self.assertIn("git checkout --force", local_section)
+        self.assertIn("Validate the installed local application", local_section)
+        self.assertIn(r"Noode-CG-Local\app", local_section)
         self.assertNotIn("uses: actions/checkout", local_section)
         self.assertIn("-ExecutionPolicy Bypass -File", local_section)
         self.assertIn("PSExecutionPolicyPreference: Bypass", local_section)
@@ -53,7 +54,7 @@ class WindowsLocalControlTests(unittest.TestCase):
             encoding="utf-8"
         )
         local_section = workflow.split("  local-select:", 1)[1].split(
-            "  replenish-cloud-pool:", 1
+            "  cloud-publish:", 1
         )[0]
         self.assertNotIn("actions/setup-python", local_section)
         self.assertNotIn("-m pip install", local_section)
@@ -67,6 +68,27 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("Prepare-RunnerPython", installer)
         self.assertIn("NETWORK SERVICE", installer)
         self.assertIn("runtime", installer)
+
+    def test_windows_job_does_not_fetch_or_push_github_directly(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        local_section = workflow.split("  local-select:", 1)[1].split(
+            "  cloud-publish:", 1
+        )[0]
+        self.assertNotIn("git fetch", local_section)
+        self.assertNotIn("git pull", local_section)
+        self.assertNotIn("git push", local_section)
+        self.assertNotIn("github.com/$env:GITHUB_REPOSITORY", local_section)
+        self.assertIn(r"Noode-CG-Local\app", local_section)
+        self.assertIn("result_payload_0", local_section)
+        self.assertIn("cloud-publish:", workflow)
+        self.assertIn("result_payload.py unpack", workflow)
+
+        installer = (ROOT / "scripts" / "install-windows-controller.ps1").read_text(
+            encoding="utf-8-sig"
+        )
+        self.assertIn("Install-LocalApplication", installer)
 
     def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
         manual_path = ROOT / "windows-controller" / "manual-start.ps1"

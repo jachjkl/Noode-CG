@@ -52,6 +52,6 @@ Windows 本地：TOP5000 + 上次 TOP100 + 已累计合格结果
 
 Windows 用户会话中运行隐藏通知器，自托管 Runner 服务只向 `D:\桌面\软件\Noode-CG-Local\notifications` 写入通知请求，因此服务会话不需要直接显示 UI。代理门禁等待用户关闭代理后再开始测速，手动入口只触发云端工作流并保持最小化。
 
-云端把交接池 SHA-256 作为 job output 传给本地 job。本地已有文件哈希错误时，允许从配置好的只读 GitHub 加速前缀重新下载；任何镜像返回只要不匹配可信哈希就被拒绝。镜像不用于 GitHub 登录或推送。
+云端把交接池 SHA-256 作为 job output 传给本地 job。本地应用预先安装在 `D:\桌面\软件\Noode-CG-Local\app`，因此 Windows job 不再 checkout 仓库。本地已有交接池哈希错误时，允许从配置好的只读 GitHub 加速前缀重新下载；任何镜像返回只要不匹配可信哈希就被拒绝。
 
-本地每次提交前把结果复制到固定 pending 目录。只有 GitHub 推送成功后才清除 pending、交接池、累计池、TOP100 本地副本、检查点、应用日志和 Python 缓存。如果推送失败，下一次本地 job 先恢复 pending 并尝试推送，再开始新的测速。
+本地把允许发布的九类结果文件压缩、Base64 分块并通过 Runner 作业输出交给 Ubuntu，同时保存到固定 pending 目录。Ubuntu 校验 SHA-256 和 ZIP 成员白名单后负责提交仓库；Windows 全程不执行 GitHub git 读写。只有云端发布成功后的本地清理 job 才删除 pending、交接池、累计池、TOP100 本地副本、检查点、应用日志和 Python 缓存。若云端发布失败，下一次本地 job 先恢复 pending 再继续。
