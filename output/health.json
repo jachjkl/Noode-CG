@@ -1,24 +1,24 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-01T15:38:44.488326+00:00",
-  "generated_at": "2026-09-01T15:40:11.082559+00:00",
+  "started_at": "2026-09-01T15:48:24.217657+00:00",
+  "generated_at": "2026-09-01T15:49:35.669167+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-01T15:36:54.439634+00:00",
+  "handoff_generated_at": "2026-09-01T15:42:05.690170+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
     "cloud_pool": 5000,
     "previous_loaded": 100,
-    "combined_unique": 5043,
+    "combined_unique": 5044,
     "new_unique_tested": 5000,
-    "accumulated_loaded": 43,
+    "accumulated_loaded": 44,
     "jp_candidates": 0,
     "jp_selected": 10,
     "general_candidates": 5000,
-    "tcp_qualified": 2695,
-    "metric_qualified": 2,
-    "speed_tested": 2,
+    "tcp_qualified": 1586,
+    "metric_qualified": 3,
+    "speed_tested": 3,
     "speed_qualified": 34,
     "qualified_accumulated": 44,
     "final_target": 300,
@@ -35,17 +35,17 @@
     "duration_seconds": 0.0
   },
   "metric_measurements": {
-    "tls_three_pass_success": 29,
-    "https_ttfb_three_pass_success": 2,
-    "foreign_combined_latency_qualified": 2,
-    "tls_and_https_duration_seconds": 48.719
+    "tls_three_pass_success": 9,
+    "https_ttfb_three_pass_success": 3,
+    "foreign_combined_latency_qualified": 3,
+    "tls_and_https_duration_seconds": 32.39
   },
   "speed_batches": [
     {
-      "speed_tested_once": 2,
+      "speed_tested_once": 3,
       "speed_duration_seconds": 5.047,
-      "speed_at_least_minimum": 1,
-      "input": 2,
+      "speed_at_least_minimum": 0,
+      "input": 3,
       "qualified_total": 34
     }
   ],
