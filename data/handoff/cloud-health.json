@@ -1,8 +1,8 @@
 {
   "status": "degraded",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T13:08:37.623628+00:00",
-  "generated_at": "2026-09-02T13:09:10.584680+00:00",
+  "started_at": "2026-09-02T13:11:12.700079+00:00",
+  "generated_at": "2026-09-02T13:11:45.943862+00:00",
   "target": 5000,
   "selected": 0,
   "previous_excluded": 100,
