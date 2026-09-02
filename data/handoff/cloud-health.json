@@ -1,8 +1,8 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T09:16:11.073798+00:00",
-  "generated_at": "2026-09-02T09:17:00.820084+00:00",
+  "started_at": "2026-09-02T09:25:47.160651+00:00",
+  "generated_at": "2026-09-02T09:26:34.508922+00:00",
   "target": 5000,
   "selected": 5000,
   "previous_excluded": 100,
@@ -20,8 +20,8 @@
     {
       "round": 1,
       "input": 62424,
-      "tcp_qualified": 37175,
-      "qualified_total": 37175,
+      "tcp_qualified": 37229,
+      "qualified_total": 37229,
       "shortlisted": 5000
     }
   ],
