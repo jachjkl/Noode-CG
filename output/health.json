@@ -1,22 +1,22 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-02T14:40:04.117791+00:00",
-  "generated_at": "2026-09-02T14:45:18.645943+00:00",
+  "started_at": "2026-09-02T14:46:32.521527+00:00",
+  "generated_at": "2026-09-02T14:48:08.182065+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-02T14:39:45.594984+00:00",
+  "handoff_generated_at": "2026-09-02T14:46:13.465581+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 3,
   "counts": {
-    "cloud_pool": 22831,
+    "cloud_pool": 10000,
     "previous_loaded": 100,
-    "combined_unique": 22926,
-    "new_unique_tested": 22926,
-    "accumulated_loaded": 0,
-    "jp_candidates": 395,
+    "combined_unique": 10010,
+    "new_unique_tested": 10000,
+    "accumulated_loaded": 10,
+    "jp_candidates": 0,
     "jp_selected": 10,
-    "general_candidates": 22525,
-    "tcp_qualified": 129,
+    "general_candidates": 10000,
+    "tcp_qualified": 0,
     "metric_qualified": 0,
     "speed_tested": 0,
     "speed_qualified": 0,
@@ -33,20 +33,20 @@
     "final_selected": 0
   },
   "jp_measurements": {
-    "input_endpoints": 395,
-    "input_unique_ips": 395,
+    "input_endpoints": 0,
+    "input_unique_ips": 0,
     "tcping_attempts_per_endpoint": 3,
-    "tcping_measured": 337,
-    "download_tested_once": 395,
-    "download_measured": 260,
-    "selected_unique_ips": 10,
-    "duration_seconds": 52.61
+    "tcping_measured": 0,
+    "download_tested_once": 0,
+    "download_measured": 0,
+    "selected_unique_ips": 0,
+    "duration_seconds": 0.0
   },
   "metric_measurements": {
     "tls_three_pass_success": 0,
     "https_ttfb_three_pass_success": 0,
     "foreign_combined_latency_qualified": 0,
-    "tls_and_https_duration_seconds": 60.968
+    "tls_and_https_duration_seconds": 0.078
   },
   "speed_batches": [],
   "warnings": [
@@ -61,7 +61,7 @@
     "http_ttfb_max_ms": 200.0,
     "average_max_ms": 200.0,
     "jitter_max_ms": 200.0,
-    "loss_max_percent": 30.0,
+    "loss_max_percent": 20.0,
     "speed_min_mbps": 3.0
   },
   "selected": 0,
