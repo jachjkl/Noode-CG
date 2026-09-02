@@ -1,8 +1,8 @@
 {
   "status": "stopped",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-02T05:03:14.012794+00:00",
-  "generated_at": "2026-09-02T05:03:14.013794+00:00",
+  "started_at": "2026-09-02T07:41:29.927738+00:00",
+  "generated_at": "2026-09-02T07:41:29.929738+00:00",
   "vantage": "windows-self-hosted-local-network",
   "counts": {
     "general_target": 300,
