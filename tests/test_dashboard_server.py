@@ -13,10 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER_ROOT = ROOT / "windows-controller"
 sys.path.insert(0, str(CONTROLLER_ROOT))
 
-from dashboard_server import DashboardState  # noqa: E402
+from dashboard_server import DashboardState, main  # noqa: E402
 
 
 class DashboardServerTests(unittest.TestCase):
+    def test_dashboard_cli_defaults_to_manual_start(self) -> None:
+        with (
+            patch.object(sys, "argv", ["dashboard_server.py", "--no-browser"]),
+            patch("dashboard_server.serve", return_value=0) as serve,
+        ):
+            self.assertEqual(main(), 0)
+
+        self.assertFalse(serve.call_args.args[5])
+
     def test_old_controller_log_cannot_replace_a_newer_active_run_id(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             state = DashboardState(Path(temporary), "owner/repo", "main")

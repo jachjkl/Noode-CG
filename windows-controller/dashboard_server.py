@@ -1047,7 +1047,8 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=13336)
     parser.add_argument("--repository", default="jachjkl/Noode-CG")
     parser.add_argument("--branch", default="main")
-    parser.add_argument("--no-start", action="store_true")
+    parser.add_argument("--start", action="store_true")
+    parser.add_argument("--no-start", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     return serve(
@@ -1056,7 +1057,7 @@ def main() -> int:
         args.port,
         args.repository,
         args.branch,
-        not args.no_start,
+        bool(args.start and not args.no_start),
         not args.no_browser,
     )
 
