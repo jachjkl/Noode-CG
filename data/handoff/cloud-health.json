@@ -1,49 +1,33 @@
 {
   "status": "degraded",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T13:02:33.389608+00:00",
-  "generated_at": "2026-09-02T13:04:10.914586+00:00",
+  "started_at": "2026-09-02T13:06:10.412297+00:00",
+  "generated_at": "2026-09-02T13:06:47.819482+00:00",
   "target": 5000,
-  "selected": 245,
+  "selected": 0,
   "previous_excluded": 100,
   "attempted_excluded": 12831,
-  "prior_official_excluded": 1523867,
+  "prior_official_excluded": 1524609,
   "continuation": true,
   "stale_attempted_ignored": 0,
   "stale_official_ignored": 0,
   "source_candidates": 16048,
   "linked_jp_reserved_for_local": 0,
   "linked_ipv6_reserved_for_local": 0,
-  "official_sampled": 742,
-  "tested_unique": 13573,
+  "official_sampled": 0,
+  "tested_unique": 12831,
   "rounds": [
     {
       "round": 1,
-      "input": 715,
-      "tcp_qualified": 232,
-      "qualified_total": 232,
-      "shortlisted": 232
-    },
-    {
-      "round": 2,
-      "input": 27,
-      "tcp_qualified": 13,
-      "qualified_total": 245,
-      "shortlisted": 245
-    },
-    {
-      "round": 3,
       "input": 0,
       "tcp_qualified": 0,
-      "qualified_total": 245,
-      "shortlisted": 245
+      "qualified_total": 0,
+      "shortlisted": 0
     }
   ],
   "warnings": [
-    "第 1 轮官方段只生成 715/50000 个不重复 IP",
-    "第 2 轮官方段只生成 27/50000 个不重复 IP",
-    "第 3 轮官方段只生成 0/50000 个不重复 IP",
-    "云端第 3 轮没有新的唯一候选，提前结束补池",
+    "第 1 轮官方段只生成 0/50000 个不重复 IP",
+    "云端第 1 轮没有新的唯一候选，提前结束补池",
     "新交接池不足目标数量，保留上一版云端交接文件"
   ]
 }
