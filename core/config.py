@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -14,6 +15,17 @@ class ConfigError(ValueError):
     pass
 
 
+LOCAL_RULE_DEFAULTS: dict[str, float] = {
+    "tcp_max_ms": 200.0,
+    "tls_max_ms": 200.0,
+    "http_ttfb_max_ms": 200.0,
+    "average_max_ms": 200.0,
+    "jitter_max_ms": 200.0,
+    "loss_max_percent": 20.0,
+    "speed_min_mbps": 3.0,
+}
+
+
 def _expand_env(value: Any) -> Any:
     if isinstance(value, str):
         return ENV_PATTERN.sub(lambda match: os.getenv(match.group(1), match.group(2) or ""), value)
@@ -22,6 +34,64 @@ def _expand_env(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _expand_env(item) for key, item in value.items()}
     return value
+
+
+def _load_local_rules(config_path: Path) -> tuple[dict[str, float], Path]:
+    rules_path = config_path.parent / "data" / "local-rules.json"
+    rules = dict(LOCAL_RULE_DEFAULTS)
+    if not rules_path.is_file():
+        return rules, rules_path
+    try:
+        payload = json.loads(rules_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"本地自定义规则无法读取: {exc}") from exc
+    values = payload.get("ordinary", payload) if isinstance(payload, dict) else None
+    if not isinstance(values, dict):
+        raise ConfigError("本地自定义规则必须是对象")
+    for name, default in LOCAL_RULE_DEFAULTS.items():
+        raw = values.get(name, default)
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            raise ConfigError(f"本地自定义规则 {name} 必须是数字")
+        rules[name] = float(raw)
+    for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
+        if rules[name] <= 0:
+            raise ConfigError(f"本地自定义规则 {name} 必须大于 0")
+    if rules["jitter_max_ms"] < 0:
+        raise ConfigError("本地自定义规则 jitter_max_ms 不能小于 0")
+    if not 0 <= rules["loss_max_percent"] <= 100:
+        raise ConfigError("本地自定义规则 loss_max_percent 必须在 0 到 100 之间")
+    if rules["speed_min_mbps"] < 0:
+        raise ConfigError("本地自定义规则 speed_min_mbps 不能小于 0")
+    return rules, rules_path
+
+
+def _apply_local_rules(data: dict[str, Any], config_path: Path) -> None:
+    rules, rules_path = _load_local_rules(config_path)
+    pipeline = data.get("pipeline")
+    if not isinstance(pipeline, dict):
+        return
+    quality_tcp = pipeline.get("quality_tcp")
+    tls = pipeline.get("tls")
+    http = pipeline.get("http")
+    speed = pipeline.get("speed")
+    if not all(isinstance(block, dict) for block in (quality_tcp, tls, http, speed)):
+        return
+    quality_tcp["maximum_average_latency_ms"] = rules["tcp_max_ms"]
+    quality_tcp["maximum_jitter_ms"] = rules["jitter_max_ms"]
+    quality_tcp["maximum_loss_rate"] = rules["loss_max_percent"] / 100.0
+    tls["maximum_average_latency_ms"] = rules["tls_max_ms"]
+    tls["maximum_jitter_ms"] = rules["jitter_max_ms"]
+    http["maximum_average_ttfb_ms"] = rules["http_ttfb_max_ms"]
+    http["maximum_jitter_ms"] = rules["jitter_max_ms"]
+    pipeline["maximum_combined_latency_ms"] = rules["average_max_ms"]
+    pipeline["maximum_component_latency_ms"] = max(
+        rules["tcp_max_ms"], rules["tls_max_ms"], rules["http_ttfb_max_ms"]
+    )
+    pipeline["maximum_jitter_ms"] = rules["jitter_max_ms"]
+    pipeline["maximum_loss_rate"] = rules["loss_max_percent"] / 100.0
+    speed["minimum_mbps"] = rules["speed_min_mbps"]
+    data["_local_rules"] = rules
+    data["_local_rules_path"] = str(rules_path)
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -33,6 +103,7 @@ def load_config(path: str | Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ConfigError("配置文件根节点必须是对象")
     data = _expand_env(data)
+    _apply_local_rules(data, config_path)
     data["_config_path"] = str(config_path)
     data["_base_dir"] = str(config_path.parent)
     validate_config(data)
@@ -83,13 +154,24 @@ def validate_config(config: dict[str, Any]) -> None:
         "postprocess_reserve_seconds",
     ):
         _positive_number(pipeline.get(name), f"pipeline.{name}")
+    _positive_number(
+        pipeline.get("maximum_loss_rate"),
+        "pipeline.maximum_loss_rate",
+        allow_zero=True,
+    )
+    if float(pipeline["maximum_loss_rate"]) > 1:
+        raise ConfigError("pipeline.maximum_loss_rate 不能大于 1")
     for stage in ("prefilter_tcp", "quality_tcp", "tls", "http"):
         block = pipeline.get(stage)
         if not isinstance(block, dict):
             raise ConfigError(f"缺少 pipeline.{stage}")
         _positive_number(block.get("concurrency"), f"pipeline.{stage}.concurrency")
         _positive_number(block.get("timeout_seconds"), f"pipeline.{stage}.timeout_seconds")
-        _positive_number(block.get("maximum_jitter_ms"), f"pipeline.{stage}.maximum_jitter_ms")
+        _positive_number(
+            block.get("maximum_jitter_ms"),
+            f"pipeline.{stage}.maximum_jitter_ms",
+            allow_zero=True,
+        )
     _positive_number(
         pipeline["prefilter_tcp"].get("attempts"),
         "pipeline.prefilter_tcp.attempts",
@@ -133,17 +215,14 @@ def validate_config(config: dict[str, Any]) -> None:
     speed = pipeline.get("speed")
     if not isinstance(speed, dict):
         raise ConfigError("缺少 pipeline.speed")
-    for name in ("candidates", "concurrency", "timeout_seconds", "minimum_mbps", "bytes_per_test"):
+    for name in ("candidates", "concurrency", "timeout_seconds", "bytes_per_test"):
         _positive_number(speed.get(name), f"pipeline.speed.{name}")
+    _positive_number(speed.get("minimum_mbps"), "pipeline.speed.minimum_mbps", allow_zero=True)
     _positive_number(speed.get("maximum_download_seconds"), "pipeline.speed.maximum_download_seconds")
     if int(pipeline["speed_batch_size"]) > int(pipeline["prefilter_shortlist"]):
         raise ConfigError("pipeline.speed_batch_size 不能大于 prefilter_shortlist")
     if float(pipeline["prefilter_tcp"]["maximum_average_latency_ms"]) != 1000:
         raise ConfigError("pipeline.prefilter_tcp.maximum_average_latency_ms 必须等于 1000")
-    if float(pipeline["quality_tcp"]["maximum_average_latency_ms"]) != 300:
-        raise ConfigError("pipeline.quality_tcp.maximum_average_latency_ms 必须等于 300")
-    if float(speed["minimum_mbps"]) != 3:
-        raise ConfigError("pipeline.speed.minimum_mbps 必须等于 3")
 
     country_minimums = pipeline.get("country_minimums")
     if not isinstance(country_minimums, dict) or not country_minimums:
