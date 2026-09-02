@@ -1,26 +1,28 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T03:43:15.837578+00:00",
-  "generated_at": "2026-09-02T03:44:18.337375+00:00",
+  "started_at": "2026-09-02T03:46:21.763343+00:00",
+  "generated_at": "2026-09-02T03:47:13.250083+00:00",
   "target": 5000,
   "selected": 5000,
   "previous_excluded": 100,
   "attempted_excluded": 12832,
-  "prior_official_excluded": 1450000,
+  "prior_official_excluded": 1500000,
   "continuation": true,
   "source_candidates": 16049,
   "linked_jp_reserved_for_local": 0,
-  "official_sampled": 50000,
-  "tested_unique": 62832,
+  "official_sampled": 23981,
+  "tested_unique": 36813,
   "rounds": [
     {
       "round": 1,
-      "input": 50000,
-      "tcp_qualified": 19097,
-      "qualified_total": 19097,
+      "input": 23981,
+      "tcp_qualified": 8919,
+      "qualified_total": 8919,
       "shortlisted": 5000
     }
   ],
-  "warnings": []
+  "warnings": [
+    "第 1 轮官方段只生成 23981/50000 个不重复 IP"
+  ]
 }
