@@ -108,14 +108,21 @@ def _load_previous(config: dict[str, Any]) -> tuple[list[NodeResult], list[str]]
 
 def _load_published_nodes(config: dict[str, Any]) -> list[NodeResult]:
     """Load the currently published ranking before this run overwrites it."""
-    path = resolve_path(config, config["paths"]["output"]) / "nodes.json"
-    if not path.is_file():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return []
-    return _nodes_from_payload(payload)
+    candidates = [resolve_path(config, config["paths"]["output"]) / "nodes.json"]
+    local_root = os.environ.get("NOODE_LOCAL_ROOT", "").strip()
+    if local_root:
+        candidates.append(Path(local_root) / "dashboard-cache" / "nodes.json")
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        nodes = _nodes_from_payload(payload)
+        if nodes:
+            return nodes
+    return []
 
 
 def _nodes_from_payload(value: Any) -> list[NodeResult]:
