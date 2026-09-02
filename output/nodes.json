@@ -16425,60 +16425,6 @@
     ]
   },
   {
-    "ip": "43.167.9.109",
-    "port": 443,
-    "ip_port": "43.167.9.109:443",
-    "country": "JP",
-    "colo": "",
-    "colo_country": "",
-    "region": "",
-    "city": "",
-    "tcp_latency_ms": 185.077,
-    "tls_latency_ms": null,
-    "http_latency_ms": null,
-    "average_latency_ms": null,
-    "tcp_jitter_ms": 73.491,
-    "tls_jitter_ms": null,
-    "http_jitter_ms": null,
-    "jitter_ms": null,
-    "loss_rate": 0.0,
-    "speed_mbps": 7.885,
-    "tls_version": "",
-    "websocket_ok": null,
-    "score": 0.0,
-    "probe_results": {
-      "tcp": {
-        "attempts": 3,
-        "successes": 3,
-        "latencies_ms": [
-          100.418,
-          175.196,
-          279.617
-        ],
-        "average_ms": 185.077,
-        "jitter_ms": 73.491,
-        "maximum_average_latency_ms": null,
-        "maximum_jitter_ms": null,
-        "maximum_loss_rate": null,
-        "early_rejected": false,
-        "strict_passed": true
-      },
-      "jp_source_speed": {
-        "received_bytes": 262144,
-        "wanted_bytes": 262144,
-        "completion_ratio": 1.0,
-        "download_seconds": 0.266,
-        "speed_mbps": 7.885,
-        "minimum_mbps": 3.0
-      }
-    },
-    "sources": [
-      "zip.cm.edu.kg/all.txt",
-      "bestcf.pages.dev/lzj",
-      "cloud-handoff"
-    ]
-  },
-  {
     "ip": "47.245.62.50",
     "port": 443,
     "ip_port": "47.245.62.50:443",
@@ -16535,59 +16481,6 @@
     ]
   },
   {
-    "ip": "43.165.189.163",
-    "port": 443,
-    "ip_port": "43.165.189.163:443",
-    "country": "JP",
-    "colo": "",
-    "colo_country": "",
-    "region": "",
-    "city": "",
-    "tcp_latency_ms": 171.177,
-    "tls_latency_ms": null,
-    "http_latency_ms": null,
-    "average_latency_ms": null,
-    "tcp_jitter_ms": 72.686,
-    "tls_jitter_ms": null,
-    "http_jitter_ms": null,
-    "jitter_ms": null,
-    "loss_rate": 0.0,
-    "speed_mbps": 7.698,
-    "tls_version": "",
-    "websocket_ok": null,
-    "score": 0.0,
-    "probe_results": {
-      "tcp": {
-        "attempts": 3,
-        "successes": 3,
-        "latencies_ms": [
-          94.172,
-          150.709,
-          268.65
-        ],
-        "average_ms": 171.177,
-        "jitter_ms": 72.686,
-        "maximum_average_latency_ms": null,
-        "maximum_jitter_ms": null,
-        "maximum_loss_rate": null,
-        "early_rejected": false,
-        "strict_passed": true
-      },
-      "jp_source_speed": {
-        "received_bytes": 262144,
-        "wanted_bytes": 262144,
-        "completion_ratio": 1.0,
-        "download_seconds": 0.2724,
-        "speed_mbps": 7.698,
-        "minimum_mbps": 3.0
-      }
-    },
-    "sources": [
-      "zip.cm.edu.kg/all.txt",
-      "cloud-handoff"
-    ]
-  },
-  {
     "ip": "8.219.195.31",
     "port": 443,
     "ip_port": "8.219.195.31:443",
@@ -16606,6 +16499,62 @@
     "jitter_ms": null,
     "loss_rate": 0.0,
     "speed_mbps": 7.57,
+    "tls_version": "",
+    "websocket_ok": null,
+    "score": 0.0,
+    "probe_results": {},
+    "sources": [
+      "zip.cm.edu.kg/all.txt",
+      "cloud-handoff"
+    ]
+  },
+  {
+    "ip": "160.16.209.61",
+    "port": 443,
+    "ip_port": "160.16.209.61:443",
+    "country": "JP",
+    "colo": "",
+    "colo_country": "",
+    "region": "",
+    "city": "",
+    "tcp_latency_ms": 206.595,
+    "tls_latency_ms": null,
+    "http_latency_ms": null,
+    "average_latency_ms": null,
+    "tcp_jitter_ms": 99.052,
+    "tls_jitter_ms": null,
+    "http_jitter_ms": null,
+    "jitter_ms": null,
+    "loss_rate": 0.0,
+    "speed_mbps": 7.524,
+    "tls_version": "",
+    "websocket_ok": null,
+    "score": 0.0,
+    "probe_results": {},
+    "sources": [
+      "zip.cm.edu.kg/all.txt",
+      "cloud-handoff"
+    ]
+  },
+  {
+    "ip": "160.16.109.149",
+    "port": 443,
+    "ip_port": "160.16.109.149:443",
+    "country": "JP",
+    "colo": "",
+    "colo_country": "",
+    "region": "",
+    "city": "",
+    "tcp_latency_ms": 180.725,
+    "tls_latency_ms": null,
+    "http_latency_ms": null,
+    "average_latency_ms": null,
+    "tcp_jitter_ms": 99.656,
+    "tls_jitter_ms": null,
+    "http_jitter_ms": null,
+    "jitter_ms": null,
+    "loss_rate": 0.0,
+    "speed_mbps": 7.453,
     "tls_version": "",
     "websocket_ok": null,
     "score": 0.0,
