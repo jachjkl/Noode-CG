@@ -15,9 +15,7 @@ permissions: {}
 
 concurrency:
   group: noode-cg-cloud-local-refresh
-  # A run can dispatch its own replenishment run. Queue that child until the
-  # parent finishes instead of letting it cancel the parent during publication.
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   cloud-prepare:
@@ -164,11 +162,14 @@ jobs:
         continue-on-error: true
         run: |
           $health = Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" | ConvertFrom-Json
-          if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
-            ./scripts/notify-user.ps1 -Title "Noode-CG 本地优选已完成" -Message "已得到300个有效IP，结果已交给Ubuntu云端发布。"
+          if ([bool]$health.published) {
+            $newCount = [int]$health.counts.ordinary_replacements
+            $finalCount = [int]$health.counts.final_selected
+            ./scripts/notify-user.ps1 -Title "Noode-CG 本地优选已完成" -Message "本轮新增 $newCount 个普通IP，合并后 $finalCount 个节点已交给Ubuntu云端发布。"
           } else {
             $qualified = [int]$health.counts.qualified_accumulated
-            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" -Message "当前累计合格 $qualified/300，结果将由云端保存后生成下一批5000。"
+            $minimum = [int]$health.counts.general_minimum
+            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" -Message "当前累计合格 $qualified/$minimum，结果将由云端保存后生成下一批5000。"
           }
 
   cloud-publish:
@@ -226,8 +227,10 @@ jobs:
         continue-on-error: true
         run: |
           $health = Get-Content -Raw -Encoding UTF8 -LiteralPath "output/health.json" | ConvertFrom-Json
-          if ([bool]$health.published -and [int]$health.counts.final_selected -ge 300) {
-            ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" -Message "300个有效IP已由Ubuntu成功发布到GitHub。"
+          if ([bool]$health.published) {
+            $newCount = [int]$health.counts.ordinary_replacements
+            $finalCount = [int]$health.counts.final_selected
+            ./scripts/notify-user.ps1 -Title "Noode-CG 优选已完成" -Message "本轮新增 $newCount 个普通IP，合并后的 $finalCount 个节点已发布到GitHub。"
           } else {
             ./scripts/notify-user.ps1 -Title "Noode-CG 本轮结果已保存" -Message "合格结果已由Ubuntu保存，准备继续补池。"
           }
