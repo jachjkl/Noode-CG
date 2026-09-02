@@ -1,24 +1,24 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T01:32:10.635128+00:00",
-  "generated_at": "2026-09-02T01:33:00.488616+00:00",
+  "started_at": "2026-09-02T01:35:07.602366+00:00",
+  "generated_at": "2026-09-02T01:36:00.583931+00:00",
   "target": 5000,
   "selected": 5000,
   "previous_excluded": 100,
-  "attempted_excluded": 105114,
-  "prior_official_excluded": 1150000,
+  "attempted_excluded": 110114,
+  "prior_official_excluded": 1200000,
   "continuation": true,
   "source_candidates": 16570,
   "linked_jp_reserved_for_local": 0,
   "official_sampled": 50000,
-  "tested_unique": 155573,
+  "tested_unique": 160570,
   "rounds": [
     {
       "round": 1,
-      "input": 50459,
-      "tcp_qualified": 20976,
-      "qualified_total": 20976,
+      "input": 50456,
+      "tcp_qualified": 19934,
+      "qualified_total": 19934,
       "shortlisted": 5000
     }
   ],
