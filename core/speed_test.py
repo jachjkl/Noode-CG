@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from typing import Any
 
 from .async_utils import run_worker_pool
@@ -47,6 +48,7 @@ async def test_speed(
     *,
     user_agent: str,
     probe_name: str = "speed",
+    on_result: Callable[[NodeResult], None] | None = None,
 ) -> list[NodeResult]:
     if not options.get("enabled", True) or not records:
         return records
@@ -133,6 +135,8 @@ async def test_speed(
                     await writer.wait_closed()
                 except Exception:
                     pass
+            if on_result is not None:
+                on_result(node)
         return node
 
     await run_worker_pool(
