@@ -1,10 +1,10 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-02T12:39:14.526792+00:00",
-  "generated_at": "2026-09-02T12:39:59.391471+00:00",
+  "started_at": "2026-09-02T12:42:07.713456+00:00",
+  "generated_at": "2026-09-02T12:42:52.304155+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-02T12:38:51.267529+00:00",
+  "handoff_generated_at": "2026-09-02T12:41:43.228649+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 30,
   "counts": {
@@ -16,7 +16,7 @@
     "jp_candidates": 0,
     "jp_selected": 10,
     "general_candidates": 5095,
-    "tcp_qualified": 232,
+    "tcp_qualified": 216,
     "metric_qualified": 0,
     "speed_tested": 0,
     "speed_qualified": 0,
@@ -46,7 +46,7 @@
     "tls_three_pass_success": 0,
     "https_ttfb_three_pass_success": 0,
     "foreign_combined_latency_qualified": 0,
-    "tls_and_https_duration_seconds": 7.672
+    "tls_and_https_duration_seconds": 4.688
   },
   "speed_batches": [],
   "warnings": [
