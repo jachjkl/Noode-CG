@@ -52,9 +52,14 @@ jobs:
           git add -A -- \
             data/handoff/cloud-raw10000.json.gz \
             data/handoff/cloud-health.json \
-            data/previous-official-ips.txt.gz \
+            data/previous-official-ips.txt.gz
+          for optional in \
             data/handoff/local-qualified.json.gz \
-            data/handoff/local-attempted-ips.txt.gz
+            data/handoff/local-attempted-ips.txt.gz; do
+            if [ -e "$optional" ] || git ls-files --error-unmatch -- "$optional" >/dev/null 2>&1; then
+              git add -A -- "$optional"
+            fi
+          done
           if git diff --cached --quiet; then
             echo "Cloud handoff unchanged"
           else

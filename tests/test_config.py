@@ -74,6 +74,8 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("actions: write", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertNotIn("data/local-cfdata-candidates.txt", workflow)
+        self.assertIn('for optional in \\', workflow)
+        self.assertIn('git ls-files --error-unmatch -- "$optional"', workflow)
 
     def test_runner_reads_saved_packet_loss_rule_from_dashboard_location(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
