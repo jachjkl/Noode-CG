@@ -62,6 +62,8 @@ pipeline:
   maximum_combined_latency_ms: 300
   maximum_component_latency_ms: 300
   maximum_jitter_ms: 500
+  # Hard final gate for ordinary nodes. JP uses its dedicated TCPing/speed lane.
+  maximum_loss_rate: 0.20
   # Final total is 300, including the dedicated JP10 lane.
   current_selection: 300
   # Download only the best 400 at a time and stop as soon as 290 strict
@@ -108,6 +110,9 @@ pipeline:
     require_all_attempts: false
     maximum_average_latency_ms: 300
     maximum_jitter_ms: 500
+    # Ordinary nodes above 20% packet loss are rejected. The separate JP lane
+    # intentionally does not inherit this hard gate.
+    maximum_loss_rate: 0.20
     stop_on_failure: false
     stop_when_average_impossible: false
 
@@ -163,7 +168,9 @@ pipeline:
 
 output:
   top_nodes: 300
-  minimum_publish: 300
+  # Publish after at least 50 ordinary nodes pass; keep up to TOP300.
+  # The dedicated JP lane is appended separately and does not count toward 50.
+  minimum_publish: 50
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true
@@ -174,8 +181,10 @@ handoff:
   max_official_rounds: 30
   pool_path: data/handoff/cloud-top5000.json.gz
   health_path: data/handoff/cloud-health.json
-  # Local successes survive automatic replenishment runs until TOP300 fills.
+  # Local successes survive automatic replenishment until 50 ordinary nodes pass.
   accumulator_path: data/handoff/local-qualified.json.gz
+  # Separate current-cycle UI data from the published subscription ranking.
+  live_results_path: data/handoff/local-live-results.json.gz
   attempted_path: data/handoff/local-attempted-ips.txt.gz
   # Soft cap: spread results across locally observed Cloudflare colos when
   # possible, then relax the cap rather than publish fewer than 300.
