@@ -1,13 +1,13 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T12:37:59.801394+00:00",
-  "generated_at": "2026-09-02T12:38:51.264115+00:00",
+  "started_at": "2026-09-02T12:40:50.974061+00:00",
+  "generated_at": "2026-09-02T12:41:43.224227+00:00",
   "target": 5000,
   "selected": 5000,
   "previous_excluded": 100,
   "attempted_excluded": 12831,
-  "prior_official_excluded": 1250000,
+  "prior_official_excluded": 1300000,
   "continuation": true,
   "stale_attempted_ignored": 0,
   "stale_official_ignored": 0,
@@ -20,8 +20,8 @@
     {
       "round": 1,
       "input": 50000,
-      "tcp_qualified": 20893,
-      "qualified_total": 20893,
+      "tcp_qualified": 20752,
+      "qualified_total": 20752,
       "shortlisted": 5000
     }
   ],
