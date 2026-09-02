@@ -70,6 +70,7 @@ switch ($Mode) {
     }
     "ClearRuntime" {
         $runtimeTargets = @(
+            "data/handoff/cloud-raw10000.json.gz",
             "data/handoff/cloud-top5000.json.gz",
             "data/handoff/local-qualified.json.gz",
             "data/handoff/local-attempted-ips.txt.gz",

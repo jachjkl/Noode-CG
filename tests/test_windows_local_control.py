@@ -121,7 +121,17 @@ class WindowsLocalControlTests(unittest.TestCase):
         )
         self.assertIn("Install-LocalApplication", installer)
 
-    def test_manual_controller_is_visible_and_triggers_cloud_workflow(self) -> None:
+    def test_successful_cloud_publish_removes_completed_cycle_state(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "rm -f data/handoff/local-qualified.json.gz "
+            "data/handoff/local-attempted-ips.txt.gz",
+            workflow,
+        )
+
+    def test_dashboard_launcher_is_visible_and_manual_start_triggers_cloud_workflow(self) -> None:
         manual_path = ROOT / "windows-controller" / "manual-start.ps1"
         self.assertTrue(
             manual_path.read_bytes().startswith(b"\xef\xbb\xbf"),
@@ -141,9 +151,16 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("run watch --help", manual)
         self.assertIn('$watchArguments += "--compact"', manual)
         self.assertNotIn("$Repository --compact --exit-status", manual)
-        self.assertIn("manual-start.ps1", launcher)
+        self.assertIn("launch-dashboard.ps1", launcher)
         self.assertNotIn("/min", launcher.lower())
         self.assertNotIn("WindowStyle Minimized", launcher)
+
+        dashboard_launcher = (
+            ROOT / "windows-controller" / "launch-dashboard.ps1"
+        ).read_text(encoding="utf-8-sig")
+        self.assertIn('"--no-start"', dashboard_launcher)
+        self.assertIn('if ($NoBrowser)', dashboard_launcher)
+        self.assertNotIn("EncodedCommand", dashboard_launcher)
 
     def test_notifications_use_hidden_user_watcher_and_runtime_is_cleaned(self) -> None:
         watcher = (ROOT / "windows-controller" / "notification-watcher.ps1").read_text(
@@ -178,6 +195,9 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("Startup", installer)
         self.assertIn("notification-watcher.ps1", installer)
         self.assertIn("manual-start.ps1", installer)
+        self.assertIn("launch-dashboard.ps1", installer)
+        self.assertIn("dashboard_server.py", installer)
+        self.assertIn('(Join-Path $source "dashboard")', installer)
         self.assertIn("UTF8Encoding($true)", installer)
 
     def test_installer_saves_unpublished_runtime_before_replacing_app(self) -> None:
@@ -189,6 +209,13 @@ class WindowsLocalControlTests(unittest.TestCase):
             "Save-ExistingRuntimeState\nInstall-LocalApplication\nPrepare-RunnerPython",
             installer.replace("\r\n", "\n"),
         )
+
+    def test_installer_preserves_saved_local_rules(self) -> None:
+        installer = (ROOT / "scripts" / "install-windows-controller.ps1").read_text(
+            encoding="utf-8-sig"
+        )
+        self.assertIn('$existingRules = Join-Path $appRoot "data\\local-rules.json"', installer)
+        self.assertIn("已保留本机自定义优选规则", installer)
 
 
 if __name__ == "__main__":

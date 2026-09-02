@@ -25,6 +25,10 @@ LOCAL_RULE_DEFAULTS: dict[str, float] = {
     "speed_min_mbps": 3.0,
 }
 
+LOCAL_OPTION_DEFAULTS: dict[str, bool] = {
+    "continuous_three_rounds": True,
+}
+
 
 def _expand_env(value: Any) -> Any:
     if isinstance(value, str):
@@ -94,6 +98,31 @@ def _apply_local_rules(data: dict[str, Any], config_path: Path) -> None:
     data["_local_rules_path"] = str(rules_path)
 
 
+def _apply_local_options(data: dict[str, Any], config_path: Path) -> None:
+    local_root = os.getenv("NOODE_LOCAL_ROOT", "").strip()
+    options_path = (
+        Path(local_root) / "local-options.json"
+        if local_root
+        else config_path.parent / "data" / "local-options.json"
+    )
+    options = dict(LOCAL_OPTION_DEFAULTS)
+    if options_path.is_file():
+        try:
+            payload = json.loads(options_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfigError(f"本地运行选项无法读取: {exc}") from exc
+        values = payload.get("selection", payload) if isinstance(payload, dict) else None
+        if not isinstance(values, dict):
+            raise ConfigError("本地运行选项必须是对象")
+        for name, default in LOCAL_OPTION_DEFAULTS.items():
+            raw = values.get(name, default)
+            if not isinstance(raw, bool):
+                raise ConfigError(f"本地运行选项 {name} 必须是布尔值")
+            options[name] = raw
+    data["_local_options"] = options
+    data["_local_options_path"] = str(options_path)
+
+
 def load_config(path: str | Path) -> dict[str, Any]:
     config_path = Path(path).resolve()
     if not config_path.is_file():
@@ -104,6 +133,7 @@ def load_config(path: str | Path) -> dict[str, Any]:
         raise ConfigError("配置文件根节点必须是对象")
     data = _expand_env(data)
     _apply_local_rules(data, config_path)
+    _apply_local_options(data, config_path)
     data["_config_path"] = str(config_path)
     data["_base_dir"] = str(config_path.parent)
     validate_config(data)
@@ -260,6 +290,10 @@ def validate_config(config: dict[str, Any]) -> None:
     for name in ("pool_path", "health_path", "accumulator_path", "attempted_path"):
         if not str(handoff.get(name, "")).strip():
             raise ConfigError(f"handoff.{name} 不能为空")
+    if int(handoff["target"]) != int(ranges["official_batch_size"]):
+        raise ConfigError("handoff.target 必须等于官方候选批次数量")
+    if int(handoff["max_replenishment_rounds"]) != 3:
+        raise ConfigError("handoff.max_replenishment_rounds 必须等于 3")
 
     location_filter = pipeline.get("location_filter")
     if not isinstance(location_filter, dict):

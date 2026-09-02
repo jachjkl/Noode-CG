@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.http_check import _request, check_http
 from core.models import NodeResult
+from core.pipeline import _final_loss_allowed, _final_ordinary_quality_allowed
 from core.tcp_scan import scan_tcp
 from core.tls_check import check_tls
 
@@ -19,6 +20,7 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
             "require_all_attempts": False,
             "maximum_average_latency_ms": 300,
             "maximum_jitter_ms": 500,
+            "maximum_loss_rate": 0.2,
             "stop_on_failure": False,
             "stop_when_average_impossible": False,
         }
@@ -30,6 +32,78 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(probe.await_count, 5)
         self.assertEqual(node.tcp_latency_ms, 250.0)
         self.assertEqual(node.tcp_loss_rate, 0.2)
+
+    async def test_quality_tcp_rejects_packet_loss_above_twenty_percent(self) -> None:
+        node = NodeResult(ip="198.51.100.22", country_hint="US")
+        options = {
+            "attempts": 5,
+            "timeout_seconds": 1,
+            "concurrency": 1,
+            "require_all_attempts": False,
+            "maximum_average_latency_ms": 300,
+            "maximum_jitter_ms": 500,
+            "maximum_loss_rate": 0.2,
+            "stop_on_failure": False,
+            "stop_when_average_impossible": False,
+        }
+        probe = AsyncMock(side_effect=[100.0, TimeoutError("loss"), 120.0, TimeoutError("loss"), 140.0])
+        with patch("core.tcp_scan._probe_once", new=probe):
+            result = await scan_tcp([node], options)
+
+        self.assertEqual(result, [])
+        self.assertEqual(node.tcp_loss_rate, 0.4)
+        self.assertTrue(any("20.0%" in error for error in node.errors))
+
+    def test_final_packet_loss_gate_exempts_japan_only(self) -> None:
+        pipeline = {"maximum_loss_rate": 0.2}
+        ordinary_ok = NodeResult(ip="198.51.100.80", country="US", tcp_loss_rate=0.2)
+        ordinary_bad = NodeResult(ip="198.51.100.81", country="US", tcp_loss_rate=0.2001)
+        japan = NodeResult(ip="198.18.0.80", country="JP", tcp_loss_rate=1.0)
+
+        self.assertTrue(_final_loss_allowed(ordinary_ok, pipeline=pipeline, source_country="JP"))
+        self.assertFalse(_final_loss_allowed(ordinary_bad, pipeline=pipeline, source_country="JP"))
+        self.assertTrue(_final_loss_allowed(japan, pipeline=pipeline, source_country="JP"))
+
+    def test_accumulated_ordinary_node_must_match_every_current_local_rule(self) -> None:
+        node = NodeResult(ip="198.51.100.201", country="US", country_hint="US")
+        node.tcp_latency_ms = 100
+        node.tls_latency_ms = 110
+        node.http_latency_ms = 120
+        node.average_latency_ms = 110
+        node.overall_jitter_ms = 20
+        node.tcp_loss_rate = 0.10
+        node.speed_mbps = 8
+        pipeline = {
+            "quality_tcp": {"maximum_average_latency_ms": 200},
+            "tls": {"maximum_average_latency_ms": 200},
+            "http": {"maximum_average_ttfb_ms": 200},
+            "maximum_combined_latency_ms": 200,
+            "maximum_jitter_ms": 50,
+            "maximum_loss_rate": 0.20,
+            "speed": {"minimum_mbps": 5},
+        }
+        self.assertTrue(
+            _final_ordinary_quality_allowed(node, pipeline=pipeline, source_country="JP")
+        )
+        node.speed_mbps = 4.99
+        self.assertFalse(
+            _final_ordinary_quality_allowed(node, pipeline=pipeline, source_country="JP")
+        )
+
+    def test_jp_node_is_exempt_from_all_custom_ordinary_rules(self) -> None:
+        node = NodeResult(ip="198.18.0.201", country="JP", country_hint="JP")
+        pipeline = {
+            "quality_tcp": {"maximum_average_latency_ms": 1},
+            "tls": {"maximum_average_latency_ms": 1},
+            "http": {"maximum_average_ttfb_ms": 1},
+            "maximum_combined_latency_ms": 1,
+            "maximum_jitter_ms": 0,
+            "maximum_loss_rate": 0,
+            "speed": {"minimum_mbps": 999},
+        }
+        self.assertTrue(
+            _final_ordinary_quality_allowed(node, pipeline=pipeline, source_country="JP")
+        )
 
     async def test_quality_tcp_rejects_five_probe_average_over_300ms(self) -> None:
         node = NodeResult(ip="198.51.100.21", country_hint="US")

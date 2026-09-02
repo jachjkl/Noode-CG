@@ -48,6 +48,14 @@ async def run_worker_pool(
                 queue.task_done()
 
     tasks = [asyncio.create_task(consume()) for _ in range(worker_count)]
-    await queue.join()
-    await asyncio.gather(*tasks)
+    # Sentinels are queued after all work items, so every successful consumer
+    # exits only after the queue is drained.  Waiting on queue.join() first can
+    # deadlock forever if one worker raises and leaves its sentinel unconsumed.
+    try:
+        await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
     return [result for result in results if result is not None]

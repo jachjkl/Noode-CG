@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import gzip
-import ipaddress
 import json
 import os
 from collections.abc import Iterable
@@ -24,7 +23,7 @@ from .pipeline import (
     _speed_checks,
     _three_metric_checks,
 )
-from .ranking import rank_final, rank_tcp
+from .ranking import rank_final
 from .rolling import load_previous_top, save_previous_top
 from .tcp_scan import scan_tcp
 
@@ -223,33 +222,6 @@ def _rank_with_colo_diversity(
     return selected
 
 
-def _select_cloud_pool(
-    passed: Iterable[NodeResult],
-    *,
-    linked_jp: Iterable[NodeResult],
-    linked_ipv6: Iterable[NodeResult] = (),
-    target: int,
-    source_priority: list[str],
-) -> list[NodeResult]:
-    """Keep locally measured link candidates before filling the normal pool.
-
-    A GitHub-hosted runner is a poor place to reject Japan candidates intended
-    for a user's local route.  It also commonly has no usable IPv6 route, so
-    IPv6 records that actually occur in the fixed links are passed through for
-    the Windows runner to measure.  No synthetic official IPv6 pool is added.
-    """
-    reserved = _unique_by_ip([*linked_jp, *linked_ipv6])
-    if len(reserved) >= target:
-        return reserved[:target]
-    reserved_ips = {node.ip for node in reserved}
-    normal = rank_tcp(
-        (node for node in passed if node.ip not in reserved_ips),
-        count=target - len(reserved),
-        source_priority=source_priority,
-    )
-    return [*reserved, *normal]
-
-
 def load_cloud_handoff(path: str | Path) -> tuple[list[NodeResult], dict[str, Any]]:
     source = Path(path)
     if not source.is_file():
@@ -264,21 +236,26 @@ def load_cloud_handoff(path: str | Path) -> tuple[list[NodeResult], dict[str, An
 
 
 def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
-    """Cloud stage: reduce full feeds and official ranges to a fresh TOP pool."""
+    """Cloud stage: hand raw candidates to the Windows runner without probing.
+
+    A fresh cycle contains every unique endpoint from the configured links plus
+    one official Cloudflare batch. Replenishment cycles contain only a new,
+    disjoint official batch; all quality gates are deliberately local.
+    """
     started = datetime.now(UTC)
     handoff = config["handoff"]
-    target = int(handoff.get("target", 5000))
-    max_rounds = int(handoff.get("max_official_rounds", 5))
+    target = int(handoff.get("target", 10000))
     pool_path = resolve_path(config, handoff["pool_path"])
     health_path = resolve_path(config, handoff["health_path"])
-    pipeline = config["pipeline"]
-    source_priority = [str(value) for value in pipeline.get("source_priority", [])]
-
     previous, warnings = _load_previous(config)
     previous_ips = {node.ip for node in previous}
     attempted_value = handoff.get("attempted_path")
     attempted_path = resolve_path(config, attempted_value) if attempted_value else None
     loaded_attempted_ips = _load_ip_set(attempted_path) if attempted_path else set()
+    accumulator_value = handoff.get("accumulator_path")
+    accumulator_path = (
+        resolve_path(config, accumulator_value) if accumulator_value else None
+    )
     official_value = config.get("rolling", {}).get("official_snapshot_path")
     official_path = resolve_path(config, official_value) if official_value else None
     loaded_prior_official_ips = _load_ip_set(official_path) if official_path else set()
@@ -290,111 +267,35 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     # A scheduled/manual fresh run may reuse addresses from an older cycle.
     attempted_ips = loaded_attempted_ips if continuation else set()
     prior_official_ips = loaded_prior_official_ips if continuation else set()
-    sources, source_warnings = collect_source_candidates(config)
-    warnings.extend(source_warnings)
-    source_country = str(
-        pipeline.get("jp_source_requirement", {}).get("country", "JP")
-    ).upper()
-    linked_jp = [
-        node
-        for node in sources
-        if (node.country_hint or node.country).upper() == source_country
-        and node.ip not in previous_ips
-        and node.ip not in attempted_ips
-    ]
-    linked_ipv6 = [
-        node
-        for node in sources
-        if ipaddress.ip_address(node.ip).version == 6
-        and node.ip not in previous_ips
-        and node.ip not in attempted_ips
-    ]
-    locally_reserved_ips = {node.ip for node in [*linked_jp, *linked_ipv6]}
-    cloud_test_sources = [
-        node for node in sources if node.ip not in locally_reserved_ips
-    ]
+    if not continuation:
+        # A manual Start begins a genuinely new dashboard session. Do not let
+        # unfinished state committed by an older run leak into its live panel.
+        if accumulator_path:
+            accumulator_path.unlink(missing_ok=True)
+        if attempted_path:
+            attempted_path.unlink(missing_ok=True)
+    sources: list[NodeResult] = []
+    if not continuation:
+        sources, source_warnings = collect_source_candidates(config)
+        warnings.extend(source_warnings)
     source_ips = {node.ip for node in sources}
-    tested_ips: set[str] = set(attempted_ips)
-    official_ips: set[str] = set()
-    passed_by_ip: dict[str, NodeResult] = {}
-    rounds: list[dict[str, Any]] = []
-
-    for round_index in range(max_rounds):
-        official, official_warnings = collect_official_batch(
-            config,
-            exclude_ips=(
-                previous_ips | source_ips | attempted_ips | prior_official_ips
-                | tested_ips | official_ips
-            ),
-            round_index=round_index,
-        )
-        warnings.extend(official_warnings)
-        official_ips.update(node.ip for node in official)
-        raw = [*cloud_test_sources, *official] if round_index == 0 else official
-        batch = [
-            node
-            for node in _unique_by_ip(raw)
-            if node.ip not in previous_ips and node.ip not in tested_ips
-        ]
-        if not batch:
-            rounds.append({
-                "round": round_index + 1,
-                "input": 0,
-                "tcp_qualified": 0,
-                "qualified_total": len(passed_by_ip),
-                "shortlisted": len(_select_cloud_pool(
-                    passed_by_ip.values(),
-                    linked_jp=linked_jp,
-                    linked_ipv6=linked_ipv6,
-                    target=target,
-                    source_priority=source_priority,
-                )),
-            })
-            warning = (
-                f"云端第 {round_index + 1} 轮没有新的唯一候选，提前结束补池"
-            )
-            warnings.append(warning)
-            print(warning, flush=True)
-            break
-        tested_ips.update(node.ip for node in batch)
-        passed = asyncio.run(scan_tcp(_fresh(batch, "cloud-prefilter"), pipeline["prefilter_tcp"]))
-        for node in passed:
-            existing = passed_by_ip.get(node.ip)
-            if existing is None or (
-                node.tcp_latency_ms is not None
-                and (existing.tcp_latency_ms is None or node.tcp_latency_ms < existing.tcp_latency_ms)
-            ):
-                passed_by_ip[node.ip] = node
-        shortlist = _select_cloud_pool(
-            passed_by_ip.values(),
-            linked_jp=linked_jp,
-            linked_ipv6=linked_ipv6,
-            target=target,
-            source_priority=source_priority,
-        )
-        rounds.append({
-            "round": round_index + 1,
-            "input": len(batch),
-            "tcp_qualified": len(passed),
-            "qualified_total": len(passed_by_ip),
-            "shortlisted": len(shortlist),
-        })
-        print(
-            f"云端第 {round_index + 1} 轮: 输入={len(batch)} "
-            f"TCP合格累计={len(passed_by_ip)} 交接池={len(shortlist)}/{target}",
-            flush=True,
-        )
-        if len(shortlist) >= target:
-            break
-
-    selected = _select_cloud_pool(
-        passed_by_ip.values(),
-        linked_jp=linked_jp,
-        linked_ipv6=linked_ipv6,
-        target=target,
-        source_priority=source_priority,
+    official, official_warnings = collect_official_batch(
+        config,
+        exclude_ips=(
+            previous_ips | source_ips | attempted_ips | prior_official_ips
+        ),
+        round_index=0,
     )
-    status = "ok" if len(selected) >= target else "degraded"
+    warnings.extend(official_warnings)
+    official = _unique_by_ip(official)[:target]
+    official_ips = {node.ip for node in official}
+    selected = _unique_by_ip([*sources, *official])
+    status = "ok" if len(official) >= target else "degraded"
+    print(
+        f"云端候选生成完成: 官方唯一IP={len(official)}/{target} "
+        f"链接全量IP={len(sources)} 交接合计={len(selected)}；未进行网络初筛",
+        flush=True,
+    )
     report = {
         "status": status,
         "stage": "cloud-prepare",
@@ -402,6 +303,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         "generated_at": datetime.now(UTC).isoformat(),
         "target": target,
         "selected": len(selected),
+        "official_target": target,
         "previous_excluded": len(previous_ips),
         "attempted_excluded": len(attempted_ips),
         "prior_official_excluded": len(prior_official_ips),
@@ -413,20 +315,21 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
             len(loaded_prior_official_ips) if not continuation else 0
         ),
         "source_candidates": len(sources),
-        "linked_jp_reserved_for_local": len(linked_jp),
-        "linked_ipv6_reserved_for_local": len(linked_ipv6),
+        "links_included": not continuation,
+        "cloud_prefilter_skipped": True,
         "official_sampled": len(official_ips),
-        "tested_unique": len(tested_ips),
-        "rounds": rounds,
+        "tested_unique": 0,
+        "rounds": [{
+            "round": 1,
+            "official_unique": len(official),
+            "link_unique": len(sources),
+            "handoff_total": len(selected),
+        }],
         "warnings": warnings,
     }
     if status == "ok":
-        accumulator_value = handoff.get("accumulator_path")
-        accumulator_path = (
-            resolve_path(config, accumulator_value) if accumulator_value else None
-        )
         accumulated: list[NodeResult] = []
-        if accumulator_path and accumulator_path.is_file():
+        if continuation and accumulator_path and accumulator_path.is_file():
             accumulated, _ = load_cloud_handoff(accumulator_path)
         _write_handoff(
             pool_path,
@@ -439,7 +342,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
             },
         )
     else:
-        report["warnings"].append("新交接池不足目标数量，保留上一版云端交接文件")
+        report["warnings"].append("官方候选不足 10000 个，保留上一版云端交接文件")
     atomic_write_json(health_path, report)
     if official_path:
         snapshot = prior_official_ips | official_ips if continuation else official_ips
@@ -448,7 +351,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
-    """Windows self-hosted stage: remeasure cloud TOP5000 + previous TOP100."""
+    """Windows self-hosted stage: test raw cloud candidates + previous TOP100."""
     started = datetime.now(UTC)
     handoff_path = resolve_path(config, config["handoff"]["pool_path"])
     force_marker_path = handoff_path.parent / "force-rerank.json"
@@ -520,22 +423,9 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             for value in embedded_attempted
             if isinstance(value, str) and value.strip()
         )
-    # The cloud-side previous-official snapshot already retains every sampled
-    # official address (and is committed between continuation rounds).  Sending
-    # those addresses back again in the Runner output duplicated megabytes of
-    # state and eventually exceeded the workflow control-channel limit.  Keep
-    # the complete fixed-link snapshot instead: it prevents those mandatory
-    # sources from being fetched/tested again during the same replenishment
-    # cycle while the cloud snapshot handles official-address uniqueness.
-    retained_source_ips: set[str] | None = None
-    source_config = config.get("sources", {})
-    if isinstance(source_config, dict) and (
-        source_config.get("remote") or source_config.get("local")
-    ):
-        source_nodes, source_warnings = collect_source_candidates(config)
-        warnings.extend(source_warnings)
-        if source_nodes:
-            retained_source_ips = {node.ip for node in source_nodes}
+    # Fixed links are fetched once by the cloud at the beginning of a local
+    # session. Replenishment must not download them again, so the local stage
+    # only consumes the handoff and records every address it attempted.
     incoming = _unique_by_ip([
         *_fresh(cloud_nodes, "cloud-handoff"),
         *_fresh(previous, "previous-top100"),
@@ -551,9 +441,12 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     pipeline = config["pipeline"]
     output_options = config["output"]
     total_target = int(output_options["top_nodes"])
-    minimum_general = min(
-        total_target,
-        int(output_options.get("minimum_publish", total_target)),
+    minimum_general = min(total_target, int(output_options.get("minimum_publish", 1)))
+    local_options = config.get("_local_options", {})
+    continuous_three_rounds = bool(
+        local_options.get("continuous_three_rounds", True)
+        if isinstance(local_options, dict)
+        else True
     )
     source_rule = pipeline.get("jp_source_requirement", {})
     source_country = str(source_rule.get("country", "JP")).upper()
@@ -667,7 +560,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         locations=locations,
     )
     ordered_metrics = rank_final(metric_valid, count=len(metric_valid))
-    while force_rerank or len(current_eligible_general()) < minimum_general:
+    while force_rerank or len(current_eligible_general()) < general_target:
         remaining = [node for node in ordered_metrics if node.ip not in speed_processed]
         if not remaining:
             break
@@ -707,31 +600,33 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         )
     ]
     replacement_ips = {node.ip for node in current_general}
-    previous_general = [
+    previous_general_candidates = [
         node
         for node in published_previous
         if (node.country or node.country_hint).upper() != source_country
         and node.ip not in replacement_ips
         and _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
     ]
-    merged_general = _unique_by_ip([*current_general, *previous_general])[:general_target]
-    # New qualified nodes replace the same number of entries from the tail of
-    # the already-published ranking. JP remains an independent appended lane.
+    previous_keep = max(0, general_target - len(current_general))
+    previous_general = _rank_with_colo_diversity(
+        previous_general_candidates,
+        count=previous_keep,
+        max_per_colo=max_per_colo,
+        latency_speed_first=True,
+    )
+    # Every newly qualified address replaces one tail address. Re-rank the
+    # resulting ordinary pool after the replacement so the cloud and dashboard
+    # always expose the same order.
+    merged_general = _rank_with_colo_diversity(
+        _unique_by_ip([*current_general, *previous_general]),
+        count=general_target,
+        max_per_colo=max_per_colo,
+        latency_speed_first=True,
+    )
     selected = _unique_by_ip([*merged_general, *jp_selected[:source_target]])
     ordinary_replacements = len(current_general)
     ordinary_selected = len(merged_general)
     jp_selected_count = len(selected) - ordinary_selected
-    publish_ready = (
-        ordinary_replacements >= minimum_general
-        and jp_selected_count >= source_target
-    )
-    if not publish_ready:
-        warnings.append(
-            f"本地复测只得到普通节点 {ordinary_replacements}/{minimum_general} 条、"
-            f"日本节点 {jp_selected_count}/{source_target} 条，保留上一轮历史订阅"
-        )
-        selected = []
-
     attempted_ips.update(node.ip for node in new_candidates)
     qualified_accumulator = _unique_by_ip([
         *jp_selected,
@@ -744,11 +639,37 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         else 0
     )
     cycle_round = previous_cycle_round + 1
-    max_cycle_rounds = int(handoff.get("max_replenishment_rounds", 30))
-    needs_more = not publish_ready and cycle_round < max_cycle_rounds
+    configured_rounds = int(handoff.get("max_replenishment_rounds", 3))
+    max_cycle_rounds = min(3, configured_rounds) if continuous_three_rounds else 1
+    target_reached = ordinary_replacements >= general_target
+    final_allowed_round = cycle_round >= max_cycle_rounds
+    has_new_ordinary = ordinary_replacements > 0
+    publish_ready = (
+        jp_selected_count >= source_target
+        and has_new_ordinary
+        and (target_reached or final_allowed_round or not continuous_three_rounds)
+    )
+    needs_more = (
+        continuous_three_rounds
+        and not target_reached
+        and cycle_round < max_cycle_rounds
+        and jp_selected_count >= source_target
+    )
+    if not publish_ready:
+        if needs_more:
+            warnings.append(
+                f"连续优选第 {cycle_round}/{max_cycle_rounds} 轮累计得到普通节点 "
+                f"{ordinary_replacements}/{general_target} 条，继续申请新的10000个官方候选"
+            )
+        else:
+            warnings.append(
+                f"本地复测得到普通节点 {ordinary_replacements}/{general_target} 条、"
+                f"日本节点 {jp_selected_count}/{source_target} 条，本轮没有可发布结果"
+            )
+        selected = []
     if not publish_ready and not needs_more:
         warnings.append(
-            f"已达到最多 {max_cycle_rounds} 轮本地补池限制，继续保留历史订阅"
+            f"已达到最多 {max_cycle_rounds} 轮本地补池限制"
         )
     report = {
         "status": "ok" if publish_ready else "degraded",
@@ -774,7 +695,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "speed_qualified": len(speed_qualified),
             "ordinary_current_rules_qualified": len(eligible_general),
             "qualified_accumulated": len(qualified_accumulator),
-            "fixed_source_ips_retained": len(retained_source_ips or ()),
+            "fixed_source_ips_retained": 0,
             "general_target": general_target,
             "general_minimum": minimum_general,
             "ordinary_selected": ordinary_selected,
@@ -790,6 +711,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         "warnings": warnings,
         "needs_more": needs_more,
         "forced_rerank": force_rerank,
+        "continuous_three_rounds": continuous_three_rounds,
         "local_rules": config.get("_local_rules", {}),
     }
     if not publish_ready:
@@ -798,10 +720,13 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if attempted_path:
             _write_ip_set(
                 attempted_path,
-                retained_source_ips if retained_source_ips is not None else attempted_ips,
+                attempted_ips,
             )
     output_dir = resolve_path(config, config["paths"]["output"])
-    final_report = publish_outputs(output_dir, selected, report, output_options)
+    publish_options = dict(output_options)
+    if publish_ready:
+        publish_options["minimum_publish"] = 1
+    final_report = publish_outputs(output_dir, selected, report, publish_options)
     if final_report["published"]:
         rolling = config.get("rolling", {})
         snapshot_value = rolling.get("snapshot_path")

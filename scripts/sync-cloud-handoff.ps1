@@ -4,7 +4,7 @@
     [string]$ExpectedSha256,
     [string]$Repository = "jachjkl/Noode-CG",
     [string]$Branch = "main",
-    [string]$Destination = "data/handoff/cloud-top5000.json.gz"
+    [string]$Destination = "data/handoff/cloud-raw10000.json.gz"
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,7 +24,7 @@ if (Test-ExpectedHash -Path $destinationPath) {
     exit 0
 }
 
-$raw = "https://raw.githubusercontent.com/$Repository/$Branch/data/handoff/cloud-top5000.json.gz"
+$raw = "https://raw.githubusercontent.com/$Repository/$Branch/data/handoff/cloud-raw10000.json.gz"
 $urls = @(
     $raw,
     "https://gh-proxy.com/$raw",
@@ -33,7 +33,7 @@ $urls = @(
 )
 $failures = @()
 foreach ($url in $urls) {
-    $temporary = Join-Path $destinationDirectory (".cloud-top5000-" + [Guid]::NewGuid().ToString("N") + ".tmp")
+    $temporary = Join-Path $destinationDirectory (".cloud-raw10000-" + [Guid]::NewGuid().ToString("N") + ".tmp")
     try {
         Write-Host "尝试下载交接池: $url"
         Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $temporary -TimeoutSec 90

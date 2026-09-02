@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default="config.yaml", help="配置文件路径")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("run", help="运行完整优选流水线")
-    subparsers.add_parser("prepare-handoff", help="云端生成新的 TOP5000 交接池")
+    subparsers.add_parser("prepare-handoff", help="云端生成 10000 个官方候选并附加首次全量链接")
     subparsers.add_parser("local-select", help="本地复测交接池和上一轮 TOP100")
     subparsers.add_parser("validate", help="只验证配置")
     server = subparsers.add_parser("serve", help="启动只读 HTTP API")

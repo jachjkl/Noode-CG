@@ -1,8 +1,8 @@
 project:
-  name: Noode-CG V13.1-Cloud5000-Local300
+  name: Noode-CG Local10000-Local300
   # TLS SNI and HTTP Host. Change this to the domain bound to your edgetunnel Worker.
   target_domain: jackoyu.dpdns.org
-  user_agent: Noode-CG/13.1-cloud5000-local300
+  user_agent: Noode-CG/local10000-local300
 
 paths:
   locations: data/locations.json
@@ -19,7 +19,7 @@ rolling:
 sources:
   local: []
   # Every valid entry from every link is included. Link entries do not consume
-  # any of the 50,000 official-range slots sampled in each round.
+  # any of the 10,000 official-range slots sampled in each round.
   remote:
     - name: zip.cm.edu.kg/all.txt
       url: https://zip.cm.edu.kg/all.txt
@@ -44,21 +44,19 @@ sources:
     ipv4_url: https://www.cloudflare.com/ips-v4/
     include_ipv6: false
     ipv6_url: https://www.cloudflare.com/ips-v6/
-    official_batch_size: 50000
+    official_batch_size: 10000
     ports: [443]
     # GitHub supplies a different run id/attempt each time. Local runs leave
     # this empty and use the current nanosecond timestamp.
     sampling_seed: ${NOODE_RUN_SEED:-}
 
 pipeline:
-  # Cloud preparation gives the two full feeds priority, then fills from the
-  # official random pool. Windows locally re-tests every handed-off endpoint.
+  # The cloud only builds the candidate package. All network measurements and
+  # quality gates run on the Windows self-hosted runner.
   source_priority:
     - zip.cm.edu.kg/all.txt
     - bestcf.pages.dev/lzj
-  # Stage 1 keeps the fastest 5,000 IPs whose three TCPing attempts average
-  # no more than 1,000ms. Stage 2 applies the strict 300ms quality rules.
-  prefilter_shortlist: 5000
+  prefilter_shortlist: 10000
   maximum_combined_latency_ms: 300
   maximum_component_latency_ms: 300
   maximum_jitter_ms: 500
@@ -168,20 +166,22 @@ pipeline:
 
 output:
   top_nodes: 300
-  # Publish after at least 50 ordinary nodes pass; keep up to TOP300.
-  # The dedicated JP lane is appended separately and does not count toward 50.
-  minimum_publish: 50
+  # A three-round cycle publishes whatever passed after its final round. With
+  # continuous mode disabled, one successful ordinary node may replace one
+  # tail entry immediately. The ordinary pool still keeps at most TOP300.
+  minimum_publish: 1
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true
 
 handoff:
-  # Cloud stage always hands 5,000 new unique candidates to Windows.
-  target: 5000
-  max_official_rounds: 30
-  pool_path: data/handoff/cloud-top5000.json.gz
+  # Each cloud run hands 10,000 unique official addresses to Windows. The first
+  # run of a local session additionally includes both configured links in full.
+  target: 10000
+  max_official_rounds: 1
+  pool_path: data/handoff/cloud-raw10000.json.gz
   health_path: data/handoff/cloud-health.json
-  # Local successes survive automatic replenishment until 50 ordinary nodes pass.
+  # Local successes survive all rounds in the same open dashboard session.
   accumulator_path: data/handoff/local-qualified.json.gz
   # Separate current-cycle UI data from the published subscription ranking.
   live_results_path: data/handoff/local-live-results.json.gz
@@ -189,7 +189,7 @@ handoff:
   # Soft cap: spread results across locally observed Cloudflare colos when
   # possible, then relax the cap rather than publish fewer than 300.
   max_per_colo: 50
-  max_replenishment_rounds: 30
+  max_replenishment_rounds: 3
 
 vantage:
   # A GitHub-hosted runner is only one network vantage point. For genuine

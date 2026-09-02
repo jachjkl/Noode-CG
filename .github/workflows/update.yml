@@ -1,4 +1,4 @@
-name: Cloud TOP5000 to local TOP300
+name: Cloud RAW10000 to local TOP300
 
 on:
   workflow_dispatch:
@@ -8,14 +8,11 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: "17 */6 * * *"
-
 permissions: {}
 
 concurrency:
   group: noode-cg-cloud-local-refresh
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   cloud-prepare:
@@ -45,7 +42,7 @@ jobs:
       - name: Export trusted handoff SHA-256
         id: handoff-hash
         shell: bash
-        run: echo "sha256=$(sha256sum data/handoff/cloud-top5000.json.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+        run: echo "sha256=$(sha256sum data/handoff/cloud-raw10000.json.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Commit cloud handoff only
         id: handoff-commit
         shell: bash
@@ -53,13 +50,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A -- \
-            data/handoff/cloud-top5000.json.gz \
+            data/handoff/cloud-raw10000.json.gz \
             data/handoff/cloud-health.json \
-            data/previous-official-ips.txt.gz
+            data/previous-official-ips.txt.gz \
+            data/handoff/local-qualified.json.gz \
+            data/handoff/local-attempted-ips.txt.gz
           if git diff --cached --quiet; then
             echo "Cloud handoff unchanged"
           else
-            git commit -m "chore(data): prepare cloud TOP5000 [skip ci]"
+            git commit -m "chore(data): prepare cloud RAW10000 [skip ci]"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
           echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -168,8 +167,8 @@ jobs:
             ./scripts/notify-user.ps1 -Title "Noode-CG 本地优选已完成" -Message "本轮新增 $newCount 个普通IP，合并后 $finalCount 个节点已交给Ubuntu云端发布。"
           } else {
             $qualified = [int]$health.counts.qualified_accumulated
-            $minimum = [int]$health.counts.general_minimum
-            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" -Message "当前累计合格 $qualified/$minimum，结果将由云端保存后生成下一批5000。"
+            $target = [int]$health.counts.general_target
+            ./scripts/notify-user.ps1 -Title "Noode-CG 正在继续补池" -Message "当前累计合格 $qualified/$target，结果将由云端保存后生成下一批10000个官方候选。"
           }
 
   cloud-publish:
@@ -194,6 +193,10 @@ jobs:
           tr -d '\r\n ' < "$payload_b64" | base64 --decode > "$payload_zip"
           echo "${{ needs.local-select.outputs.result_sha256 }}  $payload_zip" | sha256sum --check --strict
           python3 scripts/result_payload.py unpack --archive "$payload_zip" --destination .
+          if python3 -c 'import json,sys; sys.exit(0 if json.load(open("output/health.json", encoding="utf-8")).get("published") else 1)'; then
+            rm -f data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
+            echo "Published result: cleared completed accumulator state"
+          fi
       - name: Publish local result from Ubuntu
         shell: bash
         run: |
@@ -251,5 +254,5 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Dispatch a fresh disjoint cloud TOP5000
+      - name: Dispatch a fresh disjoint cloud RAW10000
         run: gh workflow run update.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" -f continuation=true

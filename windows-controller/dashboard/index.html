@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Noode-CG 本地优选控制台</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LOCAL NETWORK CONTROL</p>
+        <h1>Noode-CG 本地优选控制台</h1>
+        <p class="subtitle">云端提供10000个原始官方候选，本地完成全部网络测试、排序和发布</p>
+      </div>
+      <div class="header-actions">
+        <span id="connectionBadge" class="badge neutral">正在连接</span>
+        <button id="startButton" class="button primary" type="button">开始新一轮</button>
+        <button id="continueButton" class="button continue" type="button">继续优选并重排</button>
+        <button id="stopButton" class="button danger" type="button">停止优选</button>
+        <button id="closeButton" class="button secondary" type="button">关闭本地面板</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary-grid" aria-label="运行概览">
+        <article class="metric-card accent">
+          <span class="metric-label">当前状态</span>
+          <strong id="statusValue" class="metric-value text">准备中</strong>
+          <span id="statusDetail" class="metric-foot">等待状态数据</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">工作流运行</span>
+          <a id="runLink" class="metric-value link" href="#" target="_blank" rel="noreferrer">尚未获取</a>
+          <span id="roundValue" class="metric-foot">本次监控第 0 轮</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">当前结果</span>
+          <strong id="nodeCount" class="metric-value">0</strong>
+          <span id="resultUpdated" class="metric-foot">等待同步结果</span>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">本轮耗时</span>
+          <strong id="elapsedValue" class="metric-value">00:00</strong>
+          <span id="processValue" class="metric-foot">本地监控进程未启动</span>
+        </article>
+      </section>
+
+      <section class="panel rules-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">LOCAL RULE MATRIX</p>
+            <h2>普通节点自定义优选规则</h2>
+            <p class="panel-copy">打开面板后必须手动开始。规则保存在本机，日本节点走独立 TCPing + 下载通道，不受下列门槛影响。</p>
+          </div>
+          <span id="rulesStatus" class="badge neutral">正在读取规则</span>
+        </div>
+        <form id="rulesForm" class="rule-grid">
+          <label class="field"><span>TCP 最大延迟</span><div class="input-unit"><input id="ruleTcp" name="tcp_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>TLS 最大延迟</span><div class="input-unit"><input id="ruleTls" name="tls_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>HTTPS TTFB 最大延迟</span><div class="input-unit"><input id="ruleHttp" name="http_ttfb_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>三项平均延迟</span><div class="input-unit"><input id="ruleAverage" name="average_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>最大抖动</span><div class="input-unit"><input id="ruleJitter" name="jitter_max_ms" type="number" min="0" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>最大丢包率</span><div class="input-unit"><input id="ruleLoss" name="loss_max_percent" type="number" min="0" max="100" step="0.1" required><b>%</b></div></label>
+          <label class="field"><span>最低下载速度</span><div class="input-unit"><input id="ruleSpeed" name="speed_min_mbps" type="number" min="0" step="0.1" required><b>Mbps</b></div></label>
+          <div class="rule-actions">
+            <button id="resetRules" class="button ghost" type="button">恢复默认值</button>
+            <button id="saveRules" class="button primary" type="submit">保存到本地</button>
+          </div>
+        </form>
+        <label class="toggle-field cycle-option"><input id="continuousRounds" type="checkbox" checked> 开启三轮连续筛选：不足300个时自动获取下一批不同的10000个官方候选，最多连续3轮</label>
+        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、10000个官方IP和上一轮TOP100；后续轮次只补充未在本会话测试过的10000个官方IP。开启连续筛选时达到300个立即发布，连续3轮仍不足则发布已合格结果；关闭时每轮立即按合格数量替换云端末尾节点并重新排序。日本节点在同一会话的实时结果中只保留一份。</div>
+      </section>
+
+      <section class="panel workflow-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">WORKFLOW</p>
+            <h2>当前工作流进程</h2>
+          </div>
+          <div class="workflow-current">
+            <span id="currentStage">等待工作流</span>
+            <strong id="currentStep">尚未进入执行步骤</strong>
+          </div>
+        </div>
+        <div class="progress-track" aria-label="工作流完成进度">
+          <div id="workflowProgress" class="progress-fill"></div>
+        </div>
+        <p id="workflowProgressText" class="progress-caption">已完成 0 / 0 个步骤</p>
+        <div id="stageGrid" class="stage-grid"></div>
+      </section>
+
+      <section class="panel result-panel live-result-panel">
+        <div class="panel-heading result-heading">
+          <div>
+            <p class="section-kicker">LIVE RESULTS</p>
+            <h2>本轮实时优选 IP 结果</h2>
+            <p id="liveResultSummary" class="panel-copy">本轮尚未开始；开始新一轮时会清空这里，合格一个显示一个</p>
+          </div>
+          <button id="copyLiveResults" class="button secondary" type="button" disabled>复制本轮结果</button>
+        </div>
+        <div class="table-wrap live-table-wrap">
+          <table id="liveNodeTable">
+            <thead>
+              <tr>
+                <th>序号</th><th>IP 地址</th><th>位置</th><th>数据中心</th>
+                <th>TCP</th><th>TLS</th><th>HTTPS TTFB</th><th>综合延迟</th>
+                <th>抖动</th><th>丢包率</th><th>下载速度</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="liveNodeRows">
+              <tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-heading result-heading">
+          <div>
+            <p class="section-kicker">RESULTS</p>
+            <h2>云端已发布 IP 结果</h2>
+            <p id="filterSummary" class="panel-copy">正在读取已发布结果</p>
+          </div>
+          <div class="result-actions">
+            <button id="copyFiltered" class="button primary" type="button">复制当前筛选结果</button>
+            <button id="exportCsv" class="button secondary" type="button">导出 CSV</button>
+          </div>
+        </div>
+
+        <div class="filters" aria-label="IP 筛选条件">
+          <label class="field wide">
+            <span>搜索</span>
+            <input id="searchInput" type="search" placeholder="IP、国家、城市或数据中心">
+          </label>
+          <label class="field">
+            <span>国家/地区</span>
+            <select id="countryFilter"><option value="">全部国家</option></select>
+          </label>
+          <label class="toggle-field">
+            <input id="jpOnly" type="checkbox">
+            <span>只看日本节点</span>
+          </label>
+          <button id="resetFilters" class="button ghost" type="button">清空筛选</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="nodeTable">
+            <thead>
+              <tr>
+                <th><button class="sort-header active asc" data-sort="rank" type="button">排名</button></th>
+                <th>IP 地址</th>
+                <th>位置</th>
+                <th>数据中心</th>
+                <th><button class="sort-header" data-sort="tcp_latency_ms" type="button">TCP</button></th>
+                <th><button class="sort-header" data-sort="tls_latency_ms" type="button">TLS</button></th>
+                <th><button class="sort-header" data-sort="http_latency_ms" type="button">HTTPS TTFB</button></th>
+                <th><button class="sort-header" data-sort="average_latency_ms" type="button">综合延迟</button></th>
+                <th><button class="sort-header" data-sort="jitter_ms" type="button">抖动</button></th>
+                <th><button class="sort-header" data-sort="loss_rate" type="button">丢包率</button></th>
+                <th><button class="sort-header" data-sort="speed_mbps" type="button">下载速度</button></th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="nodeRows">
+              <tr><td class="empty" colspan="12">等待结果数据</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">LIVE LOG</p>
+            <h2>实时运行日志</h2>
+          </div>
+          <div class="result-actions">
+            <label class="inline-check"><input id="autoScroll" type="checkbox" checked> 自动滚动</label>
+            <button id="copyLog" class="button secondary" type="button">复制日志</button>
+          </div>
+        </div>
+        <pre id="logOutput">等待控制器写入日志……</pre>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

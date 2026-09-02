@@ -37,6 +37,8 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
     maximum_latency = float(maximum_raw) if maximum_raw is not None else None
     maximum_jitter_raw = options.get("maximum_jitter_ms")
     maximum_jitter = float(maximum_jitter_raw) if maximum_jitter_raw is not None else None
+    maximum_loss_raw = options.get("maximum_loss_rate")
+    maximum_loss = float(maximum_loss_raw) if maximum_loss_raw is not None else None
 
     async def worker(node: NodeResult) -> NodeResult:
         measurements: list[float] = []
@@ -68,11 +70,13 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
         jitter_within_limit = maximum_jitter is None or (
             node.tcp_jitter_ms is not None and node.tcp_jitter_ms <= maximum_jitter
         )
+        loss_within_limit = maximum_loss is None or node.tcp_loss_rate <= maximum_loss
         node.tcp_ok = (
             bool(measurements)
             and (all_succeeded or not require_all)
             and average_within_limit
             and jitter_within_limit
+            and loss_within_limit
         )
         node.probe_results["tcp"] = {
             "attempts": attempts,
@@ -82,17 +86,22 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
             "jitter_ms": node.tcp_jitter_ms,
             "maximum_average_latency_ms": maximum_latency,
             "maximum_jitter_ms": maximum_jitter,
+            "maximum_loss_rate": maximum_loss,
             "early_rejected": bool(early_reason),
             "strict_passed": node.tcp_ok,
         }
         if early_reason:
             node.add_error("tcp", early_reason)
-        if not node.tcp_ok and last_error:
+        if not node.tcp_ok and not loss_within_limit:
+            node.add_error("tcp", f"丢包率 {node.tcp_loss_rate:.1%} > {maximum_loss:.1%}")
+        elif not node.tcp_ok and not measurements and last_error:
             node.add_error("tcp", last_error)
         elif not node.tcp_ok and not average_within_limit:
             node.add_error("tcp", f"测试平均延迟 {node.tcp_latency_ms:g}ms > {maximum_latency:g}ms")
         elif not node.tcp_ok and not jitter_within_limit:
             node.add_error("tcp", f"抖动 {node.tcp_jitter_ms:g}ms > {maximum_jitter:g}ms")
+        elif not node.tcp_ok and last_error:
+            node.add_error("tcp", last_error)
         elif not node.tcp_ok:
             node.add_error("tcp", f"只成功 {len(measurements)}/{attempts} 次")
         return node

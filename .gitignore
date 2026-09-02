@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Per-machine dashboard settings and transient cycle state.
+data/local-rules.json
+data/local-options.json
+data/handoff/local-live-results.json.gz
+data/handoff/dashboard-continue-request.json
+data/handoff/stop-after-current.json
+data/handoff/force-rerank.json

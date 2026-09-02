@@ -307,7 +307,7 @@ def collect_official_batch(
 ) -> tuple[list[NodeResult], list[str]]:
     block = config["sources"].get("cloudflare_ranges", {})
     warnings: list[str] = []
-    wanted = max(0, int(block.get("official_batch_size", 50000)))
+    wanted = max(0, int(block.get("official_batch_size", 10000)))
     if not block.get("enabled", True) or wanted == 0:
         return [], warnings
 

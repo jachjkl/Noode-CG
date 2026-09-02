@@ -62,8 +62,8 @@ try {
     }
     else {
         $knownIds = @($runs | ForEach-Object { [long]$_.databaseId })
-        Notify -Title "Noode-CG" -Message "正在请求云端生成新的 TOP5000。"
-        Write-Status "正在触发 GitHub Actions 云端 TOP5000 工作流……" Yellow
+        Notify -Title "Noode-CG" -Message "正在请求云端生成10000个官方候选和首次全量链接。"
+        Write-Status "正在触发 GitHub Actions 云端 RAW10000 工作流……" Yellow
         & $script:gh.Source workflow run $workflow --repo $Repository --ref $Branch `
             -f continuation=false 2>&1 | Tee-Object -FilePath $log -Append
         if ($LASTEXITCODE -ne 0) { throw "云端工作流触发失败。" }
@@ -105,7 +105,7 @@ try {
     }
 
     Write-Status "本轮 GitHub Actions 已成功完成。" Green
-    Write-Status "如果合格IP不足300，后续补池任务会由云端自动发起。" Yellow
+    Write-Status "是否连续补足由本地面板复选框控制；开启时最多连续3轮。" Yellow
     Notify -Title "Noode-CG" -Message "本轮云端和本地任务已成功完成。"
     Write-Status "窗口将在5秒后自动关闭。" DarkGray
     Start-Sleep -Seconds 5

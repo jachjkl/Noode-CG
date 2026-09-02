@@ -94,10 +94,17 @@ function Install-LocalApplication {
             /XF "*.pyc" "*.pyo" "Noode-CG-*.zip" "Noode-CG.zip" `
                 "nodes.txt" "nodes.json" "nodes.csv" "api.json" "health.json" "ip.zip" `
                 "previous-top100.json" "previous-official-ips.txt" "previous-official-ips.txt.gz" `
-                "cloud-top5000.json.gz" "cloud-health.json" `
+                "cloud-raw10000.json.gz" "cloud-top5000.json.gz" "cloud-health.json" `
                 "local-qualified.json.gz" "local-attempted-ips.txt.gz"
         if ($LASTEXITCODE -ge 8) {
             throw "复制本地应用失败，robocopy 退出码 $LASTEXITCODE。"
+        }
+        $existingRules = Join-Path $appRoot "data\local-rules.json"
+        if (Test-Path -LiteralPath $existingRules -PathType Leaf) {
+            $stagedRules = Join-Path $stagingRoot "data\local-rules.json"
+            New-Item -ItemType Directory -Path (Split-Path -Parent $stagedRules) -Force | Out-Null
+            Copy-Item -LiteralPath $existingRules -Destination $stagedRules -Force
+            Write-Host "已保留本机自定义优选规则。"
         }
         $versionPath = Join-Path $stagingRoot "VERSION"
         if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
@@ -159,6 +166,12 @@ Install-PowerShellScript -SourcePath (Join-Path $source "notification-watcher.ps
     -DestinationPath (Join-Path $InstallRoot "notification-watcher.ps1")
 Install-PowerShellScript -SourcePath (Join-Path $source "manual-start.ps1") `
     -DestinationPath (Join-Path $InstallRoot "manual-start.ps1")
+Install-PowerShellScript -SourcePath (Join-Path $source "launch-dashboard.ps1") `
+    -DestinationPath (Join-Path $InstallRoot "launch-dashboard.ps1")
+Copy-Item -LiteralPath (Join-Path $source "dashboard_server.py") `
+    -Destination (Join-Path $InstallRoot "dashboard_server.py") -Force
+Copy-Item -LiteralPath (Join-Path $source "dashboard") `
+    -Destination $InstallRoot -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $source "开始云端和本地优选.cmd") `
     -Destination (Join-Path $InstallRoot "开始云端和本地优选.cmd") -Force
 Install-PowerShellScript -SourcePath (Join-Path $PSScriptRoot "notify-user.ps1") `
