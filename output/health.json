@@ -1,19 +1,57 @@
 {
-  "status": "stopped",
+  "status": "ok",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-02T08:43:26.357772+00:00",
-  "generated_at": "2026-09-02T08:43:26.360277+00:00",
+  "started_at": "2026-09-02T09:17:17.443629+00:00",
+  "generated_at": "2026-09-02T09:19:44.458307+00:00",
   "vantage": "windows-self-hosted-local-network",
+  "handoff_generated_at": "2026-09-02T09:17:00.827048+00:00",
+  "cycle_round": 1,
+  "max_replenishment_rounds": 30,
   "counts": {
+    "cloud_pool": 5000,
+    "previous_loaded": 100,
+    "combined_unique": 5213,
+    "new_unique_tested": 5038,
+    "accumulated_loaded": 175,
+    "jp_candidates": 385,
+    "jp_selected": 10,
+    "general_candidates": 4653,
+    "tcp_qualified": 105,
+    "metric_qualified": 0,
+    "speed_tested": 0,
+    "speed_qualified": 165,
+    "ordinary_current_rules_qualified": 165,
+    "qualified_accumulated": 175,
+    "fixed_source_ips_retained": 12832,
     "general_target": 300,
+    "general_minimum": 50,
+    "ordinary_selected": 165,
+    "ordinary_replacements": 165,
+    "previous_ordinary_retained": 0,
     "final_target": 310,
-    "final_selected": 0
+    "minimum_publish_target": 60,
+    "final_selected": 175
   },
-  "warnings": [
-    "已按本地停止请求结束本轮；保留上一版订阅且不再自动补池"
-  ],
+  "jp_measurements": {
+    "input_endpoints": 385,
+    "input_unique_ips": 385,
+    "tcping_attempts_per_endpoint": 3,
+    "tcping_measured": 328,
+    "download_tested_once": 385,
+    "download_measured": 279,
+    "selected_unique_ips": 10,
+    "duration_seconds": 51.235
+  },
+  "metric_measurements": {
+    "tls_three_pass_success": 0,
+    "https_ttfb_three_pass_success": 0,
+    "foreign_combined_latency_qualified": 0,
+    "tls_and_https_duration_seconds": 60.782
+  },
+  "speed_batches": [],
+  "warnings": [],
   "needs_more": false,
-  "stopped_by_user": true,
+  "forced_rerank": false,
   "local_rules": {
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
@@ -23,8 +61,8 @@
     "loss_max_percent": 20.0,
     "speed_min_mbps": 3.0
   },
-  "selected": 0,
+  "selected": 175,
   "minimum_publish": 50,
-  "published": false,
-  "preserved_previous_output": true
+  "published": true,
+  "preserved_previous_output": false
 }
