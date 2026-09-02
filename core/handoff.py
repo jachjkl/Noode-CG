@@ -121,8 +121,17 @@ def _load_published_nodes(config: dict[str, Any]) -> list[NodeResult]:
 def _nodes_from_payload(value: Any) -> list[NodeResult]:
     if not isinstance(value, list):
         return []
+    def restore(item: dict[str, Any]) -> NodeResult:
+        normalized = dict(item)
+        # Published nodes use UI-friendly public names while handoff nodes use
+        # the internal model names. Preserve old ranking metrics during merge.
+        if "tcp_loss_rate" not in normalized and "loss_rate" in normalized:
+            normalized["tcp_loss_rate"] = normalized["loss_rate"]
+        if "overall_jitter_ms" not in normalized and "jitter_ms" in normalized:
+            normalized["overall_jitter_ms"] = normalized["jitter_ms"]
+        return NodeResult.from_dict(normalized)
     return _unique_by_ip(
-        NodeResult.from_dict(item)
+        restore(item)
         for item in value
         if isinstance(item, dict)
     )
