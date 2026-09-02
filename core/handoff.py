@@ -18,6 +18,7 @@ from .io_utils import atomic_write_bytes, atomic_write_json
 from .models import NodeResult
 from .pipeline import (
     _final_country_allowed,
+    _final_ordinary_quality_allowed,
     _rank_source_country_tcp_speed,
     _source_country_tcp_speed_checks,
     _speed_checks,
@@ -28,6 +29,43 @@ from .rolling import load_previous_top, save_previous_top
 from .tcp_scan import scan_tcp
 
 HANDOFF_SCHEMA = 1
+
+
+def _handoff_node(node: NodeResult) -> dict[str, Any]:
+    """Serialize only fields needed by the next local selection pass.
+
+    Per-attempt probe traces are useful while a stage is running but make the
+    Windows-to-GitHub result payload exceed the workflow control-channel
+    limit.  Aggregate measurements retain everything needed for filtering,
+    ranking, display, and subsequent accumulation.
+    """
+    return {
+        "ip": node.ip,
+        "port": node.port,
+        "country_hint": node.country_hint,
+        "sources": node.sources,
+        "tcp_ok": node.tcp_ok,
+        "tcp_latency_ms": node.tcp_latency_ms,
+        "tcp_jitter_ms": node.tcp_jitter_ms,
+        "tcp_loss_rate": node.tcp_loss_rate,
+        "tls_ok": node.tls_ok,
+        "tls_latency_ms": node.tls_latency_ms,
+        "tls_jitter_ms": node.tls_jitter_ms,
+        "tls_version": node.tls_version,
+        "http_ok": node.http_ok,
+        "http_status": node.http_status,
+        "http_latency_ms": node.http_latency_ms,
+        "http_jitter_ms": node.http_jitter_ms,
+        "average_latency_ms": node.average_latency_ms,
+        "overall_jitter_ms": node.overall_jitter_ms,
+        "colo": node.colo,
+        "colo_country": node.colo_country,
+        "country": node.country,
+        "region": node.region,
+        "city": node.city,
+        "speed_mbps": node.speed_mbps,
+        "score": node.score,
+    }
 
 
 def _unique_by_ip(records: Iterable[NodeResult]) -> list[NodeResult]:
@@ -68,6 +106,18 @@ def _load_previous(config: dict[str, Any]) -> tuple[list[NodeResult], list[str]]
     )
 
 
+def _load_published_nodes(config: dict[str, Any]) -> list[NodeResult]:
+    """Load the currently published ranking before this run overwrites it."""
+    path = resolve_path(config, config["paths"]["output"]) / "nodes.json"
+    if not path.is_file():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return []
+    return _nodes_from_payload(payload)
+
+
 def _nodes_from_payload(value: Any) -> list[NodeResult]:
     if not isinstance(value, list):
         return []
@@ -89,7 +139,7 @@ def _write_handoff(
         "schema": HANDOFF_SCHEMA,
         "generated_at": datetime.now(UTC).isoformat(),
         "report": report,
-        "nodes": [node.to_dict() for node in nodes],
+        "nodes": [_handoff_node(node) for node in nodes],
     }
     if state:
         payload["state"] = state
@@ -113,10 +163,25 @@ def _write_ip_set(path: Path, values: set[str]) -> None:
 
 
 def _rank_with_colo_diversity(
-    records: Iterable[NodeResult], *, count: int, max_per_colo: int
+    records: Iterable[NodeResult],
+    *,
+    count: int,
+    max_per_colo: int,
+    latency_speed_first: bool = False,
 ) -> list[NodeResult]:
     prepared = list(records)
     ordered = rank_final(prepared, count=len(prepared))
+    if latency_speed_first:
+        ordered = sorted(
+            ordered,
+            key=lambda node: (
+                node.average_latency_ms if node.average_latency_ms is not None else float("inf"),
+                -(node.speed_mbps if node.speed_mbps is not None else -1.0),
+                node.tcp_loss_rate,
+                node.overall_jitter_ms if node.overall_jitter_ms is not None else float("inf"),
+                node.ip,
+            ),
+        )
     if max_per_colo <= 0:
         return ordered[:count]
     selected: list[NodeResult] = []
@@ -370,8 +435,46 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     """Windows self-hosted stage: remeasure cloud TOP5000 + previous TOP100."""
     started = datetime.now(UTC)
     handoff_path = resolve_path(config, config["handoff"]["pool_path"])
+    force_marker_path = handoff_path.parent / "force-rerank.json"
+    stop_marker_path = handoff_path.parent / "stop-after-current.json"
+    if stop_marker_path.is_file():
+        output_options = config["output"]
+        total_target = int(output_options["top_nodes"])
+        source_rule = config["pipeline"].get("jp_source_requirement", {})
+        source_target = int(source_rule.get("count", 10))
+        report = {
+            "status": "stopped",
+            "stage": "local-self-hosted-selection",
+            "started_at": started.isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
+            "vantage": "windows-self-hosted-local-network",
+            "counts": {
+                "general_target": total_target,
+                "final_target": total_target + source_target,
+                "final_selected": 0,
+            },
+            "warnings": ["已按本地停止请求结束本轮；保留上一版订阅且不再自动补池"],
+            "needs_more": False,
+            "stopped_by_user": True,
+            "local_rules": config.get("_local_rules", {}),
+        }
+        stop_marker_path.unlink(missing_ok=True)
+        return publish_outputs(
+            resolve_path(config, config["paths"]["output"]),
+            [],
+            report,
+            output_options,
+        )
+    force_rerank = force_marker_path.is_file()
     cloud_nodes, cloud_payload = load_cloud_handoff(handoff_path)
+    cloud_report = cloud_payload.get("report", {})
+    continuation = bool(
+        cloud_report.get("continuation", False)
+        if isinstance(cloud_report, dict)
+        else False
+    )
     local_previous, warnings = _load_previous(config)
+    published_previous = _load_published_nodes(config)
     embedded_state = cloud_payload.get("state", {})
     if not isinstance(embedded_state, dict):
         embedded_state = {}
@@ -381,6 +484,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     handoff = config["handoff"]
     accumulator_value = handoff.get("accumulator_path")
     accumulator_path = resolve_path(config, accumulator_value) if accumulator_value else None
+    live_value = handoff.get("live_results_path")
+    live_path = resolve_path(config, live_value) if live_value else None
+    if live_path and not continuation:
+        live_path.unlink(missing_ok=True)
     attempted_value = handoff.get("attempted_path")
     attempted_path = resolve_path(config, attempted_value) if attempted_value else None
     accumulated: list[NodeResult] = []
@@ -397,6 +504,22 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             for value in embedded_attempted
             if isinstance(value, str) and value.strip()
         )
+    # The cloud-side previous-official snapshot already retains every sampled
+    # official address (and is committed between continuation rounds).  Sending
+    # those addresses back again in the Runner output duplicated megabytes of
+    # state and eventually exceeded the workflow control-channel limit.  Keep
+    # the complete fixed-link snapshot instead: it prevents those mandatory
+    # sources from being fetched/tested again during the same replenishment
+    # cycle while the cloud snapshot handles official-address uniqueness.
+    retained_source_ips: set[str] | None = None
+    source_config = config.get("sources", {})
+    if isinstance(source_config, dict) and (
+        source_config.get("remote") or source_config.get("local")
+    ):
+        source_nodes, source_warnings = collect_source_candidates(config)
+        warnings.extend(source_warnings)
+        if source_nodes:
+            retained_source_ips = {node.ip for node in source_nodes}
     incoming = _unique_by_ip([
         *_fresh(cloud_nodes, "cloud-handoff"),
         *_fresh(previous, "previous-top100"),
@@ -412,11 +535,19 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     pipeline = config["pipeline"]
     output_options = config["output"]
     total_target = int(output_options["top_nodes"])
+    minimum_general = min(
+        total_target,
+        int(output_options.get("minimum_publish", total_target)),
+    )
     source_rule = pipeline.get("jp_source_requirement", {})
     source_country = str(source_rule.get("country", "JP")).upper()
     source_target = int(source_rule.get("count", 10))
-    general_target = total_target - source_target
-    if general_target <= 0:
+    # output.top_nodes is the ordinary-node target. The JP lane is appended and
+    # is intentionally exempt from the user's ordinary quality thresholds.
+    general_target = total_target
+    publish_target = total_target + source_target
+    minimum_publish_target = minimum_general + source_target
+    if general_target <= 0 or minimum_general <= 0:
         raise ValueError("最终总数必须大于 JP 保留数量")
 
     probe_paths = [
@@ -460,6 +591,57 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if (node.country_hint or node.country).upper() != source_country
         and (node.country_hint or node.country).upper() not in excluded
     ]
+    speed_batch_size = int(pipeline.get("speed_batch_size", 400))
+    speed_qualified: dict[str, NodeResult] = {
+        node.ip: node for node in accumulated_general
+    }
+    speed_processed: set[str] = set()
+    speed_batches: list[dict[str, Any]] = []
+    def current_eligible_general() -> list[NodeResult]:
+        return [
+            node for node in speed_qualified.values()
+            if _final_country_allowed(
+                node,
+                pipeline=pipeline,
+                source_country=source_country,
+            )
+            and _final_ordinary_quality_allowed(
+                node,
+                pipeline=pipeline,
+                source_country=source_country,
+            )
+        ]
+
+    def write_live_preview() -> None:
+        if not live_path:
+            return
+        ordinary_preview = current_eligible_general()
+        preview = _unique_by_ip([*ordinary_preview, *jp_selected[:source_target]])
+        _write_handoff(
+            live_path,
+            preview,
+            {
+                "status": "running",
+                "stage": "local-self-hosted-selection",
+                "live_preview": True,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "counts": {
+                    "ordinary_qualified": len(ordinary_preview),
+                    "ordinary_minimum": minimum_general,
+                    "ordinary_maximum": general_target,
+                    "jp_selected": len(jp_selected[:source_target]),
+                },
+                "local_rules": config.get("_local_rules", {}),
+            },
+        )
+
+    def accept_live_speed_result(node: NodeResult) -> None:
+        speed_qualified[node.ip] = node
+        write_live_preview()
+
+    # Show retained valid nodes and the JP lane immediately, then append each
+    # newly speed-qualified ordinary node as soon as its download probe ends.
+    write_live_preview()
     tcp_valid = asyncio.run(scan_tcp(general_candidates, pipeline["quality_tcp"]))
     metric_valid, metric_counts = _three_metric_checks(
         tcp_valid,
@@ -468,15 +650,8 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         user_agent=user_agent,
         locations=locations,
     )
-
-    speed_batch_size = int(pipeline.get("speed_batch_size", 400))
-    speed_qualified: dict[str, NodeResult] = {
-        node.ip: node for node in accumulated_general
-    }
-    speed_processed: set[str] = set()
-    speed_batches: list[dict[str, Any]] = []
     ordered_metrics = rank_final(metric_valid, count=len(metric_valid))
-    while len(speed_qualified) < general_target:
+    while force_rerank or len(current_eligible_general()) < minimum_general:
         remaining = [node for node in ordered_metrics if node.ip not in speed_processed]
         if not remaining:
             break
@@ -486,6 +661,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             pipeline=pipeline,
             user_agent=user_agent,
             probe_paths=probe_paths,
+            on_qualified=accept_live_speed_result,
         )
         speed_processed.update(node.ip for node in chunk)
         for node in qualified:
@@ -497,32 +673,53 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         })
 
     max_per_colo = int(handoff.get("max_per_colo", 50))
-    general_selected = _rank_with_colo_diversity(
-        list(speed_qualified.values()),
+    eligible_general = current_eligible_general()
+    current_general = _rank_with_colo_diversity(
+        eligible_general,
         count=general_target,
         max_per_colo=max_per_colo,
+        latency_speed_first=force_rerank,
     )
-    selected = _unique_by_ip([*jp_selected[:source_target], *general_selected])
-    selected = [
+    current_general = [
         node
-        for node in selected
+        for node in current_general
         if _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
+        and _final_ordinary_quality_allowed(
+            node,
+            pipeline=pipeline,
+            source_country=source_country,
+        )
     ]
+    replacement_ips = {node.ip for node in current_general}
+    previous_general = [
+        node
+        for node in published_previous
+        if (node.country or node.country_hint).upper() != source_country
+        and node.ip not in replacement_ips
+        and _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
+    ]
+    merged_general = _unique_by_ip([*current_general, *previous_general])[:general_target]
+    # New qualified nodes replace the same number of entries from the tail of
+    # the already-published ranking. JP remains an independent appended lane.
+    selected = _unique_by_ip([*merged_general, *jp_selected[:source_target]])
+    ordinary_replacements = len(current_general)
+    ordinary_selected = len(merged_general)
+    jp_selected_count = len(selected) - ordinary_selected
     publish_ready = (
-        len(selected) >= total_target
-        and sum((node.country or node.country_hint).upper() == source_country for node in selected)
-        >= source_target
+        ordinary_replacements >= minimum_general
+        and jp_selected_count >= source_target
     )
     if not publish_ready:
         warnings.append(
-            f"本地复测只得到 {len(selected)}/{total_target} 条，保留上一轮历史订阅"
+            f"本地复测只得到普通节点 {ordinary_replacements}/{minimum_general} 条、"
+            f"日本节点 {jp_selected_count}/{source_target} 条，保留上一轮历史订阅"
         )
         selected = []
 
     attempted_ips.update(node.ip for node in new_candidates)
     qualified_accumulator = _unique_by_ip([
         *jp_selected,
-        *speed_qualified.values(),
+        *eligible_general,
     ])
 
     previous_cycle_round = int(
@@ -559,8 +756,16 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "metric_qualified": len(metric_valid),
             "speed_tested": len(speed_processed),
             "speed_qualified": len(speed_qualified),
+            "ordinary_current_rules_qualified": len(eligible_general),
             "qualified_accumulated": len(qualified_accumulator),
-            "final_target": total_target,
+            "fixed_source_ips_retained": len(retained_source_ips or ()),
+            "general_target": general_target,
+            "general_minimum": minimum_general,
+            "ordinary_selected": ordinary_selected,
+            "ordinary_replacements": ordinary_replacements,
+            "previous_ordinary_retained": max(0, len(merged_general) - ordinary_replacements),
+            "final_target": publish_target,
+            "minimum_publish_target": minimum_publish_target,
             "final_selected": len(selected),
         },
         "jp_measurements": jp_counts,
@@ -568,12 +773,17 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         "speed_batches": speed_batches,
         "warnings": warnings,
         "needs_more": needs_more,
+        "forced_rerank": force_rerank,
+        "local_rules": config.get("_local_rules", {}),
     }
     if not publish_ready:
         if accumulator_path:
             _write_handoff(accumulator_path, qualified_accumulator, report)
         if attempted_path:
-            _write_ip_set(attempted_path, attempted_ips)
+            _write_ip_set(
+                attempted_path,
+                retained_source_ips if retained_source_ips is not None else attempted_ips,
+            )
     output_dir = resolve_path(config, config["paths"]["output"])
     final_report = publish_outputs(output_dir, selected, report, output_options)
     if final_report["published"]:
@@ -588,8 +798,11 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             accumulator_path.unlink(missing_ok=True)
         if attempted_path:
             attempted_path.unlink(missing_ok=True)
+        if force_rerank:
+            force_marker_path.unlink(missing_ok=True)
     print(
-        f"本地完成: 输入={len(combined)} 最终={len(selected)}/{total_target} "
+        f"本地完成: 输入={len(combined)} 最终={len(selected)} "
+        f"最低发布={minimum_publish_target} 最大={publish_target} "
         f"published={final_report['published']}",
         flush=True,
     )
