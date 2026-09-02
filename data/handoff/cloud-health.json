@@ -1,33 +1,29 @@
 {
-  "status": "degraded",
+  "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-02T13:27:05.700131+00:00",
-  "generated_at": "2026-09-02T13:27:34.418587+00:00",
-  "target": 5000,
-  "selected": 0,
+  "started_at": "2026-09-02T14:10:34.733220+00:00",
+  "generated_at": "2026-09-02T14:10:36.861309+00:00",
+  "target": 10000,
+  "selected": 22831,
+  "official_target": 10000,
   "previous_excluded": 100,
-  "attempted_excluded": 12831,
-  "prior_official_excluded": 1524609,
-  "continuation": true,
-  "stale_attempted_ignored": 0,
-  "stale_official_ignored": 0,
+  "attempted_excluded": 0,
+  "prior_official_excluded": 0,
+  "continuation": false,
+  "stale_attempted_ignored": 12831,
+  "stale_official_ignored": 1524609,
   "source_candidates": 16048,
-  "linked_jp_reserved_for_local": 0,
-  "linked_ipv6_reserved_for_local": 0,
-  "official_sampled": 0,
-  "tested_unique": 12831,
+  "links_included": true,
+  "cloud_prefilter_skipped": true,
+  "official_sampled": 10000,
+  "tested_unique": 0,
   "rounds": [
     {
       "round": 1,
-      "input": 0,
-      "tcp_qualified": 0,
-      "qualified_total": 0,
-      "shortlisted": 0
+      "official_unique": 10000,
+      "link_unique": 16048,
+      "handoff_total": 22831
     }
   ],
-  "warnings": [
-    "第 1 轮官方段只生成 0/50000 个不重复 IP",
-    "云端第 1 轮没有新的唯一候选，提前结束补池",
-    "新交接池不足目标数量，保留上一版云端交接文件"
-  ]
+  "warnings": []
 }
