@@ -3,12 +3,11 @@ from __future__ import annotations
 import gzip
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER_ROOT = ROOT / "windows-controller"
@@ -178,7 +177,7 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(rules["http_ttfb_max_ms"], 200)
             self.assertEqual(rules["average_max_ms"], 200)
             self.assertEqual(rules["jitter_max_ms"], 200)
-            self.assertEqual(rules["loss_max_percent"], 20)
+            self.assertEqual(rules["loss_max_percent"], 30)
             self.assertEqual(rules["speed_min_mbps"], 3)
 
     def test_stop_selection_kills_only_detected_local_probe_and_clears_requeue(self) -> None:

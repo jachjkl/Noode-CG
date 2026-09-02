@@ -274,7 +274,7 @@ class HandoffPipelineTests(unittest.TestCase):
                 patch("core.handoff.collect_official_batch", return_value=([official], [])),
                 patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
             ):
-                report = prepare_cloud_handoff(config)
+                prepare_cloud_handoff(config)
 
             nodes = json.loads(gzip.decompress((root / "pool.json.gz").read_bytes()))["nodes"]
             self.assertEqual(scanned, set())

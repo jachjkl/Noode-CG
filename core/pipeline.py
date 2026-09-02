@@ -263,7 +263,7 @@ def _final_loss_allowed(
     """Apply the hard packet-loss gate to ordinary nodes, not the JP lane."""
     if _country_of(node) == source_country.upper():
         return True
-    maximum = float(pipeline.get("maximum_loss_rate", 0.20))
+    maximum = float(pipeline.get("maximum_loss_rate", 0.30))
     return node.tcp_loss_rate <= maximum
 
 
@@ -286,7 +286,7 @@ def _final_ordinary_quality_allowed(
     )
     average_limit = float(pipeline.get("maximum_combined_latency_ms", 300.0))
     jitter_limit = float(pipeline.get("maximum_jitter_ms", 500.0))
-    loss_limit = float(pipeline.get("maximum_loss_rate", 0.20))
+    loss_limit = float(pipeline.get("maximum_loss_rate", 0.30))
     speed_limit = float(pipeline.get("speed", {}).get("minimum_mbps", 3.0))
 
     return (
@@ -864,7 +864,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         )
         for node in selected
     ):
-        maximum_loss_percent = float(pipeline.get("maximum_loss_rate", 0.20)) * 100
+        maximum_loss_percent = float(pipeline.get("maximum_loss_rate", 0.30)) * 100
         report["warnings"].append(
             f"最终普通节点仍包含丢包率超过自定义上限 {maximum_loss_percent:g}% 的地址，拒绝发布"
         )

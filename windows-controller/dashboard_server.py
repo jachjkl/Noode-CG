@@ -21,7 +21,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-
 STAGE_LABELS = {
     "cloud-prepare": "云端生成 RAW10000",
     "local-select": "本地网络优选",
@@ -36,7 +35,7 @@ LOCAL_RULE_DEFAULTS = {
     "http_ttfb_max_ms": 200.0,
     "average_max_ms": 200.0,
     "jitter_max_ms": 200.0,
-    "loss_max_percent": 20.0,
+    "loss_max_percent": 30.0,
     "speed_min_mbps": 3.0,
 }
 

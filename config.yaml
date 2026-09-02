@@ -60,8 +60,9 @@ pipeline:
   maximum_combined_latency_ms: 300
   maximum_component_latency_ms: 300
   maximum_jitter_ms: 500
-  # Hard final gate for ordinary nodes. JP uses its dedicated TCPing/speed lane.
-  maximum_loss_rate: 0.20
+  # Default only; the local dashboard rule overrides this for ordinary nodes.
+  # JP uses its dedicated TCPing/speed lane and remains exempt.
+  maximum_loss_rate: 0.30
   # Final total is 300, including the dedicated JP10 lane.
   current_selection: 300
   # Download only the best 400 at a time and stop as soon as 290 strict
@@ -108,9 +109,9 @@ pipeline:
     require_all_attempts: false
     maximum_average_latency_ms: 300
     maximum_jitter_ms: 500
-    # Ordinary nodes above 20% packet loss are rejected. The separate JP lane
-    # intentionally does not inherit this hard gate.
-    maximum_loss_rate: 0.20
+    # Default only; the saved local packet-loss rule overrides this value.
+    # The separate JP lane intentionally does not inherit this gate.
+    maximum_loss_rate: 0.30
     stop_on_failure: false
     stop_when_average_impossible: false
 

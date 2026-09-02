@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.config import ConfigError, load_config
 
@@ -21,10 +22,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["pipeline"]["maximum_combined_latency_ms"], 200)
         self.assertEqual(config["pipeline"]["maximum_component_latency_ms"], 200)
         self.assertEqual(config["pipeline"]["maximum_jitter_ms"], 200)
+        self.assertEqual(config["pipeline"]["maximum_loss_rate"], 0.30)
         self.assertEqual(config["pipeline"]["http"]["maximum_average_ttfb_ms"], 200)
         self.assertTrue(config["pipeline"]["prefilter_tcp"]["require_all_attempts"])
         self.assertEqual(config["pipeline"]["prefilter_tcp"]["maximum_average_latency_ms"], 1000)
         self.assertEqual(config["pipeline"]["quality_tcp"]["maximum_average_latency_ms"], 200)
+        self.assertEqual(config["pipeline"]["quality_tcp"]["maximum_loss_rate"], 0.30)
         self.assertFalse(config["pipeline"]["quality_tcp"]["require_all_attempts"])
         self.assertEqual(config["pipeline"]["current_selection"], 300)
         self.assertEqual(config["pipeline"]["speed"]["minimum_mbps"], 3.0)
@@ -71,6 +74,22 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("actions: write", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertNotIn("data/local-cfdata-candidates.txt", workflow)
+
+    def test_runner_reads_saved_packet_loss_rule_from_dashboard_location(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            local_root = Path(temporary)
+            rules_path = local_root / "app" / "data" / "local-rules.json"
+            rules_path.parent.mkdir(parents=True)
+            rules_path.write_text(
+                '{"ordinary":{"loss_max_percent":37.5}}',
+                encoding="utf-8",
+            )
+            with patch.dict("os.environ", {"NOODE_LOCAL_ROOT": str(local_root)}):
+                config = load_config(Path(__file__).parents[1] / "config.yaml")
+
+            self.assertEqual(config["pipeline"]["quality_tcp"]["maximum_loss_rate"], 0.375)
+            self.assertEqual(config["pipeline"]["maximum_loss_rate"], 0.375)
+            self.assertEqual(Path(config["_local_rules_path"]), rules_path)
 
     def test_rejects_url_as_domain(self) -> None:
         text = """

@@ -21,7 +21,7 @@ LOCAL_RULE_DEFAULTS: dict[str, float] = {
     "http_ttfb_max_ms": 200.0,
     "average_max_ms": 200.0,
     "jitter_max_ms": 200.0,
-    "loss_max_percent": 20.0,
+    "loss_max_percent": 30.0,
     "speed_min_mbps": 3.0,
 }
 
@@ -41,7 +41,12 @@ def _expand_env(value: Any) -> Any:
 
 
 def _load_local_rules(config_path: Path) -> tuple[dict[str, float], Path]:
-    rules_path = config_path.parent / "data" / "local-rules.json"
+    local_root = os.getenv("NOODE_LOCAL_ROOT", "").strip()
+    rules_path = (
+        Path(local_root) / "app" / "data" / "local-rules.json"
+        if local_root
+        else config_path.parent / "data" / "local-rules.json"
+    )
     rules = dict(LOCAL_RULE_DEFAULTS)
     if not rules_path.is_file():
         return rules, rules_path

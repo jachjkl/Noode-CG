@@ -63,7 +63,7 @@ const defaultRules = {
   http_ttfb_max_ms: 200,
   average_max_ms: 200,
   jitter_max_ms: 200,
-  loss_max_percent: 20,
+  loss_max_percent: 30,
   speed_min_mbps: 3,
 };
 
