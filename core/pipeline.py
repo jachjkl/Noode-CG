@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import gzip
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -59,7 +59,12 @@ def _three_metric_checks(
     ))
     enrich_locations(http_valid, locations)
     maximum_combined = float(pipeline["maximum_combined_latency_ms"])
-    maximum_component = float(pipeline["maximum_component_latency_ms"])
+    legacy_component = float(pipeline["maximum_component_latency_ms"])
+    component_limits = (
+        float(pipeline.get("quality_tcp", {}).get("maximum_average_latency_ms", legacy_component)),
+        float(pipeline.get("tls", {}).get("maximum_average_latency_ms", legacy_component)),
+        float(pipeline.get("http", {}).get("maximum_average_ttfb_ms", legacy_component)),
+    )
     maximum_jitter = float(pipeline["maximum_jitter_ms"])
     location_filter = pipeline.get("location_filter", {})
     excluded_countries = {
@@ -80,7 +85,8 @@ def _three_metric_checks(
         )
         components = (node.tcp_latency_ms, node.tls_latency_ms, node.http_latency_ms)
         component_valid = all(
-            value is not None and value <= maximum_component for value in components
+            value is not None and value <= limit
+            for value, limit in zip(components, component_limits, strict=True)
         )
         jitter_valid = (
             node.overall_jitter_ms is not None
@@ -100,7 +106,7 @@ def _three_metric_checks(
         elif not component_valid:
             node.add_error(
                 "latency",
-                f"单项延迟超过 {maximum_component:g}ms: {components}",
+                f"单项延迟超过自定义上限 {component_limits}: {components}",
             )
         elif not jitter_valid:
             node.add_error(
@@ -122,16 +128,29 @@ def _three_metric_checks(
 
 def _speed_checks(
     records: list[NodeResult], *, pipeline: dict[str, Any], user_agent: str,
-    probe_paths: list[Path],
+    probe_paths: list[Path], on_qualified: Callable[[NodeResult], None] | None = None,
 ) -> tuple[list[NodeResult], dict[str, Any]]:
     merge_probe_files(records, probe_paths)
     options = dict(pipeline["speed"])
     options["candidates"] = len(records)
     full_started = time.monotonic()
-    tested = asyncio.run(test_speed(records, options, user_agent=user_agent))
+    minimum_mbps = float(options["minimum_mbps"])
+
+    def report_result(node: NodeResult) -> None:
+        if on_qualified is not None and meets_minimum_speed(
+            node, minimum_mbps=minimum_mbps
+        ):
+            on_qualified(node)
+
+    tested = asyncio.run(test_speed(
+        records,
+        options,
+        user_agent=user_agent,
+        on_result=report_result,
+    ))
     full_seconds = time.monotonic() - full_started
     qualified = [node for node in tested if meets_minimum_speed(
-        node, minimum_mbps=float(options["minimum_mbps"])
+        node, minimum_mbps=minimum_mbps
     )]
     return qualified, {
         "speed_tested_once": len(tested),
@@ -236,6 +255,55 @@ def _country_quotas_met(records: list[NodeResult], minimums: dict[str, int]) -> 
 
 def _country_of(node: NodeResult) -> str:
     return str(node.country or node.country_hint or "").upper()
+
+
+def _final_loss_allowed(
+    node: NodeResult, *, pipeline: dict[str, Any], source_country: str
+) -> bool:
+    """Apply the hard packet-loss gate to ordinary nodes, not the JP lane."""
+    if _country_of(node) == source_country.upper():
+        return True
+    maximum = float(pipeline.get("maximum_loss_rate", 0.20))
+    return node.tcp_loss_rate <= maximum
+
+
+def _final_ordinary_quality_allowed(
+    node: NodeResult, *, pipeline: dict[str, Any], source_country: str
+) -> bool:
+    """Reapply the active local rules to fresh and accumulated ordinary nodes."""
+    if _country_of(node) == source_country.upper():
+        return True
+
+    component_default = float(pipeline.get("maximum_component_latency_ms", 300.0))
+    tcp_limit = float(
+        pipeline.get("quality_tcp", {}).get("maximum_average_latency_ms", component_default)
+    )
+    tls_limit = float(
+        pipeline.get("tls", {}).get("maximum_average_latency_ms", component_default)
+    )
+    http_limit = float(
+        pipeline.get("http", {}).get("maximum_average_ttfb_ms", component_default)
+    )
+    average_limit = float(pipeline.get("maximum_combined_latency_ms", 300.0))
+    jitter_limit = float(pipeline.get("maximum_jitter_ms", 500.0))
+    loss_limit = float(pipeline.get("maximum_loss_rate", 0.20))
+    speed_limit = float(pipeline.get("speed", {}).get("minimum_mbps", 3.0))
+
+    return (
+        node.tcp_latency_ms is not None
+        and node.tcp_latency_ms <= tcp_limit
+        and node.tls_latency_ms is not None
+        and node.tls_latency_ms <= tls_limit
+        and node.http_latency_ms is not None
+        and node.http_latency_ms <= http_limit
+        and node.average_latency_ms is not None
+        and node.average_latency_ms <= average_limit
+        and node.overall_jitter_ms is not None
+        and node.overall_jitter_ms <= jitter_limit
+        and node.tcp_loss_rate <= loss_limit
+        and node.speed_mbps is not None
+        and node.speed_mbps >= speed_limit
+    )
 
 
 def _final_country_allowed(
@@ -416,18 +484,28 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     }
     prefilter_shortlisted_max = 0
     final_country_rejected_ips: set[str] = set()
+    final_loss_rejected_ips: set[str] = set()
 
     def final_country_eligible(records: Iterable[NodeResult]) -> list[NodeResult]:
         accepted: list[NodeResult] = []
         for node in records:
-            if _final_country_allowed(
+            country_allowed = _final_country_allowed(
                 node,
                 pipeline=pipeline,
                 source_country=source_country,
-            ):
+            )
+            loss_allowed = _final_loss_allowed(
+                node,
+                pipeline=pipeline,
+                source_country=source_country,
+            )
+            if country_allowed and loss_allowed:
                 accepted.append(node)
             else:
-                final_country_rejected_ips.add(node.ip)
+                if not country_allowed:
+                    final_country_rejected_ips.add(node.ip)
+                if not loss_allowed:
+                    final_loss_rejected_ips.add(node.ip)
         return accepted
 
     # The required JP lane is sourced only from the two configured link feeds.
@@ -695,6 +773,7 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         "previous_reverified": len(previous_quality),
         "previous_in_final": sum(node.ip in previous_ips for node in selected),
         "final_country_candidates_rejected": len(final_country_rejected_ips),
+        "final_packet_loss_candidates_rejected": len(final_loss_rejected_ips),
         "final_forbidden_country_count": sum(
             not _final_country_allowed(
                 node,
@@ -747,6 +826,18 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             )),
             1,
         ),
+        _gate(
+            "final_ordinary_packet_loss_within_local_rule",
+            int(all(
+                _final_loss_allowed(
+                    node,
+                    pipeline=pipeline,
+                    source_country=source_country,
+                )
+                for node in selected
+            )),
+            1,
+        ),
     ])
 
     if selected and prefilter_shortlisted_max < prefilter_target:
@@ -764,6 +855,19 @@ def run_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         for node in selected
     ):
         report["warnings"].append("最终结果仍包含 CN 或未知地区，拒绝发布")
+        selected = []
+    if selected and not all(
+        _final_loss_allowed(
+            node,
+            pipeline=pipeline,
+            source_country=source_country,
+        )
+        for node in selected
+    ):
+        maximum_loss_percent = float(pipeline.get("maximum_loss_rate", 0.20)) * 100
+        report["warnings"].append(
+            f"最终普通节点仍包含丢包率超过自定义上限 {maximum_loss_percent:g}% 的地址，拒绝发布"
+        )
         selected = []
     if selected and not baseline_passed:
         report["warnings"].append("Google、Cloudflare、GitHub 三次基线未全部通过，保留旧订阅")
