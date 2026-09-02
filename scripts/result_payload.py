@@ -5,7 +5,6 @@ import json
 import zipfile
 from pathlib import Path, PurePosixPath
 
-
 PAYLOAD_FILES = (
     "output/nodes.txt",
     "output/nodes.json",

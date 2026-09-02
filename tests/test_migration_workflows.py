@@ -6,16 +6,17 @@ from pathlib import Path
 
 class MigrationWorkflowTests(unittest.TestCase):
     def test_cleanup_removes_obsolete_pipeline_loop_test(self) -> None:
-        workflow = (
-            Path(__file__).parents[1] / ".github" / "workflows" / "cleanup-legacy.yml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("tests/test_pipeline_loop.py", workflow)
-        self.assertIn("scripts/run-local-cfdata.ps1", workflow)
-        self.assertIn("windows-controller/开始云端和本地优选.ps1", workflow)
-        self.assertIn("data/local-cfdata-candidates.txt", workflow)
-        self.assertNotIn("            output/nodes.txt\n", workflow)
-        self.assertNotIn("            output/nodes.json\n", workflow)
-        self.assertNotIn("            data/previous-top100.json\n", workflow)
+        cleanup = Path(__file__).parents[1] / ".github" / "workflows" / "cleanup-legacy.yml"
+        # The one-shot workflow removes itself after a successful migration.
+        if cleanup.is_file():
+            workflow = cleanup.read_text(encoding="utf-8")
+            self.assertIn("tests/test_pipeline_loop.py", workflow)
+            self.assertIn("scripts/run-local-cfdata.ps1", workflow)
+            self.assertIn("windows-controller/开始云端和本地优选.ps1", workflow)
+            self.assertIn("data/local-cfdata-candidates.txt", workflow)
+            self.assertNotIn("            output/nodes.txt\n", workflow)
+            self.assertNotIn("            output/nodes.json\n", workflow)
+            self.assertNotIn("            data/previous-top100.json\n", workflow)
 
         ci = (
             Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml"

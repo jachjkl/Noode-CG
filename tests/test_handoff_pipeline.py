@@ -129,6 +129,143 @@ class HandoffPipelineTests(unittest.TestCase):
             snapshot = set(gzip.decompress(prior.read_bytes()).decode().splitlines())
             self.assertEqual(snapshot, {"198.51.100.2", fresh.ip})
 
+    def test_new_cycle_ignores_stale_attempted_and_prior_official_ips(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            attempted = root / "attempted.txt.gz"
+            attempted.write_bytes(gzip.compress(b"198.51.100.1\n", mtime=0))
+            prior = root / "official.txt.gz"
+            prior.write_bytes(gzip.compress(b"198.51.100.2\n", mtime=0))
+            fresh = NodeResult(ip="198.51.100.3")
+            config = {
+                "_base_dir": str(root),
+                "paths": {"output": "output"},
+                "rolling": {
+                    "snapshot_path": "previous.json",
+                    "previous_limit": 100,
+                    "official_snapshot_path": "official.txt.gz",
+                },
+                "sources": {"cloudflare_ranges": {"official_batch_size": 1}},
+                "pipeline": {
+                    "source_priority": [],
+                    "prefilter_tcp": {},
+                    "jp_source_requirement": {"country": "JP", "count": 1},
+                },
+                "handoff": {
+                    "pool_path": "pool.json.gz",
+                    "health_path": "health.json",
+                    "attempted_path": "attempted.txt.gz",
+                    "target": 1,
+                    "max_official_rounds": 1,
+                },
+            }
+            captured_exclusions: list[set[str]] = []
+
+            def official_batch(_config, *, exclude_ips, round_index):
+                captured_exclusions.append(set(exclude_ips))
+                return [fresh], []
+
+            async def scan(records, _options):
+                return [qualified(node) for node in records]
+
+            with (
+                patch.dict(os.environ, {"NOODE_CONTINUATION": "false"}),
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.collect_source_candidates", return_value=([], [])),
+                patch("core.handoff.collect_official_batch", side_effect=official_batch),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+            ):
+                report = prepare_cloud_handoff(config)
+
+            self.assertEqual(captured_exclusions, [set()])
+            self.assertFalse(report["continuation"])
+            self.assertEqual(report["attempted_excluded"], 0)
+            self.assertEqual(report["prior_official_excluded"], 0)
+            snapshot = set(gzip.decompress(prior.read_bytes()).decode().splitlines())
+            self.assertEqual(snapshot, {fresh.ip})
+
+    def test_cloud_reserves_link_ipv6_for_local_testing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            linked_ipv6 = NodeResult(
+                ip="2606:4700:3023:fa4e:70b5:5319:8d88:be3",
+                country_hint="US",
+            )
+            linked_ipv6.add_source("link")
+            official = NodeResult(ip="203.0.113.20")
+            config = {
+                "_base_dir": str(root),
+                "paths": {"output": "output"},
+                "rolling": {"snapshot_path": "previous.json", "previous_limit": 100},
+                "sources": {"cloudflare_ranges": {"official_batch_size": 1}},
+                "pipeline": {
+                    "source_priority": ["link"],
+                    "prefilter_tcp": {},
+                    "jp_source_requirement": {"country": "JP", "count": 0},
+                },
+                "handoff": {
+                    "pool_path": "pool.json.gz",
+                    "health_path": "health.json",
+                    "target": 2,
+                    "max_official_rounds": 1,
+                },
+            }
+            scanned: set[str] = set()
+
+            async def scan(records, _options):
+                scanned.update(node.ip for node in records)
+                return [qualified(node) for node in records]
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch(
+                    "core.handoff.collect_source_candidates",
+                    return_value=([linked_ipv6], []),
+                ),
+                patch("core.handoff.collect_official_batch", return_value=([official], [])),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+            ):
+                report = prepare_cloud_handoff(config)
+
+            nodes = json.loads(gzip.decompress((root / "pool.json.gz").read_bytes()))["nodes"]
+            self.assertEqual(report["linked_ipv6_reserved_for_local"], 1)
+            self.assertNotIn(linked_ipv6.ip, scanned)
+            self.assertIn(linked_ipv6.ip, {node["ip"] for node in nodes})
+
+    def test_cloud_prepare_stops_after_first_empty_unique_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = {
+                "_base_dir": str(root),
+                "paths": {"output": "output"},
+                "rolling": {"snapshot_path": "previous.json", "previous_limit": 100},
+                "sources": {"cloudflare_ranges": {"official_batch_size": 50000}},
+                "pipeline": {
+                    "source_priority": [],
+                    "prefilter_tcp": {},
+                    "jp_source_requirement": {"country": "JP", "count": 0},
+                },
+                "handoff": {
+                    "pool_path": "pool.json.gz",
+                    "health_path": "health.json",
+                    "target": 5000,
+                    "max_official_rounds": 30,
+                },
+            }
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.collect_source_candidates", return_value=([], [])),
+                patch("core.handoff.collect_official_batch", return_value=([], [])) as collect,
+                patch("core.handoff.scan_tcp", new=AsyncMock()) as scan,
+            ):
+                report = prepare_cloud_handoff(config)
+
+            self.assertEqual(collect.call_count, 1)
+            scan.assert_not_awaited()
+            self.assertEqual(len(report["rounds"]), 1)
+            self.assertEqual(report["rounds"][0]["input"], 0)
+
     def test_colo_cap_is_soft_and_spreads_the_first_choices(self) -> None:
         records = []
         for index, colo in enumerate(("LAX", "LAX", "NRT", "FRA"), start=1):

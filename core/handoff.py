@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import ipaddress
 import json
 import os
 from collections.abc import Iterable
@@ -145,16 +146,18 @@ def _select_cloud_pool(
     passed: Iterable[NodeResult],
     *,
     linked_jp: Iterable[NodeResult],
+    linked_ipv6: Iterable[NodeResult] = (),
     target: int,
     source_priority: list[str],
 ) -> list[NodeResult]:
-    """Keep every link-provided JP candidate before filling the normal pool.
+    """Keep locally measured link candidates before filling the normal pool.
 
     A GitHub-hosted runner is a poor place to reject Japan candidates intended
-    for a user's local route.  These records deliberately bypass the cloud TCP
-    ranking and are measured exactly once by the dedicated local JP lane.
+    for a user's local route.  It also commonly has no usable IPv6 route, so
+    IPv6 records that actually occur in the fixed links are passed through for
+    the Windows runner to measure.  No synthetic official IPv6 pool is added.
     """
-    reserved = _unique_by_ip(linked_jp)
+    reserved = _unique_by_ip([*linked_jp, *linked_ipv6])
     if len(reserved) >= target:
         return reserved[:target]
     reserved_ips = {node.ip for node in reserved}
@@ -194,14 +197,18 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     previous_ips = {node.ip for node in previous}
     attempted_value = handoff.get("attempted_path")
     attempted_path = resolve_path(config, attempted_value) if attempted_value else None
-    attempted_ips = _load_ip_set(attempted_path) if attempted_path else set()
+    loaded_attempted_ips = _load_ip_set(attempted_path) if attempted_path else set()
     official_value = config.get("rolling", {}).get("official_snapshot_path")
     official_path = resolve_path(config, official_value) if official_value else None
-    prior_official_ips = _load_ip_set(official_path) if official_path else set()
-    continuation = bool(attempted_ips) or (
+    loaded_prior_official_ips = _load_ip_set(official_path) if official_path else set()
+    continuation = (
         os.getenv("NOODE_CONTINUATION", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+    # Only an explicitly dispatched replenishment belongs to the same cycle.
+    # A scheduled/manual fresh run may reuse addresses from an older cycle.
+    attempted_ips = loaded_attempted_ips if continuation else set()
+    prior_official_ips = loaded_prior_official_ips if continuation else set()
     sources, source_warnings = collect_source_candidates(config)
     warnings.extend(source_warnings)
     source_country = str(
@@ -214,8 +221,17 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         and node.ip not in previous_ips
         and node.ip not in attempted_ips
     ]
-    linked_jp_ips = {node.ip for node in linked_jp}
-    cloud_test_sources = [node for node in sources if node.ip not in linked_jp_ips]
+    linked_ipv6 = [
+        node
+        for node in sources
+        if ipaddress.ip_address(node.ip).version == 6
+        and node.ip not in previous_ips
+        and node.ip not in attempted_ips
+    ]
+    locally_reserved_ips = {node.ip for node in [*linked_jp, *linked_ipv6]}
+    cloud_test_sources = [
+        node for node in sources if node.ip not in locally_reserved_ips
+    ]
     source_ips = {node.ip for node in sources}
     tested_ips: set[str] = set(attempted_ips)
     official_ips: set[str] = set()
@@ -239,6 +255,26 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
             for node in _unique_by_ip(raw)
             if node.ip not in previous_ips and node.ip not in tested_ips
         ]
+        if not batch:
+            rounds.append({
+                "round": round_index + 1,
+                "input": 0,
+                "tcp_qualified": 0,
+                "qualified_total": len(passed_by_ip),
+                "shortlisted": len(_select_cloud_pool(
+                    passed_by_ip.values(),
+                    linked_jp=linked_jp,
+                    linked_ipv6=linked_ipv6,
+                    target=target,
+                    source_priority=source_priority,
+                )),
+            })
+            warning = (
+                f"云端第 {round_index + 1} 轮没有新的唯一候选，提前结束补池"
+            )
+            warnings.append(warning)
+            print(warning, flush=True)
+            break
         tested_ips.update(node.ip for node in batch)
         passed = asyncio.run(scan_tcp(_fresh(batch, "cloud-prefilter"), pipeline["prefilter_tcp"]))
         for node in passed:
@@ -251,6 +287,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         shortlist = _select_cloud_pool(
             passed_by_ip.values(),
             linked_jp=linked_jp,
+            linked_ipv6=linked_ipv6,
             target=target,
             source_priority=source_priority,
         )
@@ -272,6 +309,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     selected = _select_cloud_pool(
         passed_by_ip.values(),
         linked_jp=linked_jp,
+        linked_ipv6=linked_ipv6,
         target=target,
         source_priority=source_priority,
     )
@@ -287,8 +325,15 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         "attempted_excluded": len(attempted_ips),
         "prior_official_excluded": len(prior_official_ips),
         "continuation": continuation,
+        "stale_attempted_ignored": (
+            len(loaded_attempted_ips) if not continuation else 0
+        ),
+        "stale_official_ignored": (
+            len(loaded_prior_official_ips) if not continuation else 0
+        ),
         "source_candidates": len(sources),
         "linked_jp_reserved_for_local": len(linked_jp),
+        "linked_ipv6_reserved_for_local": len(linked_ipv6),
         "official_sampled": len(official_ips),
         "tested_unique": len(tested_ips),
         "rounds": rounds,
