@@ -1,22 +1,22 @@
 {
   "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-03T02:43:36.589441+00:00",
-  "generated_at": "2026-09-03T02:48:19.619830+00:00",
+  "started_at": "2026-09-03T02:49:56.774229+00:00",
+  "generated_at": "2026-09-03T02:51:52.537682+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-03T02:43:18.426117+00:00",
+  "handoff_generated_at": "2026-09-03T02:49:22.218642+00:00",
   "cycle_round": 1,
-  "max_replenishment_rounds": 3,
+  "max_replenishment_rounds": 1,
   "counts": {
-    "cloud_pool": 22831,
+    "cloud_pool": 10000,
     "previous_loaded": 100,
-    "combined_unique": 22926,
-    "new_unique_tested": 22926,
-    "accumulated_loaded": 0,
-    "jp_candidates": 395,
+    "combined_unique": 10010,
+    "new_unique_tested": 10000,
+    "accumulated_loaded": 10,
+    "jp_candidates": 0,
     "jp_selected": 10,
-    "general_candidates": 22525,
-    "tcp_qualified": 13,
+    "general_candidates": 10000,
+    "tcp_qualified": 1,
     "metric_qualified": 0,
     "speed_tested": 0,
     "speed_qualified": 0,
@@ -33,28 +33,29 @@
     "final_selected": 0
   },
   "jp_measurements": {
-    "input_endpoints": 395,
-    "input_unique_ips": 395,
+    "input_endpoints": 0,
+    "input_unique_ips": 0,
     "tcping_attempts_per_endpoint": 3,
-    "tcping_measured": 332,
-    "download_tested_once": 395,
-    "download_measured": 292,
-    "selected_unique_ips": 10,
-    "duration_seconds": 39.016
+    "tcping_measured": 0,
+    "download_tested_once": 0,
+    "download_measured": 0,
+    "selected_unique_ips": 0,
+    "duration_seconds": 0.406
   },
   "metric_measurements": {
     "tls_three_pass_success": 0,
     "https_ttfb_three_pass_success": 0,
     "foreign_combined_latency_qualified": 0,
-    "tls_and_https_duration_seconds": 4.547
+    "tls_and_https_duration_seconds": 1.891
   },
   "speed_batches": [],
   "warnings": [
-    "连续优选第 1/3 轮累计得到普通节点 0/300 条，继续申请新的10000个官方候选"
+    "本地复测得到普通节点 0/300 条、日本节点 10/10 条，本轮没有可发布结果",
+    "已达到最多 1 轮本地补池限制"
   ],
-  "needs_more": true,
+  "needs_more": false,
   "forced_rerank": false,
-  "continuous_three_rounds": true,
+  "continuous_three_rounds": false,
   "local_rules": {
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
