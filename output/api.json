@@ -1,9 +1,65 @@
 {
   "project": "Noode-CG Local10000-Local300",
-  "generated_at": "2026-09-03T09:06:06.843757+00:00",
+  "generated_at": "2026-09-03T11:54:18.471887+00:00",
   "count": 310,
   "format": "edgetunnel-address-feed",
   "nodes": [
+    {
+      "ip": "43.159.12.36",
+      "port": 443,
+      "ip_port": "43.159.12.36:443",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 44.459,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 44.459,
+      "tcp_jitter_ms": 3.605,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 3.605,
+      "loss_rate": 0.0,
+      "speed_mbps": 27.076,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            49.387,
+            43.13,
+            40.86
+          ],
+          "average_ms": 44.459,
+          "jitter_ms": 3.605,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.1549,
+          "speed_mbps": 27.076,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
     {
       "ip": "43.159.4.80",
       "port": 443,
@@ -13,33 +69,31 @@
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 44.477,
+      "tcp_latency_ms": 95.938,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 44.477,
-      "tcp_jitter_ms": 1.906,
+      "average_latency_ms": 95.938,
+      "tcp_jitter_ms": 65.987,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 1.906,
+      "jitter_ms": 65.987,
       "loss_rate": 0.0,
-      "speed_mbps": 25.663,
+      "speed_mbps": 18.362,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            45.774,
-            45.246,
-            45.091,
-            45.578,
-            40.697
+            44.909,
+            53.788,
+            189.116
           ],
-          "average_ms": 44.477,
-          "jitter_ms": 1.906,
+          "average_ms": 95.938,
+          "jitter_ms": 65.987,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -47,17 +101,19 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.0817,
-          "speed_mbps": 25.663,
+          "download_seconds": 0.2284,
+          "speed_mbps": 18.362,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "bestcf.pages.dev/lzj",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -69,33 +125,31 @@
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 66.976,
+      "tcp_latency_ms": 96.201,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 66.976,
-      "tcp_jitter_ms": 44.695,
+      "average_latency_ms": 96.201,
+      "tcp_jitter_ms": 65.484,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 44.695,
+      "jitter_ms": 65.484,
       "loss_rate": 0.0,
-      "speed_mbps": 14.168,
+      "speed_mbps": 14.143,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            45.559,
-            37.97,
-            49.72,
-            45.589,
-            156.042
+            51.018,
+            48.785,
+            188.8
           ],
-          "average_ms": 66.976,
-          "jitter_ms": 44.695,
+          "average_ms": 96.201,
+          "jitter_ms": 65.484,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -103,11 +157,11 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.148,
-          "speed_mbps": 14.168,
+          "download_seconds": 0.2966,
+          "speed_mbps": 14.143,
           "minimum_mbps": 3.0
         }
       },
@@ -115,7 +169,174 @@
         "bestcf.pages.dev/lzj",
         "cloud-prefilter",
         "cloud-handoff",
-        "published-and-qualified-retest"
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "163.61.74.121",
+      "port": 443,
+      "ip_port": "163.61.74.121:443",
+      "country": "VN",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 177.277,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 177.277,
+      "tcp_jitter_ms": 52.358,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 52.358,
+      "loss_rate": 0.0,
+      "speed_mbps": 13.375,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            103.971,
+            204.886,
+            222.973
+          ],
+          "average_ms": 177.277,
+          "jitter_ms": 52.358,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.3136,
+          "speed_mbps": 13.375,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "168.110.121.126",
+      "port": 8443,
+      "ip_port": "168.110.121.126:8443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 121.333,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 121.333,
+      "tcp_jitter_ms": 59.896,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 59.896,
+      "loss_rate": 0.0,
+      "speed_mbps": 11.489,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            80.806,
+            206.012,
+            77.18
+          ],
+          "average_ms": 121.333,
+          "jitter_ms": 59.896,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.3651,
+          "speed_mbps": 11.489,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "152.67.208.47",
+      "port": 443,
+      "ip_port": "152.67.208.47:443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 117.405,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 117.405,
+      "tcp_jitter_ms": 54.149,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 54.149,
+      "loss_rate": 0.0,
+      "speed_mbps": 11.087,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            80.557,
+            193.966,
+            77.693
+          ],
+          "average_ms": 117.405,
+          "jitter_ms": 54.149,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.3783,
+          "speed_mbps": 11.087,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -175,41 +396,39 @@
       ]
     },
     {
-      "ip": "27.102.134.233",
-      "port": 443,
-      "ip_port": "27.102.134.233:443",
+      "ip": "168.107.17.234",
+      "port": 8443,
+      "ip_port": "168.107.17.234:8443",
       "country": "KR",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 54.066,
+      "tcp_latency_ms": 121.81,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 54.066,
-      "tcp_jitter_ms": 2.122,
+      "average_latency_ms": 121.81,
+      "tcp_jitter_ms": 60.796,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 2.122,
+      "jitter_ms": 60.796,
       "loss_rate": 0.0,
-      "speed_mbps": 9.631,
+      "speed_mbps": 10.682,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            56.157,
-            52.317,
-            52.711,
-            57.096,
-            52.05
+            79.961,
+            207.778,
+            77.692
           ],
-          "average_ms": 54.066,
-          "jitter_ms": 2.122,
+          "average_ms": 121.81,
+          "jitter_ms": 60.796,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -217,56 +436,55 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.2177,
-          "speed_mbps": 9.631,
+          "download_seconds": 0.3926,
+          "speed_mbps": 10.682,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
-      "ip": "43.159.12.36",
+      "ip": "161.117.181.127",
       "port": 443,
-      "ip_port": "43.159.12.36:443",
-      "country": "XX",
+      "ip_port": "161.117.181.127:443",
+      "country": "SG",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 42.354,
+      "tcp_latency_ms": 122.676,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 42.354,
-      "tcp_jitter_ms": 3.53,
+      "average_latency_ms": 122.676,
+      "tcp_jitter_ms": 55.072,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 3.53,
+      "jitter_ms": 55.072,
       "loss_rate": 0.0,
-      "speed_mbps": 9.403,
+      "speed_mbps": 9.608,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            39.999,
-            38.982,
-            46.132,
-            47.151,
-            39.505
+            92.3,
+            199.972,
+            75.757
           ],
-          "average_ms": 42.354,
-          "jitter_ms": 3.53,
+          "average_ms": 122.676,
+          "jitter_ms": 55.072,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -274,17 +492,74 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.223,
-          "speed_mbps": 9.403,
+          "download_seconds": 0.4365,
+          "speed_mbps": 9.608,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "134.185.123.54",
+      "port": 443,
+      "ip_port": "134.185.123.54:443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 121.879,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 121.879,
+      "tcp_jitter_ms": 54.745,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 54.745,
+      "loss_rate": 0.0,
+      "speed_mbps": 9.519,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            86.429,
+            199.211,
+            79.998
+          ],
+          "average_ms": 121.879,
+          "jitter_ms": 54.745,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.4406,
+          "speed_mbps": 9.519,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -403,41 +678,39 @@
       ]
     },
     {
-      "ip": "45.141.139.209",
+      "ip": "211.49.57.134",
       "port": 443,
-      "ip_port": "45.141.139.209:443",
+      "ip_port": "211.49.57.134:443",
       "country": "KR",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 54.167,
+      "tcp_latency_ms": 96.649,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 54.167,
-      "tcp_jitter_ms": 1.641,
+      "average_latency_ms": 96.649,
+      "tcp_jitter_ms": 60.455,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 1.641,
+      "jitter_ms": 60.455,
       "loss_rate": 0.0,
-      "speed_mbps": 7.638,
+      "speed_mbps": 8.659,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            53.77,
-            57.177,
-            54.264,
-            52.279,
-            53.343
+            53.556,
+            54.246,
+            182.145
           ],
-          "average_ms": 54.167,
-          "jitter_ms": 1.641,
+          "average_ms": 96.649,
+          "jitter_ms": 60.455,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -445,17 +718,188 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.2746,
-          "speed_mbps": 7.638,
+          "download_seconds": 0.4844,
+          "speed_mbps": 8.659,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "152.67.214.155",
+      "port": 443,
+      "ip_port": "152.67.214.155:443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 121.332,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 121.332,
+      "tcp_jitter_ms": 58.495,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 58.495,
+      "loss_rate": 0.0,
+      "speed_mbps": 8.178,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            83.413,
+            203.963,
+            76.62
+          ],
+          "average_ms": 121.332,
+          "jitter_ms": 58.495,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.5129,
+          "speed_mbps": 8.178,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "8.134.218.35",
+      "port": 443,
+      "ip_port": "8.134.218.35:443",
+      "country": "DE",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 94.641,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 94.641,
+      "tcp_jitter_ms": 75.529,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 75.529,
+      "loss_rate": 0.0,
+      "speed_mbps": 8.177,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            45.183,
+            37.38,
+            201.36
+          ],
+          "average_ms": 94.641,
+          "jitter_ms": 75.529,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.5129,
+          "speed_mbps": 8.177,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "23.133.52.10",
+      "port": 2053,
+      "ip_port": "23.133.52.10:2053",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 95.215,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 95.215,
+      "tcp_jitter_ms": 70.339,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 70.339,
+      "loss_rate": 0.0,
+      "speed_mbps": 7.794,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            49.575,
+            41.49,
+            194.58
+          ],
+          "average_ms": 95.215,
+          "jitter_ms": 70.339,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.5381,
+          "speed_mbps": 7.794,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-prefilter",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -571,41 +1015,39 @@
       ]
     },
     {
-      "ip": "211.49.57.134",
+      "ip": "45.141.139.209",
       "port": 443,
-      "ip_port": "211.49.57.134:443",
+      "ip_port": "45.141.139.209:443",
       "country": "KR",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 54.464,
+      "tcp_latency_ms": 98.01,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 54.464,
-      "tcp_jitter_ms": 3.382,
+      "average_latency_ms": 98.01,
+      "tcp_jitter_ms": 57.391,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 3.382,
+      "jitter_ms": 57.391,
       "loss_rate": 0.0,
-      "speed_mbps": 7.177,
+      "speed_mbps": 7.454,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            60.181,
-            51.986,
-            51.115,
-            56.408,
-            52.632
+            56.93,
+            57.928,
+            179.172
           ],
-          "average_ms": 54.464,
-          "jitter_ms": 3.382,
+          "average_ms": 98.01,
+          "jitter_ms": 57.391,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -613,55 +1055,279 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.2922,
-          "speed_mbps": 7.177,
+          "download_seconds": 0.5627,
+          "speed_mbps": 7.454,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
-      "ip": "23.133.52.10",
-      "port": 2053,
-      "ip_port": "23.133.52.10:2053",
+      "ip": "168.107.0.210",
+      "port": 443,
+      "ip_port": "168.107.0.210:443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 121.09,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 121.09,
+      "tcp_jitter_ms": 61.056,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 61.056,
+      "loss_rate": 0.0,
+      "speed_mbps": 7.372,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            80.468,
+            207.387,
+            75.414
+          ],
+          "average_ms": 121.09,
+          "jitter_ms": 61.056,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.5689,
+          "speed_mbps": 7.372,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "47.75.104.211",
+      "port": 443,
+      "ip_port": "47.75.104.211:443",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 95.38,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 95.38,
+      "tcp_jitter_ms": 67.468,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 67.468,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.913,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            44.227,
+            51.204,
+            190.709
+          ],
+          "average_ms": 95.38,
+          "jitter_ms": 67.468,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6067,
+          "speed_mbps": 6.913,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "31.25.88.21",
+      "port": 14239,
+      "ip_port": "31.25.88.21:14239",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 196.777,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 196.777,
+      "tcp_jitter_ms": 42.711,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 42.711,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.89,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            160.72,
+            172.838,
+            256.773
+          ],
+          "average_ms": 196.777,
+          "jitter_ms": 42.711,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6088,
+          "speed_mbps": 6.89,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "27.102.134.233",
+      "port": 443,
+      "ip_port": "27.102.134.233:443",
+      "country": "KR",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 97.277,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 97.277,
+      "tcp_jitter_ms": 54.276,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 54.276,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.885,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            64.943,
+            53.157,
+            173.732
+          ],
+          "average_ms": 97.277,
+          "jitter_ms": 54.276,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6092,
+          "speed_mbps": 6.885,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "149.104.5.247",
+      "port": 443,
+      "ip_port": "149.104.5.247:443",
       "country": "HK",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 40.843,
+      "tcp_latency_ms": 90.305,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 40.843,
-      "tcp_jitter_ms": 1.734,
+      "average_latency_ms": 90.305,
+      "tcp_jitter_ms": 62.411,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 1.734,
+      "jitter_ms": 62.411,
       "loss_rate": 0.0,
-      "speed_mbps": 6.554,
+      "speed_mbps": 6.871,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            38.805,
-            39.145,
-            43.541,
-            41.056,
-            41.67
+            50.823,
+            41.682,
+            178.41
           ],
-          "average_ms": 40.843,
-          "jitter_ms": 1.734,
+          "average_ms": 90.305,
+          "jitter_ms": 62.411,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -669,19 +1335,240 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.32,
-          "speed_mbps": 6.554,
+          "download_seconds": 0.6104,
+          "speed_mbps": 6.871,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-prefilter",
         "cloud-handoff",
-        "published-and-qualified-retest"
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "103.143.81.178",
+      "port": 443,
+      "ip_port": "103.143.81.178:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 98.726,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 98.726,
+      "tcp_jitter_ms": 56.375,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 56.375,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.87,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            60.21,
+            57.531,
+            178.437
+          ],
+          "average_ms": 98.726,
+          "jitter_ms": 56.375,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6105,
+          "speed_mbps": 6.87,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "47.75.104.254",
+      "port": 443,
+      "ip_port": "47.75.104.254:443",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 93.659,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 93.659,
+      "tcp_jitter_ms": 72.685,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 72.685,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.777,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            39.019,
+            45.576,
+            196.382
+          ],
+          "average_ms": 93.659,
+          "jitter_ms": 72.685,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6189,
+          "speed_mbps": 6.777,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "98.70.26.236",
+      "port": 443,
+      "ip_port": "98.70.26.236:443",
+      "country": "IN",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 193.055,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 193.055,
+      "tcp_jitter_ms": 49.71,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 49.71,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.687,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            135.994,
+            186.025,
+            257.146
+          ],
+          "average_ms": 193.055,
+          "jitter_ms": 49.71,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6273,
+          "speed_mbps": 6.687,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "16.163.98.204",
+      "port": 443,
+      "ip_port": "16.163.98.204:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 195.524,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 195.524,
+      "tcp_jitter_ms": 61.154,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 61.154,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.302,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            112.73,
+            215.277,
+            258.566
+          ],
+          "average_ms": 195.524,
+          "jitter_ms": 61.154,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.6655,
+          "speed_mbps": 6.302,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -965,6 +1852,61 @@
       ]
     },
     {
+      "ip": "103.143.81.222",
+      "port": 2053,
+      "ip_port": "103.143.81.222:2053",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 54.669,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 54.669,
+      "tcp_jitter_ms": 0.237,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 0.237,
+      "loss_rate": 0.0,
+      "speed_mbps": 6.096,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            54.97,
+            54.644,
+            54.392
+          ],
+          "average_ms": 54.669,
+          "jitter_ms": 0.237,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.688,
+          "speed_mbps": 6.096,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "152.69.229.110",
       "port": 443,
       "ip_port": "152.69.229.110:443",
@@ -1021,41 +1963,39 @@
       ]
     },
     {
-      "ip": "152.67.214.155",
+      "ip": "20.41.123.20",
       "port": 443,
-      "ip_port": "152.67.214.155:443",
+      "ip_port": "20.41.123.20:443",
       "country": "KR",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 76.482,
+      "tcp_latency_ms": 194.552,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 76.482,
-      "tcp_jitter_ms": 0.696,
+      "average_latency_ms": 194.552,
+      "tcp_jitter_ms": 56.375,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 0.696,
+      "jitter_ms": 56.375,
       "loss_rate": 0.0,
-      "speed_mbps": 5.992,
+      "speed_mbps": 5.932,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            76.478,
-            77.617,
-            75.844,
-            76.787,
-            75.686
+            120.863,
+            205.042,
+            257.753
           ],
-          "average_ms": 76.482,
-          "jitter_ms": 0.696,
+          "average_ms": 194.552,
+          "jitter_ms": 56.375,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -1063,17 +2003,74 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.35,
-          "speed_mbps": 5.992,
+          "download_seconds": 0.707,
+          "speed_mbps": 5.932,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "38.207.175.151",
+      "port": 443,
+      "ip_port": "38.207.175.151:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 95.684,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 95.684,
+      "tcp_jitter_ms": 67.574,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 67.574,
+      "loss_rate": 0.0,
+      "speed_mbps": 5.93,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            49.725,
+            46.102,
+            191.225
+          ],
+          "average_ms": 95.684,
+          "jitter_ms": 67.574,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.7073,
+          "speed_mbps": 5.93,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -1182,62 +2179,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.3558,
           "speed_mbps": 5.894,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "47.75.104.211",
-      "port": 443,
-      "ip_port": "47.75.104.211:443",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 43.964,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 43.964,
-      "tcp_jitter_ms": 3.326,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 3.326,
-      "loss_rate": 0.0,
-      "speed_mbps": 5.876,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            40.317,
-            47.155,
-            45.872,
-            46.922,
-            39.554
-          ],
-          "average_ms": 43.964,
-          "jitter_ms": 3.326,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.3569,
-          "speed_mbps": 5.876,
           "minimum_mbps": 3.0
         }
       },
@@ -1415,62 +2356,6 @@
       ]
     },
     {
-      "ip": "161.117.181.127",
-      "port": 443,
-      "ip_port": "161.117.181.127:443",
-      "country": "SG",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 88.947,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 88.947,
-      "tcp_jitter_ms": 14.778,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 14.778,
-      "loss_rate": 0.0,
-      "speed_mbps": 5.537,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            76.161,
-            94.529,
-            115.481,
-            77.479,
-            81.087
-          ],
-          "average_ms": 88.947,
-          "jitter_ms": 14.778,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.3788,
-          "speed_mbps": 5.537,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "23.146.248.149",
       "port": 443,
       "ip_port": "23.146.248.149:443",
@@ -1581,6 +2466,116 @@
       "sources": [
         "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "68.64.179.129",
+      "port": 443,
+      "ip_port": "68.64.179.129:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 100.836,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 100.836,
+      "tcp_jitter_ms": 62.188,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 62.188,
+      "loss_rate": 0.0,
+      "speed_mbps": 5.306,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            55.081,
+            58.669,
+            188.758
+          ],
+          "average_ms": 100.836,
+          "jitter_ms": 62.188,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.7905,
+          "speed_mbps": 5.306,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "216.23.123.211",
+      "port": 30718,
+      "ip_port": "216.23.123.211:30718",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 171.886,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 171.886,
+      "tcp_jitter_ms": 51.537,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 51.537,
+      "loss_rate": 0.0,
+      "speed_mbps": 5.196,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            99.706,
+            199.222,
+            216.731
+          ],
+          "average_ms": 171.886,
+          "jitter_ms": 51.537,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.8073,
+          "speed_mbps": 5.196,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -1696,41 +2691,39 @@
       ]
     },
     {
-      "ip": "8.134.218.35",
+      "ip": "82.139.242.5",
       "port": 443,
-      "ip_port": "8.134.218.35:443",
+      "ip_port": "82.139.242.5:443",
       "country": "DE",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 38.388,
+      "tcp_latency_ms": 157.922,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 38.388,
-      "tcp_jitter_ms": 3.272,
+      "average_latency_ms": 157.922,
+      "tcp_jitter_ms": 10.334,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 3.272,
+      "jitter_ms": 10.334,
       "loss_rate": 0.0,
-      "speed_mbps": 5.113,
+      "speed_mbps": 5.12,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            41.556,
-            34.692,
-            34.153,
-            41.29,
-            40.249
+            143.534,
+            167.335,
+            162.897
           ],
-          "average_ms": 38.388,
-          "jitter_ms": 3.272,
+          "average_ms": 157.922,
+          "jitter_ms": 10.334,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -1738,17 +2731,20 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.4101,
-          "speed_mbps": 5.113,
+          "download_seconds": 0.8192,
+          "speed_mbps": 5.12,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-prefilter",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -1760,33 +2756,31 @@
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 52.586,
+      "tcp_latency_ms": 95.221,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 52.586,
-      "tcp_jitter_ms": 1.607,
+      "average_latency_ms": 95.221,
+      "tcp_jitter_ms": 61.768,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 1.607,
+      "jitter_ms": 61.768,
       "loss_rate": 0.0,
-      "speed_mbps": 5.104,
+      "speed_mbps": 5.08,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            53.735,
-            51.301,
-            52.976,
-            54.668,
-            50.252
+            50.857,
+            52.236,
+            182.571
           ],
-          "average_ms": 52.586,
-          "jitter_ms": 1.607,
+          "average_ms": 95.221,
+          "jitter_ms": 61.768,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -1794,17 +2788,19 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.4109,
-          "speed_mbps": 5.104,
+          "download_seconds": 0.8256,
+          "speed_mbps": 5.08,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -1855,62 +2851,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.4142,
           "speed_mbps": 5.063,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "95.188.72.67",
-      "port": 443,
-      "ip_port": "95.188.72.67:443",
-      "country": "RU",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 107.235,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 107.235,
-      "tcp_jitter_ms": 4.623,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 4.623,
-      "loss_rate": 0.0,
-      "speed_mbps": 5.047,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            104.037,
-            103.519,
-            110.554,
-            103.318,
-            114.749
-          ],
-          "average_ms": 107.235,
-          "jitter_ms": 4.623,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4155,
-          "speed_mbps": 5.047,
           "minimum_mbps": 3.0
         }
       },
@@ -1976,62 +2916,6 @@
       ]
     },
     {
-      "ip": "38.207.175.151",
-      "port": 443,
-      "ip_port": "38.207.175.151:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 42.657,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 42.657,
-      "tcp_jitter_ms": 2.905,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 2.905,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.948,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            45.552,
-            43.03,
-            40.653,
-            38.225,
-            45.823
-          ],
-          "average_ms": 42.657,
-          "jitter_ms": 2.905,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4238,
-          "speed_mbps": 4.948,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "108.162.198.195",
       "port": 443,
       "ip_port": "108.162.198.195:443",
@@ -2085,6 +2969,61 @@
       "sources": [
         "cloudflare-official-ipv4-round-1",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "51.195.119.195",
+      "port": 2053,
+      "ip_port": "51.195.119.195:2053",
+      "country": "DE",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 197.846,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 197.846,
+      "tcp_jitter_ms": 39.353,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 39.353,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.907,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            148.589,
+            200.041,
+            244.909
+          ],
+          "average_ms": 197.846,
+          "jitter_ms": 39.353,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.8548,
+          "speed_mbps": 4.907,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -2253,6 +3192,61 @@
       "sources": [
         "cloudflare-official-ipv4-round-1",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "149.104.6.78",
+      "port": 8443,
+      "ip_port": "149.104.6.78:8443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 89.987,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 89.987,
+      "tcp_jitter_ms": 64.527,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 64.527,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.797,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            43.867,
+            44.855,
+            181.241
+          ],
+          "average_ms": 89.987,
+          "jitter_ms": 64.527,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.8743,
+          "speed_mbps": 4.797,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -2592,6 +3586,62 @@
       ]
     },
     {
+      "ip": "38.207.176.130",
+      "port": 443,
+      "ip_port": "38.207.176.130:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 94.709,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 94.709,
+      "tcp_jitter_ms": 52.727,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 52.727,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.717,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            58.178,
+            56.678,
+            169.271
+          ],
+          "average_ms": 94.709,
+          "jitter_ms": 52.727,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.8892,
+          "speed_mbps": 4.717,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "104.21.93.135",
       "port": 443,
       "ip_port": "104.21.93.135:443",
@@ -2757,6 +3807,61 @@
       "sources": [
         "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "149.104.31.208",
+      "port": 443,
+      "ip_port": "149.104.31.208:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 92.026,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 92.026,
+      "tcp_jitter_ms": 54.453,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 54.453,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.674,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            52.411,
+            54.644,
+            169.023
+          ],
+          "average_ms": 92.026,
+          "jitter_ms": 54.453,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.8974,
+          "speed_mbps": 4.674,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -3320,6 +4425,62 @@
       ]
     },
     {
+      "ip": "95.40.227.67",
+      "port": 443,
+      "ip_port": "95.40.227.67:443",
+      "country": "US",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 172.967,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 172.967,
+      "tcp_jitter_ms": 48.435,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 48.435,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.556,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            108.498,
+            185.159,
+            225.246
+          ],
+          "average_ms": 172.967,
+          "jitter_ms": 48.435,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.9207,
+          "speed_mbps": 4.556,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "104.17.106.202",
       "port": 443,
       "ip_port": "104.17.106.202:443",
@@ -3372,62 +4533,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "216.23.123.211",
-      "port": 30718,
-      "ip_port": "216.23.123.211:30718",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 192.301,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 192.301,
-      "tcp_jitter_ms": 70.599,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 70.599,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.541,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            114.126,
-            257.437,
-            102.514,
-            219.029,
-            268.401
-          ],
-          "average_ms": 192.301,
-          "jitter_ms": 70.599,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4618,
-          "speed_mbps": 4.541,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "bestcf.pages.dev/lzj",
         "cloud-handoff"
       ]
     },
@@ -3600,6 +4705,61 @@
       ]
     },
     {
+      "ip": "216.23.122.8",
+      "port": 443,
+      "ip_port": "216.23.122.8:443",
+      "country": "XX",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 195.934,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 195.934,
+      "tcp_jitter_ms": 57.387,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 57.387,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.475,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            119.519,
+            210.466,
+            257.817
+          ],
+          "average_ms": 195.934,
+          "jitter_ms": 57.387,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.9374,
+          "speed_mbps": 4.475,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "bestcf.pages.dev/lzj",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "104.17.33.69",
       "port": 443,
       "ip_port": "104.17.33.69:443",
@@ -3768,6 +4928,62 @@
       ]
     },
     {
+      "ip": "68.64.183.37",
+      "port": 443,
+      "ip_port": "68.64.183.37:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 95.281,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 95.281,
+      "tcp_jitter_ms": 51.614,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 51.614,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.407,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            60.34,
+            57.25,
+            168.252
+          ],
+          "average_ms": 95.281,
+          "jitter_ms": 51.614,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.9518,
+          "speed_mbps": 4.407,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "162.159.232.169",
       "port": 443,
       "ip_port": "162.159.232.169:443",
@@ -3876,62 +5092,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "168.107.0.210",
-      "port": 443,
-      "ip_port": "168.107.0.210:443",
-      "country": "KR",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 103.716,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 103.716,
-      "tcp_jitter_ms": 50.252,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 50.252,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.375,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            76.112,
-            76.457,
-            80.566,
-            81.31,
-            204.133
-          ],
-          "average_ms": 103.716,
-          "jitter_ms": 50.252,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4794,
-          "speed_mbps": 4.375,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -4048,62 +5208,6 @@
       ]
     },
     {
-      "ip": "168.110.121.126",
-      "port": 8443,
-      "ip_port": "168.110.121.126:8443",
-      "country": "KR",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 103.273,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 103.273,
-      "tcp_jitter_ms": 51.795,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 51.795,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.339,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            75.886,
-            75.976,
-            76.279,
-            81.443,
-            206.779
-          ],
-          "average_ms": 103.273,
-          "jitter_ms": 51.795,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4833,
-          "speed_mbps": 4.339,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "168.110.112.196",
       "port": 8443,
       "ip_port": "168.110.112.196:8443",
@@ -4151,62 +5255,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.4834,
           "speed_mbps": 4.339,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "168.107.17.234",
-      "port": 8443,
-      "ip_port": "168.107.17.234:8443",
-      "country": "KR",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 103.523,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 103.523,
-      "tcp_jitter_ms": 52.389,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 52.389,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.336,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            75.895,
-            80.454,
-            76.368,
-            76.65,
-            208.25
-          ],
-          "average_ms": 103.523,
-          "jitter_ms": 52.389,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4837,
-          "speed_mbps": 4.336,
           "minimum_mbps": 3.0
         }
       },
@@ -4328,6 +5376,116 @@
       ]
     },
     {
+      "ip": "130.49.213.116",
+      "port": 443,
+      "ip_port": "130.49.213.116:443",
+      "country": "RU",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 195.775,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 195.775,
+      "tcp_jitter_ms": 54.007,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 54.007,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.315,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            126.058,
+            203.62,
+            257.648
+          ],
+          "average_ms": 195.775,
+          "jitter_ms": 54.007,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.972,
+          "speed_mbps": 4.315,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
+      "ip": "38.147.172.176",
+      "port": 443,
+      "ip_port": "38.147.172.176:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 100.945,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 100.945,
+      "tcp_jitter_ms": 66.494,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 66.494,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.303,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            52.795,
+            55.067,
+            194.972
+          ],
+          "average_ms": 100.945,
+          "jitter_ms": 66.494,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.9747,
+          "speed_mbps": 4.303,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "104.21.118.46",
       "port": 443,
       "ip_port": "104.21.118.46:443",
@@ -4440,41 +5598,39 @@
       ]
     },
     {
-      "ip": "31.25.88.21",
-      "port": 14239,
-      "ip_port": "31.25.88.21:14239",
-      "country": "XX",
+      "ip": "95.188.72.67",
+      "port": 443,
+      "ip_port": "95.188.72.67:443",
+      "country": "RU",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 163.15,
+      "tcp_latency_ms": 173.507,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 163.15,
-      "tcp_jitter_ms": 30.283,
+      "average_latency_ms": 173.507,
+      "tcp_jitter_ms": 46.855,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 30.283,
+      "jitter_ms": 46.855,
       "loss_rate": 0.0,
-      "speed_mbps": 4.259,
+      "speed_mbps": 4.26,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            154.148,
-            142.123,
-            143.937,
-            152.553,
-            222.988
+            108.271,
+            196.062,
+            216.189
           ],
-          "average_ms": 163.15,
-          "jitter_ms": 30.283,
+          "average_ms": 173.507,
+          "jitter_ms": 46.855,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -4482,17 +5638,18 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.4924,
-          "speed_mbps": 4.259,
+          "download_seconds": 0.9846,
+          "speed_mbps": 4.26,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -4664,64 +5821,6 @@
       ]
     },
     {
-      "ip": "45.127.32.15",
-      "port": 443,
-      "ip_port": "45.127.32.15:443",
-      "country": "SG",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 130.404,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 130.404,
-      "tcp_jitter_ms": 15.528,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 15.528,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.226,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            128.489,
-            122.767,
-            160.335,
-            124.689,
-            115.738
-          ],
-          "average_ms": 130.404,
-          "jitter_ms": 15.528,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4963,
-          "speed_mbps": 4.226,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-prefilter",
-        "cloud-handoff",
-        "published-and-qualified-retest"
-      ]
-    },
-    {
       "ip": "157.90.19.8",
       "port": 443,
       "ip_port": "157.90.19.8:443",
@@ -4778,6 +5877,61 @@
       ]
     },
     {
+      "ip": "2.27.24.35",
+      "port": 443,
+      "ip_port": "2.27.24.35:443",
+      "country": "DE",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 194.882,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 194.882,
+      "tcp_jitter_ms": 47.573,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 47.573,
+      "loss_rate": 0.0,
+      "speed_mbps": 4.217,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            143.126,
+            183.534,
+            257.987
+          ],
+          "average_ms": 194.882,
+          "jitter_ms": 47.573,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.9946,
+          "speed_mbps": 4.217,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "198.41.202.237",
       "port": 443,
       "ip_port": "198.41.202.237:443",
@@ -4830,62 +5984,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "134.185.123.54",
-      "port": 443,
-      "ip_port": "134.185.123.54:443",
-      "country": "KR",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 103.068,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 103.068,
-      "tcp_jitter_ms": 50.204,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 50.204,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.199,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            75.747,
-            80.762,
-            80.234,
-            75.222,
-            203.374
-          ],
-          "average_ms": 103.068,
-          "jitter_ms": 50.204,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4994,
-          "speed_mbps": 4.199,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -5058,62 +6156,6 @@
       ]
     },
     {
-      "ip": "216.23.122.8",
-      "port": 443,
-      "ip_port": "216.23.122.8:443",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 154.862,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 154.862,
-      "tcp_jitter_ms": 73.381,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 73.381,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.141,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            113.497,
-            264.302,
-            85.45,
-            90.658,
-            220.402
-          ],
-          "average_ms": 154.862,
-          "jitter_ms": 73.381,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5065,
-          "speed_mbps": 4.141,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "104.17.129.92",
       "port": 443,
       "ip_port": "104.17.129.92:443",
@@ -5282,62 +6324,6 @@
       ]
     },
     {
-      "ip": "130.49.213.116",
-      "port": 443,
-      "ip_port": "130.49.213.116:443",
-      "country": "RU",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 148.19,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 148.19,
-      "tcp_jitter_ms": 62.95,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 62.95,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.061,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            116.663,
-            114.434,
-            122.025,
-            273.958,
-            113.871
-          ],
-          "average_ms": 148.19,
-          "jitter_ms": 62.95,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5164,
-          "speed_mbps": 4.061,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "46.225.84.188",
       "port": 443,
       "ip_port": "46.225.84.188:443",
@@ -5394,62 +6380,6 @@
       ]
     },
     {
-      "ip": "47.75.104.254",
-      "port": 443,
-      "ip_port": "47.75.104.254:443",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 74.26,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 74.26,
-      "tcp_jitter_ms": 59.825,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 59.825,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.045,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            49.304,
-            44.217,
-            46.019,
-            38.073,
-            193.687
-          ],
-          "average_ms": 74.26,
-          "jitter_ms": 59.825,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5184,
-          "speed_mbps": 4.045,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "104.19.13.140",
       "port": 443,
       "ip_port": "104.19.13.140:443",
@@ -5502,62 +6432,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "16.163.98.204",
-      "port": 443,
-      "ip_port": "16.163.98.204:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 118.087,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 118.087,
-      "tcp_jitter_ms": 14.15,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 14.15,
-      "loss_rate": 0.0,
-      "speed_mbps": 4.005,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            105.677,
-            117.857,
-            114.353,
-            107.577,
-            144.969
-          ],
-          "average_ms": 118.087,
-          "jitter_ms": 14.15,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5237,
-          "speed_mbps": 4.005,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -6514,62 +7388,6 @@
       ]
     },
     {
-      "ip": "20.41.123.20",
-      "port": 443,
-      "ip_port": "20.41.123.20:443",
-      "country": "KR",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 124.456,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 124.456,
-      "tcp_jitter_ms": 6.485,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 6.485,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.851,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            119.374,
-            121.171,
-            137.253,
-            122.057,
-            122.427
-          ],
-          "average_ms": 124.456,
-          "jitter_ms": 6.485,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5446,
-          "speed_mbps": 3.851,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "104.18.209.45",
       "port": 443,
       "ip_port": "104.18.209.45:443",
@@ -6622,62 +7440,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "2.27.24.35",
-      "port": 443,
-      "ip_port": "2.27.24.35:443",
-      "country": "DE",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 194.221,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 194.221,
-      "tcp_jitter_ms": 38.048,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 38.048,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.819,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            200.618,
-            183.659,
-            151.809,
-            171.67,
-            263.348
-          ],
-          "average_ms": 194.221,
-          "jitter_ms": 38.048,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5491,
-          "speed_mbps": 3.819,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -7466,6 +8228,61 @@
       ]
     },
     {
+      "ip": "207.57.123.77",
+      "port": 443,
+      "ip_port": "207.57.123.77:443",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 50.597,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 50.597,
+      "tcp_jitter_ms": 1.289,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 1.289,
+      "loss_rate": 0.0,
+      "speed_mbps": 3.737,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            51.904,
+            51.043,
+            48.843
+          ],
+          "average_ms": 50.597,
+          "jitter_ms": 1.289,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 1.1225,
+          "speed_mbps": 3.737,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
+      ]
+    },
+    {
       "ip": "141.101.121.39",
       "port": 443,
       "ip_port": "141.101.121.39:443",
@@ -8138,63 +8955,6 @@
       ]
     },
     {
-      "ip": "98.70.26.236",
-      "port": 443,
-      "ip_port": "98.70.26.236:443",
-      "country": "IN",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 131.256,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 131.256,
-      "tcp_jitter_ms": 7.108,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 7.108,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.69,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            135.41,
-            123.325,
-            142.279,
-            124.118,
-            131.151
-          ],
-          "average_ms": 131.256,
-          "jitter_ms": 7.108,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5684,
-          "speed_mbps": 3.69,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "198.41.198.225",
       "port": 443,
       "ip_port": "198.41.198.225:443",
@@ -8247,118 +9007,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "103.143.81.222",
-      "port": 2053,
-      "ip_port": "103.143.81.222:2053",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 77.99,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 77.99,
-      "tcp_jitter_ms": 47.136,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 47.136,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.679,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            53.895,
-            53.154,
-            57.054,
-            172.223,
-            53.627
-          ],
-          "average_ms": 77.99,
-          "jitter_ms": 47.136,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.57,
-          "speed_mbps": 3.679,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "51.195.119.195",
-      "port": 2053,
-      "ip_port": "51.195.119.195:2053",
-      "country": "DE",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 194.863,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 194.863,
-      "tcp_jitter_ms": 39.31,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 39.31,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.679,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            150.638,
-            151.221,
-            218.196,
-            252.021,
-            202.238
-          ],
-          "average_ms": 194.863,
-          "jitter_ms": 39.31,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.57,
-          "speed_mbps": 3.679,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -8471,62 +9119,6 @@
       },
       "sources": [
         "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "95.40.227.67",
-      "port": 443,
-      "ip_port": "95.40.227.67:443",
-      "country": "US",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 137.483,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 137.483,
-      "tcp_jitter_ms": 48.946,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 48.946,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.66,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            113.561,
-            113.253,
-            111.518,
-            113.719,
-            235.363
-          ],
-          "average_ms": 137.483,
-          "jitter_ms": 48.946,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.573,
-          "speed_mbps": 3.66,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
       ]
     },
@@ -9091,62 +9683,6 @@
       ]
     },
     {
-      "ip": "38.207.176.130",
-      "port": 443,
-      "ip_port": "38.207.176.130:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 73.647,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 73.647,
-      "tcp_jitter_ms": 42.48,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 42.48,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.598,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            53.072,
-            50.602,
-            54.198,
-            51.791,
-            158.573
-          ],
-          "average_ms": 73.647,
-          "jitter_ms": 42.48,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5829,
-          "speed_mbps": 3.598,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "88.198.82.149",
       "port": 443,
       "ip_port": "88.198.82.149:443",
@@ -9707,62 +10243,6 @@
       ]
     },
     {
-      "ip": "94.141.123.232",
-      "port": 8443,
-      "ip_port": "94.141.123.232:8443",
-      "country": "DE",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 188.566,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 188.566,
-      "tcp_jitter_ms": 53.237,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 53.237,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.56,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            152.677,
-            156.457,
-            204.795,
-            142.866,
-            286.034
-          ],
-          "average_ms": 188.566,
-          "jitter_ms": 53.237,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5891,
-          "speed_mbps": 3.56,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "162.159.3.13",
       "port": 443,
       "ip_port": "162.159.3.13:443",
@@ -10152,6 +10632,63 @@
       "sources": [
         "cloudflare-official-ipv4-round-1",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "45.127.32.15",
+      "port": 443,
+      "ip_port": "45.127.32.15:443",
+      "country": "SG",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 148.245,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 148.245,
+      "tcp_jitter_ms": 39.502,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 39.502,
+      "loss_rate": 0.0,
+      "speed_mbps": 3.534,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            128.339,
+            203.402,
+            112.993
+          ],
+          "average_ms": 148.245,
+          "jitter_ms": 39.502,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 1.187,
+          "speed_mbps": 3.534,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-prefilter",
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -10818,62 +11355,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.608,
           "speed_mbps": 3.449,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "38.147.172.176",
-      "port": 443,
-      "ip_port": "38.147.172.176:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 85.841,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 85.841,
-      "tcp_jitter_ms": 57.705,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 57.705,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.44,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            62.31,
-            59.9,
-            50.516,
-            55.509,
-            200.97
-          ],
-          "average_ms": 85.841,
-          "jitter_ms": 57.705,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6096,
-          "speed_mbps": 3.44,
           "minimum_mbps": 3.0
         }
       },
@@ -11564,33 +12045,31 @@
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 88.251,
+      "tcp_latency_ms": 95.816,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 88.251,
-      "tcp_jitter_ms": 54.883,
+      "average_latency_ms": 95.816,
+      "tcp_jitter_ms": 48.669,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 54.883,
+      "jitter_ms": 48.669,
       "loss_rate": 0.0,
-      "speed_mbps": 3.368,
+      "speed_mbps": 3.373,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            57.36,
-            59.669,
-            64.429,
-            197.917,
-            61.879
+            66.364,
+            56.669,
+            164.416
           ],
-          "average_ms": 88.251,
-          "jitter_ms": 54.883,
+          "average_ms": 95.816,
+          "jitter_ms": 48.669,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -11598,17 +12077,19 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.6227,
-          "speed_mbps": 3.368,
+          "download_seconds": 1.2436,
+          "speed_mbps": 3.373,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "bestcf.pages.dev/lzj",
-        "cloud-handoff"
+        "cloud-handoff",
+        "published-and-qualified-retest",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -11893,41 +12374,39 @@
       ]
     },
     {
-      "ip": "207.57.123.77",
-      "port": 443,
-      "ip_port": "207.57.123.77:443",
-      "country": "HK",
+      "ip": "94.141.123.232",
+      "port": 8443,
+      "ip_port": "94.141.123.232:8443",
+      "country": "DE",
       "colo": "",
       "colo_country": "",
       "region": "",
       "city": "",
-      "tcp_latency_ms": 85.154,
+      "tcp_latency_ms": 196.021,
       "tls_latency_ms": null,
       "http_latency_ms": null,
-      "average_latency_ms": 85.154,
-      "tcp_jitter_ms": 59.477,
+      "average_latency_ms": 196.021,
+      "tcp_jitter_ms": 36.035,
       "tls_jitter_ms": null,
       "http_jitter_ms": null,
-      "jitter_ms": 59.477,
+      "jitter_ms": 36.035,
       "loss_rate": 0.0,
-      "speed_mbps": 3.328,
+      "speed_mbps": 3.322,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {
         "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
           "latencies_ms": [
-            52.552,
-            52.609,
-            56.72,
-            59.91,
-            203.98
+            146.578,
+            210.05,
+            231.435
           ],
-          "average_ms": 85.154,
-          "jitter_ms": 59.477,
+          "average_ms": 196.021,
+          "jitter_ms": 36.035,
           "maximum_average_latency_ms": 200.0,
           "maximum_jitter_ms": 200.0,
           "maximum_loss_rate": 0.2,
@@ -11935,17 +12414,18 @@
           "strict_passed": true
         },
         "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
           "completion_ratio": 1.0,
-          "download_seconds": 0.6302,
-          "speed_mbps": 3.328,
+          "download_seconds": 1.2627,
+          "speed_mbps": 3.322,
           "minimum_mbps": 3.0
         }
       },
       "sources": [
         "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -12108,62 +12588,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.6326,
           "speed_mbps": 3.315,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "68.64.183.37",
-      "port": 443,
-      "ip_port": "68.64.183.37:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 83.75,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 83.75,
-      "tcp_jitter_ms": 62.181,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 62.181,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.308,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            52.472,
-            51.386,
-            51.353,
-            55.463,
-            208.075
-          ],
-          "average_ms": 83.75,
-          "jitter_ms": 62.181,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6339,
-          "speed_mbps": 3.308,
           "minimum_mbps": 3.0
         }
       },
@@ -12562,6 +12986,61 @@
       "sources": [
         "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "38.207.178.173",
+      "port": 2087,
+      "ip_port": "38.207.178.173:2087",
+      "country": "HK",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 98.968,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": 98.968,
+      "tcp_jitter_ms": 56.897,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": 56.897,
+      "loss_rate": 0.0,
+      "speed_mbps": 3.252,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            63.06,
+            54.561,
+            179.282
+          ],
+          "average_ms": 98.968,
+          "jitter_ms": 56.897,
+          "maximum_average_latency_ms": 200.0,
+          "maximum_jitter_ms": 200.0,
+          "maximum_loss_rate": 0.2,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 1.2899,
+          "speed_mbps": 3.252,
+          "minimum_mbps": 3.0
+        }
+      },
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff",
+        "pre-publish-competition-retest"
       ]
     },
     {
@@ -13060,62 +13539,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.653,
           "speed_mbps": 3.212,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "68.64.179.129",
-      "port": 443,
-      "ip_port": "68.64.179.129:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 84.724,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 84.724,
-      "tcp_jitter_ms": 60.025,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 60.025,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.21,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            51.224,
-            48.29,
-            50.252,
-            70.12,
-            203.735
-          ],
-          "average_ms": 84.724,
-          "jitter_ms": 60.025,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6533,
-          "speed_mbps": 3.21,
           "minimum_mbps": 3.0
         }
       },
@@ -15141,64 +15564,6 @@
       ]
     },
     {
-      "ip": "82.139.242.5",
-      "port": 443,
-      "ip_port": "82.139.242.5:443",
-      "country": "DE",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 187.047,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 187.047,
-      "tcp_jitter_ms": 44.433,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 44.433,
-      "loss_rate": 0.0,
-      "speed_mbps": 3.072,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 5,
-          "latencies_ms": [
-            156.935,
-            254.388,
-            143.832,
-            225.708,
-            154.371
-          ],
-          "average_ms": 187.047,
-          "jitter_ms": 44.433,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6827,
-          "speed_mbps": 3.072,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-prefilter",
-        "cloud-handoff",
-        "published-and-qualified-retest"
-      ]
-    },
-    {
       "ip": "63.186.127.80",
       "port": 443,
       "ip_port": "63.186.127.80:443",
@@ -16318,61 +16683,6 @@
       ]
     },
     {
-      "ip": "38.207.178.173",
-      "port": 2087,
-      "ip_port": "38.207.178.173:2087",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 54.179,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 54.179,
-      "tcp_jitter_ms": 2.412,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 2.412,
-      "loss_rate": 0.2,
-      "speed_mbps": 4.601,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            55.811,
-            50.102,
-            56.108,
-            54.693
-          ],
-          "average_ms": 54.179,
-          "jitter_ms": 2.412,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4558,
-          "speed_mbps": 4.601,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "38.55.195.57",
       "port": 443,
       "ip_port": "38.55.195.57:443",
@@ -16419,61 +16729,6 @@
           "completion_ratio": 1.0,
           "download_seconds": 0.4603,
           "speed_mbps": 4.556,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "103.143.81.178",
-      "port": 443,
-      "ip_port": "103.143.81.178:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 53.402,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 53.402,
-      "tcp_jitter_ms": 2.727,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 2.727,
-      "loss_rate": 0.2,
-      "speed_mbps": 4.401,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            56.315,
-            55.93,
-            50.52,
-            50.842
-          ],
-          "average_ms": 53.402,
-          "jitter_ms": 2.727,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.4765,
-          "speed_mbps": 4.401,
           "minimum_mbps": 3.0
         }
       },
@@ -16538,281 +16793,6 @@
       ]
     },
     {
-      "ip": "31.220.42.227",
-      "port": 8443,
-      "ip_port": "31.220.42.227:8443",
-      "country": "NL",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 191.578,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 191.578,
-      "tcp_jitter_ms": 25.202,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 25.202,
-      "loss_rate": 0.2,
-      "speed_mbps": 3.732,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            188.269,
-            151.992,
-            217.638,
-            208.414
-          ],
-          "average_ms": 191.578,
-          "jitter_ms": 25.202,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.5619,
-          "speed_mbps": 3.732,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "103.255.208.163",
-      "port": 35993,
-      "ip_port": "103.255.208.163:35993",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 119.18,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 119.18,
-      "tcp_jitter_ms": 47.348,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 47.348,
-      "loss_rate": 0.2,
-      "speed_mbps": 3.355,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            90.643,
-            87.152,
-            200.907,
-            98.018
-          ],
-          "average_ms": 119.18,
-          "jitter_ms": 47.348,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.625,
-          "speed_mbps": 3.355,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "bestcf.pages.dev/lzj",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "149.104.30.51",
-      "port": 443,
-      "ip_port": "149.104.30.51:443",
-      "country": "HK",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 84.402,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 84.402,
-      "tcp_jitter_ms": 59.082,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 59.082,
-      "loss_rate": 0.2,
-      "speed_mbps": 3.178,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            50.065,
-            52.592,
-            48.253,
-            186.701
-          ],
-          "average_ms": 84.402,
-          "jitter_ms": 59.082,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.66,
-          "speed_mbps": 3.178,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "104.19.242.250",
-      "port": 443,
-      "ip_port": "104.19.242.250:443",
-      "country": "XX",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 190.269,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 190.269,
-      "tcp_jitter_ms": 12.68,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 12.68,
-      "loss_rate": 0.2,
-      "speed_mbps": 3.101,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            209.716,
-            174.452,
-            186.427,
-            190.481
-          ],
-          "average_ms": 190.269,
-          "jitter_ms": 12.68,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6762,
-          "speed_mbps": 3.101,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "cloudflare-official-ipv4-round-1",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "194.5.65.217",
-      "port": 8443,
-      "ip_port": "194.5.65.217:8443",
-      "country": "DE",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 186.163,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": 186.163,
-      "tcp_jitter_ms": 38.783,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": 38.783,
-      "loss_rate": 0.2,
-      "speed_mbps": 3.089,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {
-        "tcp": {
-          "attempts": 5,
-          "attempts_run": 5,
-          "successes": 4,
-          "latencies_ms": [
-            152.789,
-            150.207,
-            196.267,
-            245.389
-          ],
-          "average_ms": 186.163,
-          "jitter_ms": 38.783,
-          "maximum_average_latency_ms": 200.0,
-          "maximum_jitter_ms": 200.0,
-          "maximum_loss_rate": 0.2,
-          "early_rejected": false,
-          "strict_passed": true
-        },
-        "speed": {
-          "received_bytes": 262144,
-          "wanted_bytes": 262144,
-          "completion_ratio": 1.0,
-          "download_seconds": 0.6789,
-          "speed_mbps": 3.089,
-          "minimum_mbps": 3.0
-        }
-      },
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
       "ip": "8.222.185.236",
       "port": 443,
       "ip_port": "8.222.185.236:443",
@@ -16835,6 +16815,60 @@
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {},
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "202.144.194.182",
+      "port": 443,
+      "ip_port": "202.144.194.182:443",
+      "country": "JP",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 133.332,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": null,
+      "tcp_jitter_ms": 75.149,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": null,
+      "loss_rate": 0.0,
+      "speed_mbps": 9.82,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            68.454,
+            92.872,
+            238.67
+          ],
+          "average_ms": 133.332,
+          "jitter_ms": 75.149,
+          "maximum_average_latency_ms": null,
+          "maximum_jitter_ms": null,
+          "maximum_loss_rate": null,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "jp_source_speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.4271,
+          "speed_mbps": 9.82,
+          "minimum_mbps": 3.0
+        }
+      },
       "sources": [
         "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
@@ -16891,6 +16925,60 @@
       "websocket_ok": null,
       "score": 0.0,
       "probe_results": {},
+      "sources": [
+        "zip.cm.edu.kg/all.txt",
+        "cloud-handoff"
+      ]
+    },
+    {
+      "ip": "47.239.220.3",
+      "port": 443,
+      "ip_port": "47.239.220.3:443",
+      "country": "JP",
+      "colo": "",
+      "colo_country": "",
+      "region": "",
+      "city": "",
+      "tcp_latency_ms": 138.958,
+      "tls_latency_ms": null,
+      "http_latency_ms": null,
+      "average_latency_ms": null,
+      "tcp_jitter_ms": 39.588,
+      "tls_jitter_ms": null,
+      "http_jitter_ms": null,
+      "jitter_ms": null,
+      "loss_rate": 0.0,
+      "speed_mbps": 8.459,
+      "tls_version": "",
+      "websocket_ok": null,
+      "score": 0.0,
+      "probe_results": {
+        "tcp": {
+          "attempts": 3,
+          "attempts_run": 3,
+          "successes": 3,
+          "latencies_ms": [
+            91.216,
+            137.504,
+            188.154
+          ],
+          "average_ms": 138.958,
+          "jitter_ms": 39.588,
+          "maximum_average_latency_ms": null,
+          "maximum_jitter_ms": null,
+          "maximum_loss_rate": null,
+          "early_rejected": false,
+          "strict_passed": true
+        },
+        "jp_source_speed": {
+          "received_bytes": 524288,
+          "wanted_bytes": 524288,
+          "completion_ratio": 1.0,
+          "download_seconds": 0.4958,
+          "speed_mbps": 8.459,
+          "minimum_mbps": 3.0
+        }
+      },
       "sources": [
         "zip.cm.edu.kg/all.txt",
         "cloud-handoff"
@@ -17053,62 +17141,6 @@
       "jitter_ms": null,
       "loss_rate": 0.0,
       "speed_mbps": 7.739,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {},
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "8.219.195.31",
-      "port": 443,
-      "ip_port": "8.219.195.31:443",
-      "country": "JP",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 226.61,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": null,
-      "tcp_jitter_ms": 74.624,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": null,
-      "loss_rate": 0.0,
-      "speed_mbps": 7.57,
-      "tls_version": "",
-      "websocket_ok": null,
-      "score": 0.0,
-      "probe_results": {},
-      "sources": [
-        "zip.cm.edu.kg/all.txt",
-        "cloud-handoff"
-      ]
-    },
-    {
-      "ip": "160.16.209.61",
-      "port": 443,
-      "ip_port": "160.16.209.61:443",
-      "country": "JP",
-      "colo": "",
-      "colo_country": "",
-      "region": "",
-      "city": "",
-      "tcp_latency_ms": 206.595,
-      "tls_latency_ms": null,
-      "http_latency_ms": null,
-      "average_latency_ms": null,
-      "tcp_jitter_ms": 99.052,
-      "tls_jitter_ms": null,
-      "http_jitter_ms": null,
-      "jitter_ms": null,
-      "loss_rate": 0.0,
-      "speed_mbps": 7.524,
       "tls_version": "",
       "websocket_ok": null,
       "score": 0.0,
