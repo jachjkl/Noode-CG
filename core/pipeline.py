@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import statistics
 import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
@@ -18,7 +19,7 @@ from .isp_test import merge_probe_files
 from .models import NodeResult
 from .network_baseline import measure_network_baseline
 from .parser import deduplicate
-from .ranking import calculate_average_latency, rank_final, rank_tcp
+from .ranking import rank_final, rank_tcp
 from .rolling import load_previous_top, prepare_retest_candidates, save_previous_top
 from .speed_test import meets_minimum_speed, test_speed
 from .tcp_scan import scan_tcp
@@ -54,6 +55,9 @@ def _three_metric_checks(
     on_stage: Callable[[list[NodeResult], str], None] | None = None,
 ) -> tuple[list[NodeResult], dict[str, Any]]:
     started = time.monotonic()
+    tcp_enabled = bool(pipeline.get("quality_tcp", {}).get("enabled", True))
+    tls_enabled = bool(pipeline.get("tls", {}).get("enabled", True))
+    http_enabled = bool(pipeline.get("http", {}).get("enabled", True))
 
     def emit(node: NodeResult, stage: str, passed: bool) -> None:
         if on_result is None:
@@ -73,49 +77,66 @@ def _three_metric_checks(
             # UI telemetry is best-effort and must never change selection.
             pass
 
-    emit_stage(records, "TLS")
-    if on_result is None:
-        tls_valid = asyncio.run(check_tls(records, domain, pipeline["tls"]))
+    if tls_enabled:
+        emit_stage(records, "TLS")
+        if on_result is None:
+            tls_valid = asyncio.run(check_tls(records, domain, pipeline["tls"]))
+        else:
+            tls_valid = asyncio.run(check_tls(
+                records,
+                domain,
+                pipeline["tls"],
+                on_result=lambda node: emit(node, "TLS", node.tls_ok),
+            ))
     else:
-        tls_valid = asyncio.run(check_tls(
-            records,
-            domain,
-            pipeline["tls"],
-            on_result=lambda node: emit(node, "TLS", node.tls_ok),
-        ))
-    emit_stage(tls_valid, "HTTPS TTFB")
-    if on_result is None:
-        http_valid = asyncio.run(check_http(
-            tls_valid, domain, pipeline["http"], pipeline.get("websocket", {}),
-            user_agent=user_agent,
-        ))
+        tls_valid = list(records)
+    if http_enabled:
+        emit_stage(tls_valid, "HTTPS TTFB")
+        if on_result is None:
+            http_valid = asyncio.run(check_http(
+                tls_valid, domain, pipeline["http"], pipeline.get("websocket", {}),
+                user_agent=user_agent,
+            ))
+        else:
+            http_valid = asyncio.run(check_http(
+                tls_valid,
+                domain,
+                pipeline["http"],
+                pipeline.get("websocket", {}),
+                user_agent=user_agent,
+                on_result=lambda node: emit(node, "HTTPS TTFB", node.http_ok),
+            ))
     else:
-        http_valid = asyncio.run(check_http(
-            tls_valid,
-            domain,
-            pipeline["http"],
-            pipeline.get("websocket", {}),
-            user_agent=user_agent,
-            on_result=lambda node: emit(node, "HTTPS TTFB", node.http_ok),
-        ))
+        http_valid = list(tls_valid)
     enrich_locations(http_valid, locations)
     maximum_combined = float(pipeline["maximum_combined_latency_ms"])
     legacy_component = float(pipeline["maximum_component_latency_ms"])
-    component_limits = (
-        float(pipeline.get("quality_tcp", {}).get("maximum_average_latency_ms", legacy_component)),
-        float(pipeline.get("tls", {}).get("maximum_average_latency_ms", legacy_component)),
-        float(pipeline.get("http", {}).get("maximum_average_ttfb_ms", legacy_component)),
-    )
+    component_specs = [
+        (tcp_enabled, "TCP", "tcp_latency_ms", "tcp_jitter_ms", float(pipeline.get("quality_tcp", {}).get("maximum_average_latency_ms", legacy_component))),
+        (tls_enabled, "TLS", "tls_latency_ms", "tls_jitter_ms", float(pipeline.get("tls", {}).get("maximum_average_latency_ms", legacy_component))),
+        (http_enabled, "HTTPS TTFB", "http_latency_ms", "http_jitter_ms", float(pipeline.get("http", {}).get("maximum_average_ttfb_ms", legacy_component))),
+    ]
+    enabled_specs = [spec for spec in component_specs if spec[0]]
     maximum_jitter = float(pipeline["maximum_jitter_ms"])
     location_filter = pipeline.get("location_filter", {})
     excluded_countries = {
         str(value).upper() for value in location_filter.get("excluded_countries", ["CN"])
     }
-    require_country = bool(location_filter.get("require_known_endpoint_country", True))
-    require_colo_country = bool(location_filter.get("require_known_colo_country", True))
+    require_country = http_enabled and bool(location_filter.get("require_known_endpoint_country", True))
+    require_colo_country = http_enabled and bool(location_filter.get("require_known_colo_country", True))
     combined_valid: list[NodeResult] = []
     for node in http_valid:
-        calculate_average_latency(node)
+        latency_values = [getattr(node, spec[2]) for spec in enabled_specs]
+        jitter_values = [getattr(node, spec[3]) for spec in enabled_specs]
+        if latency_values and all(value is not None for value in latency_values):
+            node.average_latency_ms = round(
+                statistics.fmean(float(value) for value in latency_values if value is not None),
+                3,
+            )
+        else:
+            node.average_latency_ms = None
+        measured_jitters = [float(value) for value in jitter_values if value is not None]
+        node.overall_jitter_ms = round(max(measured_jitters), 3) if measured_jitters else None
         country_valid = bool(node.country) or not require_country
         colo_country_valid = bool(node.colo_country) or not require_colo_country
         foreign_valid = (
@@ -124,7 +145,8 @@ def _three_metric_checks(
             and node.country not in excluded_countries
             and node.colo_country not in excluded_countries
         )
-        components = (node.tcp_latency_ms, node.tls_latency_ms, node.http_latency_ms)
+        components = tuple(getattr(node, spec[2]) for spec in enabled_specs)
+        component_limits = tuple(spec[4] for spec in enabled_specs)
         component_valid = all(
             value is not None and value <= limit
             for value, limit in zip(components, component_limits, strict=True)
@@ -162,8 +184,9 @@ def _three_metric_checks(
             )
         emit(node, "综合规则", combined_passed)
     return combined_valid, {
-        "tls_three_pass_success": len(tls_valid),
-        "https_ttfb_three_pass_success": len(http_valid),
+        "enabled_metrics": [spec[1] for spec in enabled_specs],
+        "tls_three_pass_success": len(tls_valid) if tls_enabled else None,
+        "https_ttfb_three_pass_success": len(http_valid) if http_enabled else None,
         "foreign_combined_latency_qualified": len(combined_valid),
         "tls_and_https_duration_seconds": round(time.monotonic() - started, 3),
     }
@@ -362,19 +385,31 @@ def _final_ordinary_quality_allowed(
     jitter_limit = float(pipeline.get("maximum_jitter_ms", 500.0))
     loss_limit = float(pipeline.get("maximum_loss_rate", 0.30))
     speed_limit = float(pipeline.get("speed", {}).get("minimum_mbps", 3.0))
-
+    tcp_enabled = bool(pipeline.get("quality_tcp", {}).get("enabled", True))
+    tls_enabled = bool(pipeline.get("tls", {}).get("enabled", True))
+    http_enabled = bool(pipeline.get("http", {}).get("enabled", True))
+    component_checks: list[bool] = []
+    if tcp_enabled:
+        component_checks.append(
+            node.tcp_latency_ms is not None
+            and node.tcp_latency_ms <= tcp_limit
+            and node.tcp_loss_rate <= loss_limit
+        )
+    if tls_enabled:
+        component_checks.append(
+            node.tls_latency_ms is not None and node.tls_latency_ms <= tls_limit
+        )
+    if http_enabled:
+        component_checks.append(
+            node.http_latency_ms is not None and node.http_latency_ms <= http_limit
+        )
     return (
-        node.tcp_latency_ms is not None
-        and node.tcp_latency_ms <= tcp_limit
-        and node.tls_latency_ms is not None
-        and node.tls_latency_ms <= tls_limit
-        and node.http_latency_ms is not None
-        and node.http_latency_ms <= http_limit
+        bool(component_checks)
+        and all(component_checks)
         and node.average_latency_ms is not None
         and node.average_latency_ms <= average_limit
         and node.overall_jitter_ms is not None
         and node.overall_jitter_ms <= jitter_limit
-        and node.tcp_loss_rate <= loss_limit
         and node.speed_mbps is not None
         and node.speed_mbps >= speed_limit
     )
@@ -397,9 +432,10 @@ def _final_country_allowed(
     # The JP source lane deliberately skips HTTPS trace, so it has no colo.
     if country == source_country.upper() and hint == source_country.upper():
         return True
-    if location_filter.get("require_known_endpoint_country", True) and not country:
+    http_enabled = bool(pipeline.get("http", {}).get("enabled", True))
+    if http_enabled and location_filter.get("require_known_endpoint_country", True) and not country:
         return False
-    if location_filter.get("require_known_colo_country", True) and not colo_country:
+    if http_enabled and location_filter.get("require_known_colo_country", True) and not colo_country:
         return False
     return True
 

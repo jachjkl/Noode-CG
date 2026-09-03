@@ -54,15 +54,22 @@
           <div>
             <p class="section-kicker">LOCAL RULE MATRIX</p>
             <h2>普通节点自定义优选规则</h2>
-            <p class="panel-copy">打开面板后必须手动开始。规则保存在本机，日本节点走独立 TCPing + 下载通道，不受下列门槛影响。</p>
+            <p class="panel-copy">打开面板后必须手动开始。TCP、TLS、HTTPS TTFB 可任意组合，规则保存在本机；日本节点走独立 TCPing + 下载通道，不受下列门槛影响。</p>
           </div>
           <span id="rulesStatus" class="badge neutral">正在读取规则</span>
         </div>
         <form id="rulesForm" class="rule-grid">
+          <div class="probe-toggle-row" role="group" aria-label="启用的普通节点探测项目">
+            <span>参与优选的探测项目（至少一项）</span>
+            <label class="toggle-field"><input id="ruleEnableTcp" type="checkbox" checked> TCP 延迟与丢包</label>
+            <label class="toggle-field"><input id="ruleEnableTls" type="checkbox" checked> TLS 握手延迟</label>
+            <label class="toggle-field"><input id="ruleEnableHttp" type="checkbox" checked> HTTPS TTFB</label>
+            <b>每次按 50 个 IP 一组完成所选测试并释放资源</b>
+          </div>
           <label class="field"><span>TCP 最大延迟</span><div class="input-unit"><input id="ruleTcp" name="tcp_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
           <label class="field"><span>TLS 最大延迟</span><div class="input-unit"><input id="ruleTls" name="tls_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
           <label class="field"><span>HTTPS TTFB 最大延迟</span><div class="input-unit"><input id="ruleHttp" name="http_ttfb_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
-          <label class="field"><span>三项平均延迟</span><div class="input-unit"><input id="ruleAverage" name="average_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>已启用项平均延迟</span><div class="input-unit"><input id="ruleAverage" name="average_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
           <label class="field"><span>最大抖动</span><div class="input-unit"><input id="ruleJitter" name="jitter_max_ms" type="number" min="0" step="1" required><b>ms</b></div></label>
           <label class="field"><span>最大丢包率</span><div class="input-unit"><input id="ruleLoss" name="loss_max_percent" type="number" min="0" max="100" step="0.1" required><b>%</b></div></label>
           <label class="field"><span>最低下载速度</span><div class="input-unit"><input id="ruleSpeed" name="speed_min_mbps" type="number" min="0" step="0.1" required><b>Mbps</b></div></label>

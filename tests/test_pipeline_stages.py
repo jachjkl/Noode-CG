@@ -143,6 +143,26 @@ class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [])
         self.assertEqual(probe.await_count, 5)
 
+    async def test_quality_tcp_stops_when_packet_loss_can_no_longer_pass(self) -> None:
+        node = NodeResult(ip="198.51.100.22", country_hint="US")
+        probe = AsyncMock(side_effect=TimeoutError("timeout"))
+        with patch("core.tcp_scan._probe_once", new=probe):
+            result = await scan_tcp([node], {
+                "attempts": 5,
+                "timeout_seconds": 1,
+                "concurrency": 1,
+                "require_all_attempts": False,
+                "maximum_average_latency_ms": 300,
+                "maximum_jitter_ms": 500,
+                "maximum_loss_rate": 0.2,
+                "stop_on_failure": False,
+                "stop_when_loss_impossible": True,
+            })
+
+        self.assertEqual(result, [])
+        self.assertEqual(probe.await_count, 2)
+        self.assertEqual(node.probe_results["tcp"]["attempts_run"], 2)
+
     async def test_tcp_return_all_keeps_failed_jp_candidates_for_ranking(self) -> None:
         node = NodeResult(ip="198.18.0.20", country_hint="JP")
         options = {

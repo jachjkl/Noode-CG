@@ -15,6 +15,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["sources"]["cloudflare_ranges"]["official_batch_size"], 10000)
         self.assertEqual(config["pipeline"]["prefilter_shortlist"], 10000)
         self.assertEqual(config["pipeline"]["speed_batch_size"], 400)
+        self.assertEqual(config["pipeline"]["local_probe_batch_size"], 50)
+        self.assertTrue(config["pipeline"]["quality_tcp"]["enabled"])
+        self.assertTrue(config["pipeline"]["tls"]["enabled"])
+        self.assertTrue(config["pipeline"]["http"]["enabled"])
         self.assertEqual(config["pipeline"]["prefilter_tcp"]["attempts"], 3)
         self.assertEqual(config["pipeline"]["quality_tcp"]["attempts"], 5)
         self.assertEqual(config["pipeline"]["tls"]["attempts"], 3)
@@ -74,8 +78,8 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("actions: write", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertNotIn("data/local-cfdata-candidates.txt", workflow)
-        self.assertIn('for optional in \\', workflow)
-        self.assertIn('git ls-files --error-unmatch -- "$optional"', workflow)
+        self.assertGreaterEqual(workflow.count('for optional in \\'), 2)
+        self.assertGreaterEqual(workflow.count('git ls-files --error-unmatch -- "$optional"'), 2)
 
     def test_runner_reads_saved_packet_loss_rule_from_dashboard_location(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -92,6 +96,22 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(config["pipeline"]["quality_tcp"]["maximum_loss_rate"], 0.375)
             self.assertEqual(config["pipeline"]["maximum_loss_rate"], 0.375)
             self.assertEqual(Path(config["_local_rules_path"]), rules_path)
+
+    def test_runner_applies_saved_metric_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            local_root = Path(temporary)
+            rules_path = local_root / "app" / "data" / "local-rules.json"
+            rules_path.parent.mkdir(parents=True)
+            rules_path.write_text(
+                '{"ordinary":{"tcp_enabled":false,"tls_enabled":true,"http_enabled":false}}',
+                encoding="utf-8",
+            )
+            with patch.dict("os.environ", {"NOODE_LOCAL_ROOT": str(local_root)}):
+                config = load_config(Path(__file__).parents[1] / "config.yaml")
+
+            self.assertFalse(config["pipeline"]["quality_tcp"]["enabled"])
+            self.assertTrue(config["pipeline"]["tls"]["enabled"])
+            self.assertFalse(config["pipeline"]["http"]["enabled"])
 
     def test_rejects_url_as_domain(self) -> None:
         text = """

@@ -216,9 +216,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A -- \
             output \
-            data/previous-top100.json \
+            data/previous-top100.json
+          for optional in \
             data/handoff/local-qualified.json.gz \
-            data/handoff/local-attempted-ips.txt.gz
+            data/handoff/local-attempted-ips.txt.gz; do
+            if [ -e "$optional" ] || git ls-files --error-unmatch -- "$optional" >/dev/null 2>&1; then
+              git add -A -- "$optional"
+            fi
+          done
           if git diff --cached --quiet; then
             echo "Local result unchanged"
             exit 0

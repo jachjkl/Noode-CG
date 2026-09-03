@@ -776,6 +776,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                     f"命中排除地区：{country}",
                 )
     speed_batch_size = int(pipeline.get("speed_batch_size", 400))
+    max_per_colo = int(handoff.get("max_per_colo", 50))
     speed_qualified: dict[str, NodeResult] = {
         node.ip: node for node in accumulated_general
     }
@@ -805,7 +806,12 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         now = time.monotonic()
         if not force and now - last_live_write < 0.25:
             return
-        ordinary_preview = current_eligible_general()
+        ordinary_preview = _rank_with_colo_diversity(
+            current_eligible_general(),
+            count=general_target,
+            max_per_colo=max_per_colo,
+            latency_speed_first=force_rerank,
+        )
         preview_by_ip = {node.ip: node for node in session_live_nodes}
         for node in [*ordinary_preview, *jp_selected[:source_target]]:
             preview_by_ip[node.ip] = node
@@ -869,59 +875,109 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
         )
 
-    # Show retained valid nodes and the JP lane immediately, then append each
-    # newly speed-qualified ordinary node as soon as its download probe ends.
+    # Show retained valid nodes and the JP lane immediately. Ordinary nodes are
+    # then tested end-to-end in small batches so TCP socket pressure cannot
+    # starve the following TLS/HTTPS stages on Windows.
     write_live_preview(force=True)
-    if live_tests is not None:
-        live_tests.start_stage(general_candidates, "TCPing")
-        tcp_valid = asyncio.run(scan_tcp(
-            general_candidates,
-            pipeline["quality_tcp"],
-            on_result=ordinary_tcp_result,
-        ))
-    else:
-        tcp_valid = asyncio.run(scan_tcp(general_candidates, pipeline["quality_tcp"]))
     metric_kwargs: dict[str, Any] = {}
     if live_tests is not None:
         metric_kwargs["on_result"] = ordinary_metric_result
         metric_kwargs["on_stage"] = ordinary_stage
-    metric_valid, metric_counts = _three_metric_checks(
-        tcp_valid,
-        domain=str(config["project"]["target_domain"]),
-        pipeline=pipeline,
-        user_agent=user_agent,
-        locations=locations,
-        **metric_kwargs,
-    )
-    ordered_metrics = rank_final(metric_valid, count=len(metric_valid))
-    while force_rerank or len(current_eligible_general()) < general_target:
-        remaining = [node for node in ordered_metrics if node.ip not in speed_processed]
-        if not remaining:
-            break
-        chunk = remaining[:speed_batch_size]
-        if live_tests is not None:
-            live_tests.start_stage(chunk, "下载测速")
-        speed_kwargs: dict[str, Any] = {}
-        if live_tests is not None:
-            speed_kwargs["on_result"] = ordinary_speed_result
-        qualified, counts = _speed_checks(
-            chunk,
+    probe_batch_size = max(1, int(pipeline.get("local_probe_batch_size", 50)))
+    tcp_enabled = bool(pipeline.get("quality_tcp", {}).get("enabled", True))
+    tcp_valid: list[NodeResult] = []
+    metric_valid: list[NodeResult] = []
+    metric_counts: dict[str, Any] = {
+        "enabled_metrics": [],
+        "tls_three_pass_success": 0 if pipeline.get("tls", {}).get("enabled", True) else None,
+        "https_ttfb_three_pass_success": 0 if pipeline.get("http", {}).get("enabled", True) else None,
+        "foreign_combined_latency_qualified": 0,
+        "tls_and_https_duration_seconds": 0.0,
+        "probe_batch_size": probe_batch_size,
+        "probe_batches": 0,
+    }
+    total_batches = (len(general_candidates) + probe_batch_size - 1) // probe_batch_size
+    progress_every = max(1, total_batches // 20)
+    for offset in range(0, len(general_candidates), probe_batch_size):
+        chunk = general_candidates[offset : offset + probe_batch_size]
+        batch_number = offset // probe_batch_size + 1
+        if tcp_enabled:
+            if live_tests is not None:
+                live_tests.start_stage(chunk, "TCPing")
+                batch_tcp = asyncio.run(scan_tcp(
+                    chunk,
+                    pipeline["quality_tcp"],
+                    on_result=ordinary_tcp_result,
+                ))
+            else:
+                batch_tcp = asyncio.run(scan_tcp(chunk, pipeline["quality_tcp"]))
+        else:
+            batch_tcp = list(chunk)
+        tcp_valid.extend(batch_tcp)
+        batch_metrics, batch_counts = _three_metric_checks(
+            batch_tcp,
+            domain=str(config["project"]["target_domain"]),
             pipeline=pipeline,
             user_agent=user_agent,
-            probe_paths=probe_paths,
-            on_qualified=accept_live_speed_result,
-            **speed_kwargs,
+            locations=locations,
+            **metric_kwargs,
         )
-        speed_processed.update(node.ip for node in chunk)
-        for node in qualified:
-            speed_qualified[node.ip] = node
-        speed_batches.append({
-            **counts,
-            "input": len(chunk),
-            "qualified_total": len(speed_qualified),
-        })
+        metric_valid.extend(batch_metrics)
+        metric_counts["enabled_metrics"] = batch_counts.get("enabled_metrics", [])
+        for name in (
+            "tls_three_pass_success",
+            "https_ttfb_three_pass_success",
+            "foreign_combined_latency_qualified",
+            "tls_and_https_duration_seconds",
+        ):
+            value = batch_counts.get(name)
+            if value is not None and metric_counts.get(name) is not None:
+                metric_counts[name] += value
+        metric_counts["probe_batches"] = batch_number
 
-    max_per_colo = int(handoff.get("max_per_colo", 50))
+        for speed_offset in range(0, len(batch_metrics), max(1, min(speed_batch_size, probe_batch_size))):
+            speed_chunk = rank_final(
+                batch_metrics[speed_offset : speed_offset + max(1, min(speed_batch_size, probe_batch_size))],
+                count=max(1, min(speed_batch_size, probe_batch_size)),
+            )
+            if not speed_chunk:
+                continue
+            if live_tests is not None:
+                live_tests.start_stage(speed_chunk, "下载测速")
+            speed_kwargs: dict[str, Any] = {}
+            if live_tests is not None:
+                speed_kwargs["on_result"] = ordinary_speed_result
+            qualified, counts = _speed_checks(
+                speed_chunk,
+                pipeline=pipeline,
+                user_agent=user_agent,
+                probe_paths=probe_paths,
+                on_qualified=accept_live_speed_result,
+                **speed_kwargs,
+            )
+            speed_processed.update(node.ip for node in speed_chunk)
+            for node in qualified:
+                speed_qualified[node.ip] = node
+            speed_batches.append({
+                **counts,
+                "input": len(speed_chunk),
+                "qualified_total": len(speed_qualified),
+                "probe_batch": batch_number,
+            })
+        write_live_preview(force=True)
+        if batch_number % progress_every == 0 or batch_number == total_batches:
+            print(
+                f"[LOCAL-BATCH] {batch_number}/{total_batches} "
+                f"input={len(chunk)} tcp={len(batch_tcp)} "
+                f"metrics={len(batch_metrics)} qualified={len(current_eligible_general())}",
+                flush=True,
+            )
+        # Preserve the previous non-rerank behaviour: a normal round stops as
+        # soon as the target can be published.  Manual "continue and rerank"
+        # deliberately scans the complete fresh pool to discover replacements.
+        if not force_rerank and len(current_eligible_general()) >= general_target:
+            break
+
     eligible_general = current_eligible_general()
     current_general = _rank_with_colo_diversity(
         eligible_general,

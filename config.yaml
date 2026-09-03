@@ -68,6 +68,9 @@ pipeline:
   # Download only the best 400 at a time and stop as soon as 290 strict
   # non-JP addresses plus JP10 are ready.
   speed_batch_size: 400
+  # The Windows runner completes all enabled tests for 50 endpoints, releases
+  # that batch's resources, then advances to the next 50.
+  local_probe_batch_size: 50
   # Keep drawing new disjoint official batches until TOP300 is complete.
   # Thirty rounds cover the available official IPv4 space; runtime and range
   # exhaustion remain the only safety stops.
@@ -101,7 +104,7 @@ pipeline:
     stop_when_average_impossible: true
 
   quality_tcp:
-    concurrency: 500
+    concurrency: 300
     timeout_seconds: 1.0
     # Run all five probes. Failed attempts become packet loss and are used by
     # final ranking; at least one successful measurement is still required.
@@ -114,6 +117,10 @@ pipeline:
     maximum_loss_rate: 0.30
     stop_on_failure: false
     stop_when_average_impossible: false
+    # Stop once the remaining attempts can no longer satisfy the locally
+    # saved packet-loss limit. This preserves the rule while avoiding three
+    # redundant timeouts for an already-failed endpoint.
+    stop_when_loss_impossible: true
 
   tls:
     concurrency: 250

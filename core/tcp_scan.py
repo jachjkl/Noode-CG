@@ -21,11 +21,10 @@ async def _probe_once(node: NodeResult, timeout: float) -> float:
         return (time.perf_counter() - started) * 1000
     finally:
         if writer is not None:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except Exception:
-                pass
+            # A TCPing probe does not exchange application data. Abort the
+            # transport after connect so tens of thousands of probes do not
+            # leave graceful-close sockets piled up before TLS/HTTPS starts.
+            writer.transport.abort()
 
 
 async def scan_tcp(
@@ -45,18 +44,28 @@ async def scan_tcp(
     maximum_jitter = float(maximum_jitter_raw) if maximum_jitter_raw is not None else None
     maximum_loss_raw = options.get("maximum_loss_rate")
     maximum_loss = float(maximum_loss_raw) if maximum_loss_raw is not None else None
+    stop_when_loss_impossible = bool(options.get("stop_when_loss_impossible", False))
 
     async def worker(node: NodeResult) -> NodeResult:
         measurements: list[float] = []
         last_error: BaseException | None = None
         early_reason = ""
+        failures = 0
         for _ in range(attempts):
             try:
                 measurements.append(await _probe_once(node, timeout))
             except Exception as exc:
                 last_error = exc
+                failures += 1
                 if require_all and stop_on_failure:
                     early_reason = "必需测试失败，提前终止剩余尝试"
+                    break
+                if (
+                    stop_when_loss_impossible
+                    and maximum_loss is not None
+                    and failures / attempts > maximum_loss
+                ):
+                    early_reason = "剩余尝试即使全部成功，丢包率仍会超限"
                     break
             if (
                 stop_when_impossible
@@ -65,7 +74,8 @@ async def scan_tcp(
             ):
                 early_reason = "即使剩余延迟为 0，测试平均值也会超限"
                 break
-        node.tcp_loss_rate = round(1 - len(measurements) / attempts, 4)
+        attempted = len(measurements) + failures
+        node.tcp_loss_rate = round(failures / attempted, 4) if attempted else 1.0
         if measurements:
             node.tcp_latency_ms = round(statistics.fmean(measurements), 3)
             node.tcp_jitter_ms = round(statistics.pstdev(measurements), 3) if len(measurements) > 1 else 0.0
@@ -86,6 +96,7 @@ async def scan_tcp(
         )
         node.probe_results["tcp"] = {
             "attempts": attempts,
+            "attempts_run": attempted,
             "successes": len(measurements),
             "latencies_ms": [round(value, 3) for value in measurements],
             "average_ms": node.tcp_latency_ms,

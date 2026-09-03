@@ -16,7 +16,10 @@ class ConfigError(ValueError):
     pass
 
 
-LOCAL_RULE_DEFAULTS: dict[str, float] = {
+LOCAL_RULE_DEFAULTS: dict[str, float | bool] = {
+    "tcp_enabled": True,
+    "tls_enabled": True,
+    "http_enabled": True,
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
     "http_ttfb_max_ms": 200.0,
@@ -41,7 +44,7 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
-def _load_local_rules(config_path: Path) -> tuple[dict[str, float], Path]:
+def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool], Path]:
     local_root = os.getenv("NOODE_LOCAL_ROOT", "").strip()
     rules_path = (
         Path(local_root) / "app" / "data" / "local-rules.json"
@@ -58,7 +61,16 @@ def _load_local_rules(config_path: Path) -> tuple[dict[str, float], Path]:
     values = payload.get("ordinary", payload) if isinstance(payload, dict) else None
     if not isinstance(values, dict):
         raise ConfigError("本地自定义规则必须是对象")
+    for name in ("tcp_enabled", "tls_enabled", "http_enabled"):
+        raw = values.get(name, LOCAL_RULE_DEFAULTS[name])
+        if not isinstance(raw, bool):
+            raise ConfigError(f"本地自定义规则 {name} 必须是布尔值")
+        rules[name] = raw
+    if not any(bool(rules[name]) for name in ("tcp_enabled", "tls_enabled", "http_enabled")):
+        raise ConfigError("TCP、TLS、HTTPS TTFB 至少启用一项")
     for name, default in LOCAL_RULE_DEFAULTS.items():
+        if name.endswith("_enabled"):
+            continue
         raw = values.get(name, default)
         if not isinstance(raw, (int, float)) or isinstance(raw, bool):
             raise ConfigError(f"本地自定义规则 {name} 必须是数字")
@@ -102,6 +114,9 @@ def _apply_local_rules(data: dict[str, Any], config_path: Path) -> None:
     pipeline["maximum_jitter_ms"] = rules["jitter_max_ms"]
     pipeline["maximum_loss_rate"] = rules["loss_max_percent"] / 100.0
     speed["minimum_mbps"] = rules["speed_min_mbps"]
+    quality_tcp["enabled"] = bool(rules["tcp_enabled"])
+    tls["enabled"] = bool(rules["tls_enabled"])
+    http["enabled"] = bool(rules["http_enabled"])
     data["_local_rules"] = rules
     data["_local_rules_path"] = str(rules_path)
 
@@ -188,6 +203,7 @@ def validate_config(config: dict[str, Any]) -> None:
         "maximum_jitter_ms",
         "current_selection",
         "speed_batch_size",
+        "local_probe_batch_size",
         "max_official_rounds",
         "max_runtime_seconds",
         "minimum_round_budget_seconds",
@@ -212,6 +228,9 @@ def validate_config(config: dict[str, Any]) -> None:
             f"pipeline.{stage}.maximum_jitter_ms",
             allow_zero=True,
         )
+        enabled = block.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError(f"pipeline.{stage}.enabled 必须是布尔值")
     _positive_number(
         pipeline["prefilter_tcp"].get("attempts"),
         "pipeline.prefilter_tcp.attempts",
