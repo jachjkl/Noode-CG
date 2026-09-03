@@ -91,6 +91,49 @@
         <div id="stageGrid" class="stage-grid"></div>
       </section>
 
+      <section class="panel result-panel live-test-panel">
+        <div class="panel-heading result-heading">
+          <div>
+            <p class="section-kicker">LIVE TEST STREAM</p>
+            <h2>本地实时测速与自动淘汰</h2>
+            <p id="liveTestSummary" class="panel-copy">等待本地测试开始；每个 IP 完成一阶段就会在这里更新</p>
+          </div>
+          <span id="liveTestStage" class="badge neutral">尚未开始</span>
+        </div>
+        <div class="progress-track test-progress-track" aria-label="本地候选测试进度">
+          <div id="liveTestProgress" class="progress-fill"></div>
+        </div>
+        <p id="liveTestProgressText" class="progress-caption">已处理 0 / 0 个候选</p>
+        <div class="live-test-pager" aria-label="本轮测速记录分页">
+          <span id="liveTestPageInfo">共 0 条记录 · 第 1 / 1 页</span>
+          <label>每页
+            <select id="liveTestPageSize">
+              <option value="100">100</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </label>
+          <button id="liveTestPrevious" class="button ghost compact" type="button" disabled>上一页</button>
+          <button id="liveTestNext" class="button ghost compact" type="button" disabled>下一页</button>
+        </div>
+        <div class="table-wrap live-test-table-wrap">
+          <table id="liveTestTable">
+            <thead>
+              <tr>
+                <th>序号</th><th>IP 地址</th><th>类型 / 位置</th><th>数据中心</th>
+                <th>当前阶段</th><th>状态</th><th>TCP</th><th>TLS</th>
+                <th>HTTPS TTFB</th><th>综合</th><th>抖动</th><th>丢包率</th>
+                <th>下载速度</th><th>淘汰原因</th>
+              </tr>
+            </thead>
+            <tbody id="liveTestRows">
+              <tr><td class="empty" colspan="14">等待本地测试数据</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="panel result-panel live-result-panel">
         <div class="panel-heading result-heading">
           <div>

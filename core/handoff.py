@@ -4,6 +4,8 @@ import asyncio
 import gzip
 import json
 import os
+import threading
+import time
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -160,6 +162,189 @@ def _write_handoff(
         payload["state"] = state
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     atomic_write_bytes(path, gzip.compress(encoded, compresslevel=9, mtime=0))
+
+
+class LiveTestRecorder:
+    """Persist a compact, best-effort stream of the local test decisions.
+
+    The selection pipeline must remain independent from the dashboard.  The
+    recorder therefore serializes writes, throttles them, and swallows file
+    errors.  A partially unavailable UI file can never make a network test
+    fail or change which nodes are published.
+    """
+
+    WRITE_INTERVAL_SECONDS = 0.25
+
+    def __init__(self, path: Path, *, load_existing: bool = False) -> None:
+        self.path = Path(path)
+        self.lock = threading.RLock()
+        self.records: dict[str, dict[str, Any]] = {}
+        self.stage = ""
+        self.status = "running"
+        self.started_at = datetime.now(UTC).isoformat()
+        self.last_write = 0.0
+        self.write_error = ""
+        if load_existing:
+            self._load_existing()
+
+    def _load_existing(self) -> None:
+        if not self.path.is_file():
+            return
+        try:
+            payload = json.loads(gzip.decompress(self.path.read_bytes()).decode("utf-8"))
+        except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if not isinstance(payload, dict):
+            return
+        report = payload.get("report")
+        if isinstance(report, dict):
+            self.started_at = str(report.get("started_at") or self.started_at)
+        tests = payload.get("tests")
+        if isinstance(tests, list):
+            for item in tests:
+                if not isinstance(item, dict) or not item.get("key"):
+                    continue
+                self.records[str(item["key"])] = dict(item)
+
+    @staticmethod
+    def _snapshot(node: NodeResult, lane: str) -> dict[str, Any]:
+        country = str(node.country or node.country_hint or "").upper()
+        display = f"[{node.ip}]" if ":" in node.ip else node.ip
+        return {
+            "key": node.key,
+            "ip": node.ip,
+            "port": node.port,
+            "ip_port": f"{display}:{node.port}",
+            "lane": lane,
+            "country": country,
+            "country_hint": str(node.country_hint or "").upper(),
+            "colo_country": str(node.colo_country or "").upper(),
+            "region": node.region or "",
+            "city": node.city or "",
+            "colo": node.colo or "",
+            "tcp_latency_ms": node.tcp_latency_ms,
+            "tcp_jitter_ms": node.tcp_jitter_ms,
+            "tcp_loss_rate": node.tcp_loss_rate,
+            "tls_latency_ms": node.tls_latency_ms,
+            "tls_jitter_ms": node.tls_jitter_ms,
+            "http_latency_ms": node.http_latency_ms,
+            "http_jitter_ms": node.http_jitter_ms,
+            "average_latency_ms": node.average_latency_ms,
+            "overall_jitter_ms": node.overall_jitter_ms,
+            "speed_mbps": node.speed_mbps,
+            "score": node.score,
+        }
+
+    @staticmethod
+    def _reason(node: NodeResult, fallback: str = "") -> str:
+        if node.errors:
+            return str(node.errors[-1])[:240]
+        return fallback
+
+    def _report_locked(self) -> dict[str, Any]:
+        values = list(self.records.values())
+        counts = {
+            "total": len(values),
+            "queued": sum(item.get("status") == "queued" for item in values),
+            "testing": sum(item.get("status") == "testing" for item in values),
+            "passed": sum(item.get("status") == "passed" for item in values),
+            "eliminated": sum(item.get("status") == "eliminated" for item in values),
+            "retained": sum(item.get("status") == "retained" for item in values),
+        }
+        counts["processed"] = counts["passed"] + counts["eliminated"] + counts["retained"]
+        report: dict[str, Any] = {
+            "status": self.status,
+            "stage": self.stage,
+            "started_at": self.started_at,
+            "generated_at": datetime.now(UTC).isoformat(),
+            **counts,
+        }
+        if self.write_error:
+            report["write_error"] = self.write_error
+        return report
+
+    def _write_locked(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and now - self.last_write < self.WRITE_INTERVAL_SECONDS:
+            return
+        payload = {
+            "schema": 1,
+            "report": self._report_locked(),
+            "tests": list(self.records.values()),
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        try:
+            atomic_write_bytes(self.path, gzip.compress(encoded, compresslevel=6, mtime=0))
+            self.last_write = now
+            self.write_error = ""
+        except OSError as exc:
+            self.write_error = str(exc)[:240]
+
+    def seed(self, nodes: Iterable[NodeResult], lane: str) -> None:
+        with self.lock:
+            for node in nodes:
+                key = node.key
+                if key in self.records:
+                    continue
+                record = self._snapshot(node, lane)
+                record.update({
+                    "status": "queued",
+                    "stage": "等待测试",
+                    "reason": "",
+                    "updated_at": datetime.now(UTC).isoformat(),
+                })
+                self.records[key] = record
+            self._write_locked(force=True)
+
+    def mark_eliminated(self, node: NodeResult, stage: str, reason: str) -> None:
+        self.update(node, stage, "eliminated", reason)
+
+    def start_stage(self, nodes: Iterable[NodeResult], stage: str) -> None:
+        with self.lock:
+            self.stage = stage
+            for node in nodes:
+                record = self.records.get(node.key)
+                if record is None:
+                    continue
+                record.update(self._snapshot(node, str(record.get("lane") or "ordinary")))
+                record.update({
+                    "status": "testing",
+                    "stage": stage,
+                    "reason": "",
+                    "updated_at": datetime.now(UTC).isoformat(),
+                })
+            self._write_locked(force=True)
+
+    def update(self, node: NodeResult, stage: str, status: str, reason: str = "") -> None:
+        with self.lock:
+            record = self.records.get(node.key)
+            if record is None:
+                record = self._snapshot(node, "ordinary")
+                self.records[node.key] = record
+            else:
+                record.update(self._snapshot(node, str(record.get("lane") or "ordinary")))
+            record.update({
+                "status": status,
+                "stage": stage,
+                "reason": (reason or self._reason(node))[:240],
+                "updated_at": datetime.now(UTC).isoformat(),
+            })
+            self.stage = stage
+            self._write_locked()
+
+    def finish(self, status: str = "completed", **extra: Any) -> None:
+        with self.lock:
+            self.status = status
+            self._write_locked(force=True)
+            if extra:
+                try:
+                    payload = json.loads(gzip.decompress(self.path.read_bytes()).decode("utf-8"))
+                    if isinstance(payload, dict) and isinstance(payload.get("report"), dict):
+                        payload["report"].update(extra)
+                        encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                        atomic_write_bytes(self.path, gzip.compress(encoded, compresslevel=6, mtime=0))
+                except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
+                    pass
 
 
 def _load_ip_set(path: Path) -> set[str]:
@@ -407,22 +592,42 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     live_path = resolve_path(config, live_value) if live_value else None
     if live_path and not continuation:
         live_path.unlink(missing_ok=True)
+    live_tests_value = handoff.get("live_tests_path")
+    live_tests_path = resolve_path(config, live_tests_value) if live_tests_value else None
+    if live_tests_path and not continuation:
+        live_tests_path.unlink(missing_ok=True)
+    live_tests = (
+        LiveTestRecorder(live_tests_path, load_existing=continuation)
+        if live_tests_path
+        else None
+    )
     attempted_value = handoff.get("attempted_path")
     attempted_path = resolve_path(config, attempted_value) if attempted_value else None
     accumulated: list[NodeResult] = []
     accumulator_payload: dict[str, Any] = {}
-    if accumulator_path and accumulator_path.is_file():
-        accumulated, accumulator_payload = load_cloud_handoff(accumulator_path)
-    embedded_accumulated = _nodes_from_payload(embedded_state.get("accumulated"))
-    accumulated = _unique_by_ip([*accumulated, *embedded_accumulated])
-    attempted_ips = _load_ip_set(attempted_path) if attempted_path else set()
-    embedded_attempted = embedded_state.get("attempted_ips")
-    if isinstance(embedded_attempted, list):
-        attempted_ips.update(
-            str(value).strip()
-            for value in embedded_attempted
-            if isinstance(value, str) and value.strip()
-        )
+    attempted_ips: set[str] = set()
+    if continuation:
+        if accumulator_path and accumulator_path.is_file():
+            accumulated, accumulator_payload = load_cloud_handoff(accumulator_path)
+        embedded_accumulated = _nodes_from_payload(embedded_state.get("accumulated"))
+        accumulated = _unique_by_ip([*accumulated, *embedded_accumulated])
+        if attempted_path:
+            attempted_ips = _load_ip_set(attempted_path)
+        embedded_attempted = embedded_state.get("attempted_ips")
+        if isinstance(embedded_attempted, list):
+            attempted_ips.update(
+                str(value).strip()
+                for value in embedded_attempted
+                if isinstance(value, str) and value.strip()
+            )
+    else:
+        # The recovery step may restore state from a failed older session before
+        # the fresh cloud handoff is downloaded.  A new local cycle must never
+        # inherit that accumulator or its (potentially huge) attempted-IP set.
+        if accumulator_path:
+            accumulator_path.unlink(missing_ok=True)
+        if attempted_path:
+            attempted_path.unlink(missing_ok=True)
     # Fixed links are fetched once by the cloud at the beginning of a local
     # session. Replenishment must not download them again, so the local stage
     # only consumes the handoff and records every address it attempted.
@@ -474,6 +679,49 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         node for node in new_candidates
         if (node.country_hint or node.country).upper() == source_country
     ]
+
+    def latest_reason(node: NodeResult, fallback: str) -> str:
+        return str(node.errors[-1])[:240] if node.errors else fallback
+
+    def jp_tcp_result(node: NodeResult) -> None:
+        if live_tests is None:
+            return
+        live_tests.update(
+            node,
+            "TCPing",
+            "passed" if node.tcp_latency_ms is not None else "retained",
+            "" if node.tcp_latency_ms is not None else latest_reason(node, "TCPing 未测得延迟；JP 继续参与排名"),
+        )
+
+    def jp_speed_result(node: NodeResult) -> None:
+        if live_tests is None:
+            return
+        if node.speed_mbps is not None:
+            live_tests.update(node, "下载测速", "passed", "JP 豁免普通节点规则")
+        else:
+            live_tests.update(
+                node,
+                "下载测速",
+                "retained",
+                latest_reason(node, "未测得下载速度；JP 豁免普通节点规则"),
+            )
+
+    def jp_stage(stage_records: list[NodeResult], stage: str) -> None:
+        if live_tests is not None:
+            live_tests.start_stage(stage_records, stage)
+
+    if live_tests is not None:
+        # Seed both lanes before the JP-only probe starts.  Otherwise a long
+        # JP download phase makes the dashboard appear to contain only JP and
+        # hides the ordinary candidates that are already waiting to be tested.
+        live_tests.seed(jp_candidates, "jp")
+        live_tests.seed(
+            [
+                node for node in new_candidates
+                if (node.country_hint or node.country).upper() != source_country
+            ],
+            "ordinary",
+        )
     jp_new_selected, jp_counts = _source_country_tcp_speed_checks(
         jp_candidates,
         pipeline=pipeline,
@@ -481,6 +729,9 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         user_agent=user_agent,
         probe_paths=probe_paths,
         count=source_target,
+        on_tcp_result=jp_tcp_result if live_tests is not None else None,
+        on_speed_result=jp_speed_result if live_tests is not None else None,
+        on_stage=jp_stage if live_tests is not None else None,
     )
     jp_selected = _rank_source_country_tcp_speed(
         [*accumulated_jp, *jp_new_selected],
@@ -500,6 +751,21 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if (node.country_hint or node.country).upper() != source_country
         and (node.country_hint or node.country).upper() not in excluded
     ]
+    if live_tests is not None:
+        ordinary_candidates = [
+            node for node in new_candidates
+            if (node.country_hint or node.country).upper() != source_country
+        ]
+        live_tests.seed(ordinary_candidates, "ordinary")
+        included_keys = {node.key for node in general_candidates}
+        for node in ordinary_candidates:
+            if node.key not in included_keys:
+                country = (node.country_hint or node.country or "unknown").upper()
+                live_tests.mark_eliminated(
+                    node,
+                    "地区筛选",
+                    f"命中排除地区：{country}",
+                )
     speed_batch_size = int(pipeline.get("speed_batch_size", 400))
     speed_qualified: dict[str, NodeResult] = {
         node.ip: node for node in accumulated_general
@@ -521,8 +787,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             )
         ]
 
-    def write_live_preview() -> None:
+    last_live_write = 0.0
+
+    def write_live_preview(force: bool = False) -> None:
+        nonlocal last_live_write
         if not live_path:
+            return
+        now = time.monotonic()
+        if not force and now - last_live_write < 0.25:
             return
         ordinary_preview = current_eligible_general()
         preview = _unique_by_ip([*ordinary_preview, *jp_selected[:source_target]])
@@ -543,21 +815,71 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 "local_rules": config.get("_local_rules", {}),
             },
         )
+        last_live_write = now
 
     def accept_live_speed_result(node: NodeResult) -> None:
         speed_qualified[node.ip] = node
         write_live_preview()
 
+    def ordinary_tcp_result(node: NodeResult) -> None:
+        if live_tests is None:
+            return
+        live_tests.update(
+            node,
+            "TCPing",
+            "passed" if node.tcp_ok else "eliminated",
+            "" if node.tcp_ok else latest_reason(node, "TCPing 未通过"),
+        )
+
+    def ordinary_metric_result(node: NodeResult, stage: str, passed: bool) -> None:
+        if live_tests is None:
+            return
+        live_tests.update(
+            node,
+            stage,
+            "passed" if passed else "eliminated",
+            "" if passed else latest_reason(node, f"{stage} 未通过"),
+        )
+
+    def ordinary_stage(stage_records: list[NodeResult], stage: str) -> None:
+        if live_tests is not None:
+            live_tests.start_stage(stage_records, stage)
+
+    def ordinary_speed_result(node: NodeResult) -> None:
+        if live_tests is None:
+            return
+        minimum_mbps = float(pipeline["speed"].get("minimum_mbps", 0))
+        passed = node.speed_mbps is not None and node.speed_mbps >= minimum_mbps
+        live_tests.update(
+            node,
+            "下载测速",
+            "passed" if passed else "eliminated",
+            "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
+        )
+
     # Show retained valid nodes and the JP lane immediately, then append each
     # newly speed-qualified ordinary node as soon as its download probe ends.
-    write_live_preview()
-    tcp_valid = asyncio.run(scan_tcp(general_candidates, pipeline["quality_tcp"]))
+    write_live_preview(force=True)
+    if live_tests is not None:
+        live_tests.start_stage(general_candidates, "TCPing")
+        tcp_valid = asyncio.run(scan_tcp(
+            general_candidates,
+            pipeline["quality_tcp"],
+            on_result=ordinary_tcp_result,
+        ))
+    else:
+        tcp_valid = asyncio.run(scan_tcp(general_candidates, pipeline["quality_tcp"]))
+    metric_kwargs: dict[str, Any] = {}
+    if live_tests is not None:
+        metric_kwargs["on_result"] = ordinary_metric_result
+        metric_kwargs["on_stage"] = ordinary_stage
     metric_valid, metric_counts = _three_metric_checks(
         tcp_valid,
         domain=str(config["project"]["target_domain"]),
         pipeline=pipeline,
         user_agent=user_agent,
         locations=locations,
+        **metric_kwargs,
     )
     ordered_metrics = rank_final(metric_valid, count=len(metric_valid))
     while force_rerank or len(current_eligible_general()) < general_target:
@@ -565,12 +887,18 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if not remaining:
             break
         chunk = remaining[:speed_batch_size]
+        if live_tests is not None:
+            live_tests.start_stage(chunk, "下载测速")
+        speed_kwargs: dict[str, Any] = {}
+        if live_tests is not None:
+            speed_kwargs["on_result"] = ordinary_speed_result
         qualified, counts = _speed_checks(
             chunk,
             pipeline=pipeline,
             user_agent=user_agent,
             probe_paths=probe_paths,
             on_qualified=accept_live_speed_result,
+            **speed_kwargs,
         )
         speed_processed.update(node.ip for node in chunk)
         for node in qualified:
@@ -727,6 +1055,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     if publish_ready:
         publish_options["minimum_publish"] = 1
     final_report = publish_outputs(output_dir, selected, report, publish_options)
+    write_live_preview(force=True)
+    if live_tests is not None:
+        live_tests.finish(
+            "completed" if final_report.get("published") else "degraded",
+            selection_status=final_report.get("status", ""),
+            published=bool(final_report.get("published")),
+            qualified_for_publish=len(selected),
+        )
     if final_report["published"]:
         rolling = config.get("rolling", {})
         snapshot_value = rolling.get("snapshot_path")

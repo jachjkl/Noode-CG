@@ -136,7 +136,11 @@ async def test_speed(
                 except Exception:
                     pass
             if on_result is not None:
-                on_result(node)
+                try:
+                    on_result(node)
+                except Exception:
+                    # A live UI writer must never be able to abort network probing.
+                    pass
         return node
 
     await run_worker_pool(

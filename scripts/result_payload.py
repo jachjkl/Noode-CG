@@ -16,6 +16,10 @@ PAYLOAD_FILES = (
     "data/handoff/local-qualified.json.gz",
     "data/handoff/local-attempted-ips.txt.gz",
 )
+REPLENISHMENT_STATE_FILES = frozenset({
+    "data/handoff/local-qualified.json.gz",
+    "data/handoff/local-attempted-ips.txt.gz",
+})
 _ALLOWED = frozenset(PAYLOAD_FILES)
 
 
@@ -23,17 +27,21 @@ def pack_payload(root: Path, archive: Path) -> list[str]:
     root = root.resolve()
     archive = archive.resolve()
     archive.parent.mkdir(parents=True, exist_ok=True)
+    health_path = root / "output/health.json"
+    if not health_path.is_file():
+        raise ValueError("output/health.json is required in a local result payload")
+    health = json.loads(health_path.read_text(encoding="utf-8"))
+    needs_more = bool(health.get("needs_more", False)) if isinstance(health, dict) else False
     included: list[str] = []
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as handle:
         for relative in PAYLOAD_FILES:
+            if relative in REPLENISHMENT_STATE_FILES and not needs_more:
+                continue
             source = root / relative
             if not source.is_file():
                 continue
             handle.write(source, arcname=relative)
             included.append(relative)
-    if "output/health.json" not in included:
-        archive.unlink(missing_ok=True)
-        raise ValueError("output/health.json is required in a local result payload")
     return included
 
 

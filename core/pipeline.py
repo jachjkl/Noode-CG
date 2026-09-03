@@ -50,13 +50,54 @@ def _save_ip_snapshot(path: Path, values: set[str]) -> None:
 def _three_metric_checks(
     records: list[NodeResult], *, domain: str, pipeline: dict[str, Any],
     user_agent: str, locations: dict[str, Any],
+    on_result: Callable[[NodeResult, str, bool], None] | None = None,
+    on_stage: Callable[[list[NodeResult], str], None] | None = None,
 ) -> tuple[list[NodeResult], dict[str, Any]]:
     started = time.monotonic()
-    tls_valid = asyncio.run(check_tls(records, domain, pipeline["tls"]))
-    http_valid = asyncio.run(check_http(
-        tls_valid, domain, pipeline["http"], pipeline.get("websocket", {}),
-        user_agent=user_agent,
-    ))
+
+    def emit(node: NodeResult, stage: str, passed: bool) -> None:
+        if on_result is None:
+            return
+        try:
+            on_result(node, stage, passed)
+        except Exception:
+            # UI telemetry is best-effort and must never change selection.
+            pass
+
+    def emit_stage(stage_records: list[NodeResult], stage: str) -> None:
+        if on_stage is None:
+            return
+        try:
+            on_stage(stage_records, stage)
+        except Exception:
+            # UI telemetry is best-effort and must never change selection.
+            pass
+
+    emit_stage(records, "TLS")
+    if on_result is None:
+        tls_valid = asyncio.run(check_tls(records, domain, pipeline["tls"]))
+    else:
+        tls_valid = asyncio.run(check_tls(
+            records,
+            domain,
+            pipeline["tls"],
+            on_result=lambda node: emit(node, "TLS", node.tls_ok),
+        ))
+    emit_stage(tls_valid, "HTTPS TTFB")
+    if on_result is None:
+        http_valid = asyncio.run(check_http(
+            tls_valid, domain, pipeline["http"], pipeline.get("websocket", {}),
+            user_agent=user_agent,
+        ))
+    else:
+        http_valid = asyncio.run(check_http(
+            tls_valid,
+            domain,
+            pipeline["http"],
+            pipeline.get("websocket", {}),
+            user_agent=user_agent,
+            on_result=lambda node: emit(node, "HTTPS TTFB", node.http_ok),
+        ))
     enrich_locations(http_valid, locations)
     maximum_combined = float(pipeline["maximum_combined_latency_ms"])
     legacy_component = float(pipeline["maximum_component_latency_ms"])
@@ -96,7 +137,8 @@ def _three_metric_checks(
             node.average_latency_ms is not None
             and node.average_latency_ms <= maximum_combined
         )
-        if foreign_valid and component_valid and jitter_valid and latency_valid:
+        combined_passed = foreign_valid and component_valid and jitter_valid and latency_valid
+        if combined_passed:
             combined_valid.append(node)
         elif not foreign_valid:
             node.add_error(
@@ -118,6 +160,7 @@ def _three_metric_checks(
                 "latency",
                 f"TCP/TLS/TTFB 综合平均 {node.average_latency_ms}ms > {maximum_combined:g}ms",
             )
+        emit(node, "综合规则", combined_passed)
     return combined_valid, {
         "tls_three_pass_success": len(tls_valid),
         "https_ttfb_three_pass_success": len(http_valid),
@@ -129,6 +172,7 @@ def _three_metric_checks(
 def _speed_checks(
     records: list[NodeResult], *, pipeline: dict[str, Any], user_agent: str,
     probe_paths: list[Path], on_qualified: Callable[[NodeResult], None] | None = None,
+    on_result: Callable[[NodeResult], None] | None = None,
 ) -> tuple[list[NodeResult], dict[str, Any]]:
     merge_probe_files(records, probe_paths)
     options = dict(pipeline["speed"])
@@ -137,6 +181,12 @@ def _speed_checks(
     minimum_mbps = float(options["minimum_mbps"])
 
     def report_result(node: NodeResult) -> None:
+        if on_result is not None:
+            try:
+                on_result(node)
+            except Exception:
+                # UI telemetry is best-effort and must never change selection.
+                pass
         if on_qualified is not None and meets_minimum_speed(
             node, minimum_mbps=minimum_mbps
         ):
@@ -195,6 +245,9 @@ def _rank_source_country_tcp_speed(
 def _source_country_tcp_speed_checks(
     records: list[NodeResult], *, pipeline: dict[str, Any], rule: dict[str, Any],
     user_agent: str, probe_paths: list[Path], count: int,
+    on_tcp_result: Callable[[NodeResult], None] | None = None,
+    on_speed_result: Callable[[NodeResult], None] | None = None,
+    on_stage: Callable[[list[NodeResult], str], None] | None = None,
 ) -> tuple[list[NodeResult], dict[str, Any]]:
     """Measure the special JP lane once without TLS or HTTPS-TTFB gates."""
     started = time.monotonic()
@@ -208,16 +261,37 @@ def _source_country_tcp_speed_checks(
     })
     tcp_options.pop("maximum_average_latency_ms", None)
     tcp_options.pop("maximum_jitter_ms", None)
-    tcp_tested = asyncio.run(scan_tcp(records, tcp_options))
+    if on_stage is not None:
+        try:
+            on_stage(records, "TCPing")
+        except Exception:
+            pass
+    if on_tcp_result is None:
+        tcp_tested = asyncio.run(scan_tcp(records, tcp_options))
+    else:
+        tcp_tested = asyncio.run(scan_tcp(
+            records,
+            tcp_options,
+            on_result=on_tcp_result,
+        ))
 
     merge_probe_files(tcp_tested, probe_paths)
     speed_options = dict(pipeline["speed"])
     speed_options["candidates"] = len(tcp_tested)
+    if on_stage is not None:
+        try:
+            on_stage(tcp_tested, "下载测速")
+        except Exception:
+            pass
+    speed_kwargs: dict[str, Any] = {}
+    if on_speed_result is not None:
+        speed_kwargs["on_result"] = on_speed_result
     speed_tested = asyncio.run(test_speed(
         tcp_tested,
         speed_options,
         user_agent=user_agent,
         probe_name="jp_source_speed",
+        **speed_kwargs,
     ))
     selected = _rank_source_country_tcp_speed(speed_tested, count=count)
     return selected, {

@@ -198,9 +198,9 @@ jobs:
           tr -d '\r\n ' < "$payload_b64" | base64 --decode > "$payload_zip"
           echo "${{ needs.local-select.outputs.result_sha256 }}  $payload_zip" | sha256sum --check --strict
           python3 scripts/result_payload.py unpack --archive "$payload_zip" --destination .
-          if python3 -c 'import json,sys; sys.exit(0 if json.load(open("output/health.json", encoding="utf-8")).get("published") else 1)'; then
+          if python3 -c 'import json,sys; sys.exit(0 if not json.load(open("output/health.json", encoding="utf-8")).get("needs_more") else 1)'; then
             rm -f data/handoff/local-qualified.json.gz data/handoff/local-attempted-ips.txt.gz
-            echo "Published result: cleared completed accumulator state"
+            echo "Cycle complete: cleared accumulator and attempted-IP state"
           fi
       - name: Publish local result from Ubuntu
         shell: bash

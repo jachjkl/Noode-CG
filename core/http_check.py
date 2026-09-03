@@ -7,6 +7,7 @@ import os
 import ssl
 import statistics
 import time
+from collections.abc import Callable
 from typing import Any
 
 from .async_utils import run_worker_pool
@@ -111,6 +112,7 @@ async def check_http(
     websocket_options: dict[str, Any] | None = None,
     *,
     user_agent: str = "Noode-CG/2.0",
+    on_result: Callable[[NodeResult], None] | None = None,
 ) -> list[NodeResult]:
     timeout = float(options.get("timeout_seconds", 5.0))
     context = make_ssl_context(True, "TLSv1.2")
@@ -217,6 +219,12 @@ async def check_http(
                 user_agent=user_agent,
             )
             node.http_ok = node.http_ok and node.websocket_ok
+        if on_result is not None:
+            try:
+                on_result(node)
+            except Exception:
+                # A live UI writer must never be able to abort network probing.
+                pass
         return node
 
     tested = await run_worker_pool(

@@ -11,6 +11,25 @@ from core.tls_check import check_tls
 
 
 class PipelineStageTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tcp_stage_emits_each_completed_candidate(self) -> None:
+        node = NodeResult(ip="192.0.2.25")
+        observed: list[NodeResult] = []
+        with patch("core.tcp_scan._probe_once", new=AsyncMock(return_value=42.0)):
+            result = await scan_tcp(
+                [node],
+                {
+                    "attempts": 1,
+                    "timeout_seconds": 1,
+                    "concurrency": 1,
+                    "require_all_attempts": False,
+                    "maximum_average_latency_ms": 300,
+                },
+                on_result=observed.append,
+            )
+
+        self.assertEqual(result, [node])
+        self.assertEqual(observed, [node])
+
     async def test_quality_tcp_runs_all_five_probes_and_keeps_loss_for_ranking(self) -> None:
         node = NodeResult(ip="198.51.100.20", country_hint="US")
         options = {

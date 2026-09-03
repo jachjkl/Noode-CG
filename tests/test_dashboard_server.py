@@ -77,6 +77,15 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("云端已发布 IP 结果", html)
         self.assertIn('fetch("/api/live-nodes"', script)
 
+    def test_dashboard_has_live_test_stream_panel(self) -> None:
+        html = (CONTROLLER_ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        script = (CONTROLLER_ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="liveTestRows"', html)
+        self.assertIn('id="liveTestPageSize"', html)
+        self.assertIn('id="liveTestNext"', html)
+        self.assertIn("本地实时测速与自动淘汰", html)
+        self.assertIn('fetch(`/api/live-tests?', script)
+
     def test_published_results_do_not_get_replaced_by_unpublished_accumulator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -152,6 +161,64 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(live_source, "live-current-cycle")
             self.assertEqual(live_path, live)
             self.assertEqual(nodes[0]["ip"], "198.51.100.90")
+
+    def test_live_test_stream_returns_latest_records_with_total_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = DashboardState(root, "owner/repo", "main")
+            state.live_tests_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "schema": 1,
+                "report": {
+                    "status": "running",
+                    "stage": "TLS",
+                    "total": 2,
+                    "processed": 1,
+                    "eliminated": 1,
+                },
+                "tests": [
+                    {"key": "old", "ip": "192.0.2.1", "updated_at": "2026-09-02T01:00:00+00:00"},
+                    {"key": "new", "ip": "192.0.2.2", "updated_at": "2026-09-02T02:00:00+00:00"},
+                ],
+            }
+            state.live_tests_path.write_bytes(
+                gzip.compress(json.dumps(payload).encode("utf-8"), mtime=0)
+            )
+
+            report, tests, source, path = state.live_tests_with_meta(limit=1)
+
+            self.assertEqual(source, "live-test-stream")
+            self.assertEqual(path, state.live_tests_path)
+            self.assertEqual(report["total"], 2)
+            self.assertEqual(report["records_total"], 2)
+            self.assertEqual(tests[0]["ip"], "192.0.2.2")
+
+            report, tests, _, _ = state.live_tests_with_meta(limit=1, offset=1)
+            self.assertEqual(report["records_total"], 2)
+            self.assertEqual(tests[0]["ip"], "192.0.2.1")
+
+    def test_new_cycle_clears_live_test_stream(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = DashboardState(root, "owner/repo", "main")
+            state.live_tests_path.parent.mkdir(parents=True, exist_ok=True)
+            state.live_tests_path.write_bytes(b"old-live-tests")
+            script = root / "manual-start.ps1"
+            script.write_text("exit 0", encoding="utf-8")
+            state.manual_script = script
+            fake_process = unittest.mock.MagicMock()
+            fake_process.poll.return_value = None
+            fake_process.stdout = []
+
+            with (
+                patch("dashboard_server.Path.is_file", return_value=True),
+                patch("dashboard_server.subprocess.Popen", return_value=fake_process),
+                patch("dashboard_server.threading.Thread"),
+            ):
+                started = state.start_controller()
+
+            self.assertTrue(started)
+            self.assertFalse(state.live_tests_path.exists())
 
     def test_starting_a_new_cycle_clears_previous_live_results(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -354,6 +421,12 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(state.local_rules()["speed_min_mbps"], 6)
             document = json.loads(state.rules_path.read_text(encoding="utf-8"))
             self.assertTrue(document["jp_exempt"])
+
+    def test_local_rules_reject_nonfinite_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            with self.assertRaises(ValueError):
+                state.save_local_rules({"ordinary": {"tcp_max_ms": float("nan")}})
 
 
 if __name__ == "__main__":

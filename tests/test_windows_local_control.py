@@ -121,10 +121,11 @@ class WindowsLocalControlTests(unittest.TestCase):
         )
         self.assertIn("Install-LocalApplication", installer)
 
-    def test_successful_cloud_publish_removes_completed_cycle_state(self) -> None:
+    def test_cloud_publish_removes_cycle_state_when_no_more_rounds_are_needed(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"
         )
+        self.assertIn('.get("needs_more")', workflow)
         self.assertIn(
             "rm -f data/handoff/local-qualified.json.gz "
             "data/handoff/local-attempted-ips.txt.gz",

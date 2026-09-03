@@ -4,6 +4,7 @@ import asyncio
 import ssl
 import statistics
 import time
+from collections.abc import Callable
 from typing import Any
 
 from .async_utils import run_worker_pool
@@ -63,7 +64,13 @@ async def _probe_once(
                 pass
 
 
-async def check_tls(records: list[NodeResult], domain: str, options: dict[str, Any]) -> list[NodeResult]:
+async def check_tls(
+    records: list[NodeResult],
+    domain: str,
+    options: dict[str, Any],
+    *,
+    on_result: Callable[[NodeResult], None] | None = None,
+) -> list[NodeResult]:
     timeout = float(options.get("timeout_seconds", 4.0))
     context = make_ssl_context(
         bool(options.get("verify_certificate", True)),
@@ -123,6 +130,12 @@ async def check_tls(records: list[NodeResult], domain: str, options: dict[str, A
         }
         if early_reason:
             node.add_error("tls", early_reason)
+        if on_result is not None:
+            try:
+                on_result(node)
+            except Exception:
+                # A live UI writer must never be able to abort network probing.
+                pass
         return node
 
     tested = await run_worker_pool(

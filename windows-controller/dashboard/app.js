@@ -19,6 +19,15 @@ const elements = {
   workflowProgress: $("#workflowProgress"),
   workflowProgressText: $("#workflowProgressText"),
   stageGrid: $("#stageGrid"),
+  liveTestSummary: $("#liveTestSummary"),
+  liveTestStage: $("#liveTestStage"),
+  liveTestProgress: $("#liveTestProgress"),
+  liveTestProgressText: $("#liveTestProgressText"),
+  liveTestRows: $("#liveTestRows"),
+  liveTestPageInfo: $("#liveTestPageInfo"),
+  liveTestPageSize: $("#liveTestPageSize"),
+  liveTestPrevious: $("#liveTestPrevious"),
+  liveTestNext: $("#liveTestNext"),
   filterSummary: $("#filterSummary"),
   searchInput: $("#searchInput"),
   countryFilter: $("#countryFilter"),
@@ -51,6 +60,10 @@ const elements = {
 let allNodes = [];
 let filteredNodes = [];
 let liveNodes = [];
+let liveTestRecords = [];
+let liveTestPage = 1;
+let liveTestPageSize = 200;
+let liveTestRecordCount = 0;
 let lastState = null;
 let toastTimer = null;
 let continueSubmitting = false;
@@ -292,6 +305,94 @@ function renderLiveNodes() {
     : '<tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>';
 }
 
+function liveTestStatusLabel(status) {
+  return {
+    queued: "待测",
+    testing: "测试中",
+    passed: "通过",
+    eliminated: "已淘汰",
+    retained: "JP 保留",
+  }[status] || "未知";
+}
+
+function liveTestStatusClass(status) {
+  if (status === "testing") return "testing";
+  if (status === "eliminated") return "eliminated";
+  if (status === "passed") return "passed";
+  if (status === "retained") return "retained";
+  return "queued";
+}
+
+function liveTestRowsHtml(records, startIndex = 0) {
+  return records.map((node, index) => {
+    const country = String(node.country || node.country_hint || "未知").toUpperCase();
+    const lane = node.lane === "jp" ? "JP 豁免" : "普通";
+    const location = [country, node.city, node.region].filter(Boolean).join(" · ") || "未知位置";
+    const endpoint = node.ip_port || `${node.ip}:${node.port || 443}`;
+    const lossRate = node.loss_rate ?? node.tcp_loss_rate;
+    const loss = Number.isFinite(Number(lossRate)) ? `${(Number(lossRate) * 100).toFixed(1)}%` : "--";
+    const speed = formatMetric(node.speed_mbps);
+    const megaBytes = Number.isFinite(Number(node.speed_mbps)) ? (Number(node.speed_mbps) / 8).toFixed(1) : "--";
+    const status = String(node.status || "queued");
+    const reason = node.reason || "";
+    return `
+      <tr class="live-test-row ${status === "eliminated" ? "is-eliminated" : ""}">
+        <td class="rank">${startIndex + index + 1}</td>
+        <td><span class="ip-value">${escapeHtml(endpoint)}</span></td>
+        <td><span class="location-main">${escapeHtml(lane)} · ${escapeHtml(country)}</span><span class="location-sub">${escapeHtml(location)}</span></td>
+        <td>${escapeHtml(node.colo || "--")}</td>
+        <td>${escapeHtml(node.stage || "等待测试")}</td>
+        <td><span class="test-status ${liveTestStatusClass(status)}">${escapeHtml(liveTestStatusLabel(status))}</span></td>
+        <td class="number ${numberClass(node.tcp_latency_ms, 150, 300)}">${formatMetric(node.tcp_latency_ms)} ms</td>
+        <td class="number ${numberClass(node.tls_latency_ms, 200, 300)}">${formatMetric(node.tls_latency_ms)} ms</td>
+        <td class="number ${numberClass(node.http_latency_ms, 200, 300)}">${formatMetric(node.http_latency_ms)} ms</td>
+        <td class="number ${numberClass(node.average_latency_ms, 180, 300)}">${formatMetric(node.average_latency_ms)} ms</td>
+        <td class="number ${numberClass(node.overall_jitter_ms, 50, 200)}">${formatMetric(node.overall_jitter_ms ?? node.tcp_jitter_ms)} ms</td>
+        <td class="number ${numberClass(Number(lossRate) * 100, 0, 20)}">${loss}</td>
+        <td><span class="speed">${speed} Mbps</span><span class="location-sub">${megaBytes} MB/s</span></td>
+        <td class="test-reason" title="${escapeHtml(reason)}">${escapeHtml(reason || "--")}</td>
+      </tr>`;
+  }).join("");
+}
+
+function renderLiveTests(data) {
+  const report = data.report || {};
+  liveTestRecords = Array.isArray(data.tests) ? data.tests : [];
+  const total = Number(data.total ?? report.total ?? liveTestRecords.length) || 0;
+  const processed = Number(report.processed || 0) || 0;
+  const queued = Number(report.queued || 0) || 0;
+  const testing = Number(report.testing || 0) || 0;
+  const passed = Number(report.passed || 0) || 0;
+  const eliminated = Number(report.eliminated || 0) || 0;
+  const retained = Number(report.retained || 0) || 0;
+  liveTestRecordCount = Number(data.records_total ?? report.records_total ?? liveTestRecords.length) || 0;
+  const offset = Number(data.offset || 0) || 0;
+  const pageCount = Math.max(1, Math.ceil(liveTestRecordCount / liveTestPageSize));
+  const responsePage = Math.floor(offset / liveTestPageSize) + 1;
+  if (liveTestPage > pageCount) {
+    liveTestPage = pageCount;
+    setTimeout(fetchLiveTests, 0);
+  } else {
+    liveTestPage = responsePage;
+  }
+  const percent = total ? Math.min(100, (processed / total) * 100) : 0;
+  elements.liveTestProgress.style.width = `${percent}%`;
+  elements.liveTestProgressText.textContent = `已处理 ${processed} / ${total} 个候选 · 待测 ${queued} · 测试中 ${testing}`;
+  elements.liveTestSummary.textContent = total
+    ? `候选 ${total} 条 · 通过 ${passed} · 淘汰 ${eliminated} · JP 保留 ${retained} · 本轮 ${liveTestRecordCount} 条记录均可分页查看`
+    : "等待本地测试开始；每个 IP 完成一阶段就会在这里更新";
+  elements.liveTestPageInfo.textContent = `共 ${liveTestRecordCount} 条记录 · 第 ${liveTestPage} / ${pageCount} 页`;
+  elements.liveTestPrevious.disabled = liveTestPage <= 1;
+  elements.liveTestNext.disabled = liveTestPage >= pageCount;
+  const reportStatus = String(report.status || "idle");
+  const badgeClass = reportStatus === "running" ? "running" : reportStatus === "completed" ? "success" : reportStatus === "degraded" ? "failure" : "neutral";
+  elements.liveTestStage.className = `badge ${badgeClass}`;
+  elements.liveTestStage.textContent = report.stage || (reportStatus === "completed" ? "本轮已完成" : "尚未开始");
+  elements.liveTestRows.innerHTML = liveTestRecords.length
+    ? liveTestRowsHtml(liveTestRecords, offset)
+    : '<tr><td class="empty" colspan="14">等待本地测试数据</td></tr>';
+}
+
 function renderNodes() {
   const sourceLabels = {
     "local-ready": "本机保存的云端已发布结果",
@@ -403,6 +504,36 @@ async function fetchLiveNodes() {
   }
 }
 
+async function fetchLiveTests() {
+  try {
+    const offset = (liveTestPage - 1) * liveTestPageSize;
+    const response = await fetch(`/api/live-tests?limit=${liveTestPageSize}&offset=${offset}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderLiveTests(await response.json());
+  } catch (error) {
+    elements.liveTestSummary.textContent = `实时测速面板读取失败：${error.message}`;
+  }
+}
+
+elements.liveTestPageSize.addEventListener("change", () => {
+  liveTestPageSize = Number(elements.liveTestPageSize.value) || 200;
+  liveTestPage = 1;
+  fetchLiveTests();
+});
+
+elements.liveTestPrevious.addEventListener("click", () => {
+  if (liveTestPage <= 1) return;
+  liveTestPage -= 1;
+  fetchLiveTests();
+});
+
+elements.liveTestNext.addEventListener("click", () => {
+  const pageCount = Math.max(1, Math.ceil(liveTestRecordCount / liveTestPageSize));
+  if (liveTestPage >= pageCount) return;
+  liveTestPage += 1;
+  fetchLiveTests();
+});
+
 function renderRules(rules) {
   const values = { ...defaultRules, ...(rules || {}) };
   elements.ruleTcp.value = values.tcp_max_ms;
@@ -415,15 +546,23 @@ function renderRules(rules) {
 }
 
 function collectRules() {
-  return {
-    tcp_max_ms: Number(elements.ruleTcp.value),
-    tls_max_ms: Number(elements.ruleTls.value),
-    http_ttfb_max_ms: Number(elements.ruleHttp.value),
-    average_max_ms: Number(elements.ruleAverage.value),
-    jitter_max_ms: Number(elements.ruleJitter.value),
-    loss_max_percent: Number(elements.ruleLoss.value),
-    speed_min_mbps: Number(elements.ruleSpeed.value),
+  const fields = {
+    tcp_max_ms: elements.ruleTcp,
+    tls_max_ms: elements.ruleTls,
+    http_ttfb_max_ms: elements.ruleHttp,
+    average_max_ms: elements.ruleAverage,
+    jitter_max_ms: elements.ruleJitter,
+    loss_max_percent: elements.ruleLoss,
+    speed_min_mbps: elements.ruleSpeed,
   };
+  const rules = {};
+  for (const [name, input] of Object.entries(fields)) {
+    if (!input.value.trim()) throw new Error(`${name} 不能为空`);
+    const value = Number(input.value);
+    if (!Number.isFinite(value)) throw new Error(`${name} 必须是有效数字`);
+    rules[name] = value;
+  }
+  return rules;
 }
 
 async function fetchRules() {
@@ -437,6 +576,7 @@ async function fetchRules() {
   } catch (error) {
     elements.rulesStatus.className = "badge failure";
     elements.rulesStatus.textContent = "规则读取失败";
+    showToast(`规则读取失败：${error.message}`);
   }
 }
 
@@ -458,8 +598,9 @@ async function post(path, body = undefined) {
     options.body = JSON.stringify(body);
   }
   const response = await fetch(path, options);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
 }
 
 elements.startButton.addEventListener("click", async () => {
@@ -625,8 +766,10 @@ document.addEventListener("pointerdown", (event) => {
 fetchState();
 fetchNodes();
 fetchLiveNodes();
+fetchLiveTests();
 fetchRules();
 fetchOptions();
 setInterval(fetchState, 2500);
 setInterval(fetchNodes, 5000);
 setInterval(fetchLiveNodes, 1000);
+setInterval(fetchLiveTests, 1000);

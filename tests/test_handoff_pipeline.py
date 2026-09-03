@@ -505,6 +505,66 @@ class HandoffPipelineTests(unittest.TestCase):
             ).decode().splitlines()
             self.assertEqual(set(attempted), {us.ip, jp.ip})
 
+    def test_new_local_cycle_ignores_stale_restored_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            stale = qualified(NodeResult(ip="198.51.100.40"))
+            fresh = NodeResult(ip="198.51.100.41", country_hint="US")
+            handoff_dir = root / "data" / "handoff"
+            handoff_dir.mkdir(parents=True)
+            (handoff_dir / "cloud-raw10000.json.gz").write_bytes(gzip.compress(json.dumps({
+                "schema": 1,
+                "report": {"continuation": False},
+                "nodes": [fresh.to_dict()],
+                "state": {
+                    "accumulated": [stale.to_dict()],
+                    "attempted_ips": [stale.ip],
+                },
+            }).encode(), mtime=0))
+            (handoff_dir / "local-qualified.json.gz").write_bytes(gzip.compress(json.dumps({
+                "schema": 1,
+                "nodes": [stale.to_dict()],
+            }).encode(), mtime=0))
+            (handoff_dir / "local-attempted-ips.txt.gz").write_bytes(
+                gzip.compress(f"{stale.ip}\n".encode(), mtime=0)
+            )
+            config = self._local_config(root, target=2, jp_count=0)
+            scanned: set[str] = set()
+
+            async def scan(records, _options):
+                scanned.update(node.ip for node in records)
+                return [qualified(node) for node in records]
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+                patch(
+                    "core.handoff._three_metric_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"foreign_combined_latency_qualified": len(records)},
+                    ),
+                ),
+                patch(
+                    "core.handoff._speed_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"speed_at_least_minimum": len(records)},
+                    ),
+                ),
+                patch("core.handoff._source_country_tcp_speed_checks", return_value=([], {})),
+                patch("core.handoff.load_locations", return_value={}),
+            ):
+                report = run_local_selection(config)
+
+            self.assertEqual(scanned, {fresh.ip})
+            self.assertEqual(report["counts"]["accumulated_loaded"], 0)
+            attempted = gzip.decompress(
+                (handoff_dir / "local-attempted-ips.txt.gz").read_bytes()
+            ).decode().splitlines()
+            self.assertEqual(attempted, [fresh.ip])
+
     def test_next_local_pass_uses_accumulator_without_retesting_old_successes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -516,6 +576,7 @@ class HandoffPipelineTests(unittest.TestCase):
             handoff_dir.mkdir(parents=True)
             (handoff_dir / "cloud-raw10000.json.gz").write_bytes(gzip.compress(json.dumps({
                 "schema": 1,
+                "report": {"continuation": True},
                 "nodes": [new_us.to_dict()],
             }).encode(), mtime=0))
             (handoff_dir / "local-qualified.json.gz").write_bytes(gzip.compress(json.dumps({
@@ -639,6 +700,7 @@ class HandoffPipelineTests(unittest.TestCase):
             handoff_dir.mkdir(parents=True)
             (handoff_dir / "cloud-raw10000.json.gz").write_bytes(gzip.compress(json.dumps({
                 "schema": 1,
+                "report": {"continuation": True},
                 "nodes": [new_us.to_dict()],
                 "state": {
                     "previous_top100": [previous.to_dict()],

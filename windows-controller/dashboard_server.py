@@ -4,6 +4,7 @@ import argparse
 import base64
 import gzip
 import json
+import math
 import os
 import re
 import shutil
@@ -19,7 +20,7 @@ from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 STAGE_LABELS = {
     "cloud-prepare": "云端生成 RAW10000",
@@ -83,6 +84,7 @@ class DashboardState:
         self.health_cache = self.cache_dir / "health.json"
         self.manual_script = root / "manual-start.ps1"
         self.rules_path = root / "app" / "data" / "local-rules.json"
+        self.live_tests_path = root / "app" / "data" / "handoff" / "local-live-tests.json.gz"
         self.options_path = root / "local-options.json"
         self.continue_queue_path = root / "app" / "data" / "handoff" / "dashboard-continue-request.json"
         self.stop_after_current_path = root / "app" / "data" / "handoff" / "stop-after-current.json"
@@ -176,6 +178,7 @@ class DashboardState:
         handoff = self.root / "app" / "data" / "handoff"
         for name in (
             "local-live-results.json.gz",
+            "local-live-tests.json.gz",
             "local-qualified.json.gz",
             "local-attempted-ips.txt.gz",
         ):
@@ -312,6 +315,8 @@ class DashboardState:
             if not isinstance(raw, (int, float)) or isinstance(raw, bool):
                 raise ValueError(f"{name} 必须是数字")
             rules[name] = float(raw)
+            if not math.isfinite(rules[name]):
+                raise ValueError(f"{name} 必须是有限数字")
         for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
             if rules[name] <= 0:
                 raise ValueError(f"{name} 必须大于 0")
@@ -329,8 +334,19 @@ class DashboardState:
             "jp_exempt": True,
         }
         temporary = self.rules_path.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.rules_path)
+        try:
+            temporary.write_text(
+                json.dumps(document, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temporary.replace(self.rules_path)
+            stored = self.load_json_file(self.rules_path, None)
+            stored_values = stored.get("ordinary") if isinstance(stored, dict) else None
+            if stored_values != rules:
+                raise OSError("规则文件写入后校验不一致")
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
         self._append_dashboard_log("普通节点自定义规则已保存；日本节点继续使用独立通道。")
         return rules
 
@@ -359,8 +375,19 @@ class DashboardState:
             "selection": options,
         }
         temporary = self.options_path.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.options_path)
+        try:
+            temporary.write_text(
+                json.dumps(document, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temporary.replace(self.options_path)
+            stored = self.load_json_file(self.options_path, None)
+            stored_values = stored.get("selection") if isinstance(stored, dict) else None
+            if stored_values != options:
+                raise OSError("运行选项文件写入后校验不一致")
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
         mode = "开启" if raw else "关闭"
         self._append_dashboard_log(f"三轮连续筛选已{mode}。")
         return options
@@ -697,6 +724,48 @@ class DashboardState:
             path if path.is_file() else None
         )
 
+    def live_tests_with_meta(
+        self, limit: int = 200, offset: int = 0
+    ) -> tuple[dict[str, object], list[dict[str, object]], str, Path | None]:
+        """Read the per-candidate local test stream without replacing results."""
+        path = self.live_tests_path
+        empty_report: dict[str, object] = {
+            "status": "idle",
+            "stage": "",
+            "total": 0,
+            "processed": 0,
+            "queued": 0,
+            "testing": 0,
+            "passed": 0,
+            "eliminated": 0,
+            "retained": 0,
+        }
+        if not path.is_file():
+            return empty_report, [], "live-test-stream", None
+        try:
+            payload = json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+        except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
+            return empty_report, [], "live-test-stream", path
+        if not isinstance(payload, dict):
+            return empty_report, [], "live-test-stream", path
+        report_value = payload.get("report")
+        report = dict(report_value) if isinstance(report_value, dict) else empty_report
+        tests_value = payload.get("tests")
+        tests = [item for item in tests_value if isinstance(item, dict)] if isinstance(tests_value, list) else []
+        report.setdefault("total", len(tests))
+        report.setdefault("processed", 0)
+        report["records_total"] = len(tests)
+        try:
+            capped = min(1000, max(1, int(limit)))
+        except (TypeError, ValueError):
+            capped = 200
+        try:
+            start = max(0, int(offset))
+        except (TypeError, ValueError):
+            start = 0
+        tests.sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+        return report, tests[start:start + capped], "live-test-stream", path
+
     def nodes_with_meta(self) -> tuple[list[dict[str, object]], str, Path | None]:
         local_nodes = self.root / "app" / "output" / "nodes.json"
         if local_nodes.is_file():
@@ -864,7 +933,8 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
             return json.loads(self.rfile.read(length).decode("utf-8"))
 
         def do_GET(self) -> None:
-            route = urlsplit(self.path).path
+            request = urlsplit(self.path)
+            route = request.path
             if route == "/api/state":
                 self._json(state.snapshot())
                 return
@@ -885,6 +955,30 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                     else ""
                 )
                 self._json({"nodes": nodes, "source": source, "updated_at": updated_at})
+                return
+            if route == "/api/live-tests":
+                query = parse_qs(request.query)
+                limit = query.get("limit", ["200"])[0]
+                offset = query.get("offset", ["0"])[0]
+                report, tests, source, path = state.live_tests_with_meta(
+                    limit=limit,
+                    offset=offset,
+                )
+                updated_at = (
+                    datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+                    if path is not None and path.is_file()
+                    else ""
+                )
+                self._json({
+                    "report": report,
+                    "tests": tests,
+                    "total": report.get("total", len(tests)),
+                    "records_total": report.get("records_total", len(tests)),
+                    "offset": max(0, int(offset)) if str(offset).isdigit() else 0,
+                    "limit": min(1000, max(1, int(limit))) if str(limit).isdigit() else 200,
+                    "source": source,
+                    "updated_at": updated_at,
+                })
                 return
             if route == "/api/rules":
                 self._json({"ordinary": state.local_rules(), "jp_exempt": True})
@@ -928,15 +1022,19 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                 try:
                     rules = state.save_local_rules(self._read_json())
                     self._json({"saved": True, "ordinary": rules, "jp_exempt": True})
-                except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError) as exc:
                     self._json({"saved": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                except OSError as exc:
+                    self._json({"saved": False, "error": f"规则文件写入失败：{exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 return
             if route == "/api/options":
                 try:
                     options = state.save_local_options(self._read_json())
                     self._json({"saved": True, "selection": options})
-                except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError) as exc:
                     self._json({"saved": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                except OSError as exc:
+                    self._json({"saved": False, "error": f"运行选项文件写入失败：{exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 return
             if route == "/api/stop-monitor":
                 state.stop_monitor()

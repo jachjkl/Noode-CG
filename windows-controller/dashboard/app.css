@@ -332,6 +332,54 @@ input[type="checkbox"] { accent-color: var(--blue-strong); }
 .live-result-panel { border-color: rgba(59, 255, 192, .25); }
 .live-table-wrap { max-height: 330px; }
 .live-result-panel .panel-copy { color: #80dcbf; }
+.live-test-panel { border-color: rgba(0, 229, 255, .28); }
+.live-test-panel .panel-copy { color: #8bc9d8; }
+.test-progress-track { margin-top: 2px; }
+.live-test-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.live-test-pager label { display: inline-flex; align-items: center; gap: 6px; }
+.live-test-pager select {
+  min-width: 76px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #0d121b;
+  color: var(--text);
+}
+.button.compact { min-height: 30px; padding: 0 12px; }
+.live-test-table-wrap { max-height: 520px; }
+.live-test-table-wrap table { min-width: 1380px; }
+.live-test-row.is-eliminated { opacity: .78; }
+.test-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.test-status.queued { color: var(--muted); }
+.test-status.testing { color: var(--blue); border-color: rgba(0,229,255,.42); animation: status-pulse 1.2s ease-in-out infinite; }
+.test-status.passed { color: var(--green); border-color: rgba(59,255,192,.36); }
+.test-status.retained { color: var(--yellow); border-color: rgba(255,209,102,.36); }
+.test-status.eliminated { color: var(--red); border-color: rgba(255,85,125,.4); }
+.test-reason {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 thead { position: sticky; top: 0; z-index: 2; background: #171e2b; }

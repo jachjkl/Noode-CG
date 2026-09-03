@@ -186,6 +186,9 @@ handoff:
   accumulator_path: data/handoff/local-qualified.json.gz
   # Separate current-cycle UI data from the published subscription ranking.
   live_results_path: data/handoff/local-live-results.json.gz
+  # Per-candidate local stage/status stream for the dashboard. This is kept
+  # after cleanup so the completed run can still be inspected locally.
+  live_tests_path: data/handoff/local-live-tests.json.gz
   attempted_path: data/handoff/local-attempted-ips.txt.gz
   # Soft cap: spread results across locally observed Cloudflare colos when
   # possible, then relax the cap rather than publish fewer than 300.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -62,6 +63,8 @@ def _load_local_rules(config_path: Path) -> tuple[dict[str, float], Path]:
         if not isinstance(raw, (int, float)) or isinstance(raw, bool):
             raise ConfigError(f"本地自定义规则 {name} 必须是数字")
         rules[name] = float(raw)
+        if not math.isfinite(rules[name]):
+            raise ConfigError(f"本地自定义规则 {name} 必须是有限数字")
     for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
         if rules[name] <= 0:
             raise ConfigError(f"本地自定义规则 {name} 必须大于 0")
@@ -155,6 +158,8 @@ def resolve_path(config: dict[str, Any], value: str | Path) -> Path:
 def _positive_number(value: Any, name: str, *, allow_zero: bool = False) -> None:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ConfigError(f"{name} 必须是数字")
+    if not math.isfinite(float(value)):
+        raise ConfigError(f"{name} 必须是有限数字")
     if value < 0 or (value == 0 and not allow_zero):
         raise ConfigError(f"{name} 必须{'大于等于 0' if allow_zero else '大于 0'}")
 
@@ -292,7 +297,14 @@ def validate_config(config: dict[str, Any]) -> None:
     handoff = config["handoff"]
     for name in ("target", "max_official_rounds", "max_per_colo", "max_replenishment_rounds"):
         _positive_number(handoff.get(name), f"handoff.{name}")
-    for name in ("pool_path", "health_path", "accumulator_path", "attempted_path"):
+    for name in (
+        "pool_path",
+        "health_path",
+        "accumulator_path",
+        "live_results_path",
+        "live_tests_path",
+        "attempted_path",
+    ):
         if not str(handoff.get(name, "")).strip():
             raise ConfigError(f"handoff.{name} 不能为空")
     if int(handoff["target"]) != int(ranges["official_batch_size"]):

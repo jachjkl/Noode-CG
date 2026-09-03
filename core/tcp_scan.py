@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import statistics
 import time
+from collections.abc import Callable
 from typing import Any
 
 from .async_utils import run_worker_pool
@@ -27,7 +28,12 @@ async def _probe_once(node: NodeResult, timeout: float) -> float:
                 pass
 
 
-async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[NodeResult]:
+async def scan_tcp(
+    records: list[NodeResult],
+    options: dict[str, Any],
+    *,
+    on_result: Callable[[NodeResult], None] | None = None,
+) -> list[NodeResult]:
     timeout = float(options.get("timeout_seconds", 1.5))
     attempts = max(1, int(options.get("attempts", 1)))
     require_all = bool(options.get("require_all_attempts", False))
@@ -104,6 +110,12 @@ async def scan_tcp(records: list[NodeResult], options: dict[str, Any]) -> list[N
             node.add_error("tcp", last_error)
         elif not node.tcp_ok:
             node.add_error("tcp", f"只成功 {len(measurements)}/{attempts} 次")
+        if on_result is not None:
+            try:
+                on_result(node)
+            except Exception:
+                # A live UI writer must never be able to abort network probing.
+                pass
         return node
 
     tested = await run_worker_pool(
