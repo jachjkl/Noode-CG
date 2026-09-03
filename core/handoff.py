@@ -296,6 +296,25 @@ class LiveTestRecorder:
                 self.records[key] = record
             self._write_locked(force=True)
 
+    def reset_for_competition(self, nodes: Iterable[NodeResult]) -> None:
+        """Replace the live-test card with the de-duplicated publish pool."""
+        with self.lock:
+            self.records.clear()
+            self.stage = "发布前竞赛复测 · 等待测试"
+            self.status = "running"
+            self.started_at = datetime.now(UTC).isoformat()
+            self.last_write = 0.0
+            for node in nodes:
+                record = self._snapshot(node, "ordinary")
+                record.update({
+                    "status": "queued",
+                    "stage": self.stage,
+                    "reason": "",
+                    "updated_at": datetime.now(UTC).isoformat(),
+                })
+                self.records[node.key] = record
+            self._write_locked(force=True)
+
     def mark_eliminated(self, node: NodeResult, stage: str, reason: str) -> None:
         self.update(node, stage, "eliminated", reason)
 
@@ -598,11 +617,19 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     accumulator_path = resolve_path(config, accumulator_value) if accumulator_value else None
     live_value = handoff.get("live_results_path")
     live_path = resolve_path(config, live_value) if live_value else None
+    competition_results_value = handoff.get("competition_results_path")
+    competition_results_path = (
+        resolve_path(config, competition_results_value)
+        if competition_results_value
+        else None
+    )
     session_live_nodes: list[NodeResult] = []
     if live_path and live_path.is_file() and continuation:
         session_live_nodes, _ = load_cloud_handoff(live_path)
     elif live_path and not continuation:
         live_path.unlink(missing_ok=True)
+    if competition_results_path and not continuation:
+        competition_results_path.unlink(missing_ok=True)
     live_tests_value = handoff.get("live_tests_path")
     live_tests_path = resolve_path(config, live_tests_value) if live_tests_value else None
     if live_tests_path and not continuation:
@@ -651,15 +678,20 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         node for node in [*published_previous, *accumulated]
         if (node.country_hint or node.country).upper() == exempt_country
     ])
-    # Every cloud-published and locally accumulated node competes again under
-    # the current ordinary-node rules before each push. JP remains in its
-    # explicitly exempt lane and is not duplicated on continuation rounds.
+    # The current session's local winners remain visible in the first-pass
+    # result card, but are not tested there a second time. Cloud-published
+    # ordinary nodes never enter that card; both groups meet only in the
+    # mandatory pre-publish competition below.
+    accumulated_local_general = _unique_by_ip([
+        node for node in accumulated
+        if (node.country_hint or node.country).upper() != exempt_country
+    ])
     retained_retests = _unique_by_ip([
         node for node in [*published_previous, *accumulated]
         if (node.country_hint or node.country).upper() != exempt_country
     ])
     retained_retest_ips = {node.ip for node in retained_retests}
-    accumulated = retained_jp
+    accumulated = _unique_by_ip([*retained_jp, *accumulated_local_general])
     incoming = _unique_by_ip([
         *_fresh(cloud_nodes, "cloud-handoff"),
         *_fresh(previous, "previous-top100"),
@@ -671,8 +703,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         and node.ip not in accumulated_ips
         and node.ip not in retained_retest_ips
     ]
-    active_retests = _fresh(retained_retests, "published-and-qualified-retest")
-    new_candidates = _unique_by_ip([*active_retests, *ordinary_new_candidates])
+    new_candidates = _unique_by_ip(ordinary_new_candidates)
     combined = _unique_by_ip([*accumulated, *new_candidates])
 
     pipeline = config["pipeline"]
@@ -1031,6 +1062,61 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     competition_metric_tested = 0
     competition_speed_tested = 0
     competition_batches = 0
+    last_competition_write = 0.0
+
+    def current_competition_preview() -> list[NodeResult]:
+        eligible = [
+            node for node in competition_qualified.values()
+            if _final_country_allowed(
+                node,
+                pipeline=pipeline,
+                source_country=source_country,
+            )
+            and _final_ordinary_quality_allowed(
+                node,
+                pipeline=pipeline,
+                source_country=source_country,
+            )
+        ]
+        return _rank_with_colo_diversity(
+            eligible,
+            count=general_target,
+            max_per_colo=max_per_colo,
+            latency_speed_first=force_rerank,
+        )
+
+    def write_competition_preview(
+        *,
+        force: bool = False,
+        status: str = "running",
+        stage: str = "发布前竞赛复测",
+        nodes: list[NodeResult] | None = None,
+    ) -> None:
+        nonlocal last_competition_write
+        if competition_results_path is None:
+            return
+        now = time.monotonic()
+        if not force and now - last_competition_write < 0.25:
+            return
+        preview = current_competition_preview() if nodes is None else nodes
+        _write_handoff(
+            competition_results_path,
+            preview,
+            {
+                "status": status,
+                "stage": stage,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "counts": {
+                    "input": len(competition_candidates),
+                    "tested": competition_speed_tested,
+                    "qualified": len(competition_qualified),
+                    "selected": len(preview),
+                    "target": general_target,
+                },
+                "local_rules": config.get("_local_rules", {}),
+            },
+        )
+        last_competition_write = now
 
     def competition_tcp_result(node: NodeResult) -> None:
         if live_tests is not None:
@@ -1055,19 +1141,27 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             live_tests.start_stage(stage_records, f"发布前竞赛复测 · {stage}")
 
     def competition_speed_result(node: NodeResult) -> None:
-        if live_tests is None:
-            return
         minimum_mbps = float(pipeline["speed"].get("minimum_mbps", 0))
         passed = node.speed_mbps is not None and node.speed_mbps >= minimum_mbps
-        live_tests.update(
-            node,
-            "发布前竞赛复测 · 下载测速",
-            "testing" if passed else "eliminated",
-            "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
-        )
-
+        if passed:
+            competition_qualified[node.ip] = node
+            write_competition_preview()
+        if live_tests is not None:
+            live_tests.update(
+                node,
+                "发布前竞赛复测 · 下载测速",
+                "testing" if passed else "eliminated",
+                "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
+            )
     if live_tests is not None:
-        live_tests.seed(competition_candidates, "ordinary")
+        # The live-test panel now represents this competition only. Clear all
+        # first-pass rows before showing the merged local+cloud retest pool.
+        live_tests.reset_for_competition(competition_candidates)
+    write_competition_preview(
+        force=True,
+        stage="发布前竞赛复测 · 等待测试",
+        nodes=[],
+    )
     for offset in range(0, len(competition_candidates), probe_batch_size):
         chunk = competition_candidates[offset : offset + probe_batch_size]
         competition_batches += 1
@@ -1119,6 +1213,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             competition_speed_tested += len(speed_chunk)
             for node in qualified:
                 competition_qualified[node.ip] = node
+            write_competition_preview(force=True)
         print(
             f"[PUBLISH-RETEST] {competition_batches}/"
             f"{max(1, (len(competition_candidates) + probe_batch_size - 1) // probe_batch_size)} "
@@ -1137,26 +1232,11 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     ]
     if live_tests is not None:
         live_tests.start_stage([], "发布前竞赛复测完成 · 等待推送")
-    # A full published ordinary pool is a last-good safety net. Every old node
-    # is still re-tested above, but transient batch pressure must never turn a
-    # healthy cloud TOP300 into a 17-node file. Fresh passing measurements win
-    # by IP; compatible last-good measurements fill only missing slots. If the
-    # current local rules make even that impossible, publishing is skipped and
-    # the existing cloud output is preserved intact.
-    published_pool_was_full = len(published_ordinary) >= general_target
-    fallback_by_ip = {
-        node.ip: node
-        for node in published_ordinary
-        if published_pool_was_full
-        and _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
-        and _final_ordinary_quality_allowed(
-            node,
-            pipeline=pipeline,
-            source_country=source_country,
-        )
-    }
-    competition_by_ip = dict(fallback_by_ip)
-    competition_by_ip.update({node.ip: node for node in competition_eligible})
+    # Only measurements produced by this mandatory competition pass may enter
+    # the new ranking. The local winners and all published ordinary nodes were
+    # merged and de-duplicated above, so a previously published node that fails
+    # this retest must not be reinserted from stale historical measurements.
+    competition_by_ip = {node.ip: node for node in competition_eligible}
     current_general = _rank_with_colo_diversity(
         competition_by_ip.values(),
         count=general_target,
@@ -1174,11 +1254,13 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         )
     ]
     merged_general = current_general
-    freshly_qualified_ips = {node.ip for node in competition_eligible}
-    fallback_retained = sum(
-        node.ip in fallback_by_ip and node.ip not in freshly_qualified_ips
-        for node in merged_general
+    write_competition_preview(
+        force=True,
+        status="completed",
+        stage="发布前竞赛复测完成 · 等待推送",
+        nodes=merged_general,
     )
+    fallback_retained = 0
     selected = _unique_by_ip([*merged_general, *jp_selected[:source_target]])
     ordinary_replacements = sum(
         1 for node in merged_general if node.ip not in published_ips
@@ -1200,7 +1282,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     max_cycle_rounds = 1
     target_reached = ordinary_selected >= general_target
     stop_after_current = stop_marker_path.is_file()
-    required_ordinary = general_target if published_pool_was_full else minimum_general
+    # The number of fresh local winners never controls whether they enter the
+    # competition. Publication is based on the merged retest result, up to
+    # TOP300, while retaining the configured minimum ordinary-node safeguard.
+    required_ordinary = minimum_general
     has_minimum_ordinary = ordinary_selected >= required_ordinary
     publish_ready = (
         jp_selected_count >= source_target
@@ -1216,11 +1301,6 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     )
     if stop_after_current:
         warnings.append("已收到停止请求：已在当前100-IP批次结束后停止扫描，并完成发布前竞赛复测")
-    if published_pool_was_full and fallback_retained:
-        warnings.append(
-            f"发布前复测出现瞬时失败；为防止云端TOP{general_target}缩水，"
-            f"按当前规则保留 {fallback_retained} 条上次合格测量"
-        )
     if not publish_ready:
         if needs_more:
             warnings.append(
@@ -1229,7 +1309,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             )
         else:
             warnings.append(
-                f"本地复测得到普通节点 {ordinary_replacements}/{general_target} 条、"
+                f"合并竞赛复测得到普通节点 {ordinary_selected}/{general_target} 条、"
                 f"日本节点 {jp_selected_count}/{source_target} 条，本轮没有可发布结果"
             )
         selected = []

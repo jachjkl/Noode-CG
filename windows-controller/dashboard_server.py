@@ -100,6 +100,7 @@ class DashboardState:
         self.manual_script = root / "manual-start.ps1"
         self.rules_path = root / "app" / "data" / "local-rules.json"
         self.live_tests_path = root / "app" / "data" / "handoff" / "local-live-tests.json.gz"
+        self.competition_results_path = root / "app" / "data" / "handoff" / "publish-competition-results.json.gz"
         self.options_path = root / "local-options.json"
         self.continue_queue_path = root / "app" / "data" / "handoff" / "dashboard-continue-request.json"
         self.publish_queue_path = root / "app" / "data" / "handoff" / "dashboard-publish-request.json"
@@ -132,6 +133,10 @@ class DashboardState:
         self.cloud_connection_status = "checking" if self.gh else "cli_missing"
         self.cloud_connection_detail = "正在验证 GitHub 连接" if self.gh else "未找到 GitHub CLI"
         self.cloud_connection_checked_at = 0.0
+        # A newly opened controller is always a fresh local UI session. Clear
+        # stale workflow/test/result latches left by an older CMD process now,
+        # while preserving the saved rules and verified published-node cache.
+        self.clear_session_state()
 
     def _run_command(self, args: list[str], timeout: int = 25) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -212,6 +217,7 @@ class DashboardState:
         for name in (
             "local-live-results.json.gz",
             "local-live-tests.json.gz",
+            "publish-competition-results.json.gz",
             "local-qualified.json.gz",
             "local-attempted-ips.txt.gz",
         ):
@@ -221,6 +227,7 @@ class DashboardState:
         """Remove stale stage telemetry but keep this session's winners."""
         for path in (
             self.live_tests_path,
+            self.competition_results_path,
             self.root / "app" / "output" / "health.json",
             self.health_cache,
         ):
@@ -923,7 +930,8 @@ class DashboardState:
                             self.stop_requested
                             and str(data.get("conclusion") or "") == "success"
                         ):
-                            self.round_status_cleared = True
+                            # Keep every completed card latched on screen. The
+                            # next explicit Start/Continue action resets it.
                             self.stop_after_current_path.unlink(missing_ok=True)
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
             with self.lock:
@@ -1007,6 +1015,23 @@ class DashboardState:
     def live_nodes_with_meta(self) -> tuple[list[dict[str, object]], str, Path | None]:
         path = self.root / "app" / "data" / "handoff" / "local-live-results.json.gz"
         return self._nodes_from_handoff(path), "live-current-cycle", (
+            path if path.is_file() else None
+        )
+
+    def competition_nodes_with_meta(
+        self,
+    ) -> tuple[list[dict[str, object]], dict[str, object], str, Path | None]:
+        path = self.competition_results_path
+        report: dict[str, object] = {}
+        if path.is_file():
+            try:
+                payload = json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+                report_value = payload.get("report") if isinstance(payload, dict) else None
+                if isinstance(report_value, dict):
+                    report = dict(report_value)
+            except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
+                report = {"status": "degraded", "stage": "竞赛复测结果读取失败"}
+        return self._nodes_from_handoff(path), report, "publish-competition", (
             path if path.is_file() else None
         )
 
@@ -1143,7 +1168,7 @@ class DashboardState:
             )
             if publish_retest_done or "发布前竞赛复测完成" in live_stage:
                 pretest_status, pretest_conclusion = "completed", "success"
-                pretest_detail = "发布前竞赛复测已完成，等待或正在推送"
+                pretest_detail = "云端与本轮合格IP已合并去重并完成规则复测"
             elif live_stage.startswith("发布前竞赛复测"):
                 pretest_status, pretest_conclusion = "in_progress", ""
                 pretest_detail = live_stage
@@ -1192,6 +1217,53 @@ class DashboardState:
             elapsed = int(max(0, (ended or utc_timestamp()) - started)) if started else 0
             shutdown_in = max(0, int(self.shutdown_at - utc_timestamp())) if self.shutdown_at else None
             workflow_active = gh_status in {"queued", "in_progress", "waiting", "pending"}
+            publish_job = jobs.get("cloud-publish", {})
+            publish_success = (
+                str(publish_job.get("status") or "") == "completed"
+                and str(publish_job.get("conclusion") or "") == "success"
+            )
+            if gh_status == "completed" and gh_conclusion == "success" and publish_success:
+                round_completion = {
+                    "status": "completed",
+                    "label": "本轮复测与推送已完成",
+                    "detail": f"第 {self.cloud_round_count or 1} 轮结果已成功发布到云端",
+                }
+            elif str(publish_job.get("status") or "") == "in_progress":
+                round_completion = {
+                    "status": "publishing",
+                    "label": "正在完成本轮推送",
+                    "detail": "TOP300 普通节点与 JP 豁免节点正在写入云端",
+                }
+            elif pretest_status == "completed":
+                round_completion = {
+                    "status": "publishing",
+                    "label": "竞赛复测已完成",
+                    "detail": "已选出本轮结果，等待 GitHub 推送完成",
+                }
+            elif pretest_status == "in_progress":
+                round_completion = {
+                    "status": "testing",
+                    "label": "正在进行发布前竞赛复测",
+                    "detail": "本轮合格IP与云端IP正在合并、去重和完整测速",
+                }
+            elif workflow_active:
+                round_completion = {
+                    "status": "running",
+                    "label": "本轮工作流进行中",
+                    "detail": "完成竞赛复测和云端推送后将在这里确认",
+                }
+            elif gh_status == "completed" and gh_conclusion in {"failure", "cancelled", "timed_out"}:
+                round_completion = {
+                    "status": "failure",
+                    "label": "本轮推送未完成",
+                    "detail": "请查看工作流卡片与实时日志",
+                }
+            else:
+                round_completion = {
+                    "status": "idle",
+                    "label": "等待本轮开始",
+                    "detail": "完成复测与推送后会保持显示直到下一轮",
+                }
             if not self.cycle_started and not workflow_active:
                 status = "idle"
             elif self.stop_requested and workflow_active:
@@ -1235,6 +1307,7 @@ class DashboardState:
                     "pretest": pretest_status,
                     "detail": pretest_detail,
                 },
+                "round_completion": round_completion,
                 "log": self.read_log(),
                 "last_error": self.last_error,
                 "continuation_queued": self.continue_queue_path.is_file(),
@@ -1304,6 +1377,20 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                     else ""
                 )
                 self._json({"nodes": nodes, "source": source, "updated_at": updated_at})
+                return
+            if route == "/api/competition-nodes":
+                nodes, report, source, path = state.competition_nodes_with_meta()
+                updated_at = (
+                    datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+                    if path is not None and path.is_file()
+                    else ""
+                )
+                self._json({
+                    "nodes": nodes,
+                    "report": report,
+                    "source": source,
+                    "updated_at": updated_at,
+                })
                 return
             if route == "/api/live-tests":
                 query = parse_qs(request.query)
@@ -1503,6 +1590,10 @@ def serve(
                 )
             except OSError:
                 pass
+        # Closing the CMD window is also an explicit end of the local UI
+        # session. Reset buttons, workflow-card latches and transient probe
+        # files, while keeping local-rules.json and the published node cache.
+        state.clear_session_state()
         server.server_close()
     return 0
 

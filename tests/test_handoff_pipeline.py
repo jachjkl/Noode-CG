@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from core.handoff import (
+    LiveTestRecorder,
     _rank_with_colo_diversity,
     load_cloud_handoff,
     prepare_cloud_handoff,
@@ -34,6 +35,23 @@ def qualified(node: NodeResult, *, country: str = "US") -> NodeResult:
 
 
 class HandoffPipelineTests(unittest.TestCase):
+    def test_publish_competition_clears_first_pass_live_test_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "live-tests.json.gz"
+            recorder = LiveTestRecorder(path)
+            first_pass = qualified(NodeResult(ip="198.51.100.10"))
+            competition = qualified(NodeResult(ip="203.0.113.20"))
+            recorder.seed([first_pass], "ordinary")
+
+            recorder.reset_for_competition([competition])
+
+            payload = json.loads(gzip.decompress(path.read_bytes()))
+            self.assertEqual(payload["report"]["stage"], "发布前竞赛复测 · 等待测试")
+            self.assertEqual(
+                [item["ip"] for item in payload["tests"]],
+                [competition.ip],
+            )
+
     def test_cloud_passes_all_links_and_official_candidates_without_tcp_scan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -758,6 +776,9 @@ class HandoffPipelineTests(unittest.TestCase):
             }).encode(), mtime=0))
             config = self._local_config(root, target=3, jp_count=0)
             config["output"]["minimum_publish"] = 1
+            config["handoff"]["competition_results_path"] = (
+                "data/handoff/publish-competition-results.json.gz"
+            )
             scanned: set[str] = set()
 
             async def scan(records, _options, **_kwargs):
@@ -961,7 +982,7 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertEqual(report["counts"]["ordinary_selected"], 50)
             self.assertFalse(report["needs_more"])
 
-    def test_stop_publish_never_shrinks_a_full_cloud_pool_to_fresh_passes(self) -> None:
+    def test_prepublish_competition_never_reinserts_a_cloud_node_that_failed_retest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "locations.json").write_text("{}", encoding="utf-8")
@@ -988,11 +1009,13 @@ class HandoffPipelineTests(unittest.TestCase):
                 scan_calls += 1
                 if scan_calls == 1:
                     return [qualified(node) for node in records]
-                winners = [qualified(node) for node in records if node.ip == fresh.ip]
-                for node in winners:
-                    node.speed_mbps = 100.0
-                    node.tcp_latency_ms = node.average_latency_ms = 1.0
-                return winners
+                # One formerly published node fails the mandatory competition
+                # retest. It must not come back through an old measurement.
+                return [
+                    qualified(node)
+                    for node in records
+                    if node.ip != published[-1].ip
+                ]
 
             with (
                 patch("core.handoff.load_previous_top", return_value=([], [])),
@@ -1018,9 +1041,21 @@ class HandoffPipelineTests(unittest.TestCase):
 
             self.assertTrue(report["published"])
             self.assertEqual(report["counts"]["ordinary_selected"], 3)
-            self.assertEqual(report["counts"]["prepublish_fallback_retained"], 3)
+            self.assertEqual(report["counts"]["prepublish_fallback_retained"], 0)
             cloud = json.loads((root / "output" / "nodes.json").read_text(encoding="utf-8"))
             self.assertEqual(len(cloud), 3)
+            self.assertEqual(
+                {node["ip"] for node in cloud},
+                {published[0].ip, published[1].ip, fresh.ip},
+            )
+            competition, payload = load_cloud_handoff(
+                handoff_dir / "publish-competition-results.json.gz"
+            )
+            self.assertEqual(payload["report"]["status"], "completed")
+            self.assertEqual(
+                {node.ip for node in competition},
+                {published[0].ip, published[1].ip, fresh.ip},
+            )
 
     @staticmethod
     def _local_config(root: Path, *, target: int, jp_count: int) -> dict:
@@ -1045,6 +1080,7 @@ class HandoffPipelineTests(unittest.TestCase):
             "handoff": {
                 "pool_path": "data/handoff/cloud-raw10000.json.gz",
                 "accumulator_path": "data/handoff/local-qualified.json.gz",
+                "competition_results_path": "data/handoff/publish-competition-results.json.gz",
                 "attempted_path": "data/handoff/local-attempted-ips.txt.gz",
             },
             "output": {

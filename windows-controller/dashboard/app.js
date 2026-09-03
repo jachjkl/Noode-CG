@@ -18,6 +18,10 @@ const elements = {
   processValue: $("#processValue"),
   currentStage: $("#currentStage"),
   currentStep: $("#currentStep"),
+  workflowPanel: $("#workflowPanel"),
+  workflowCompletion: $("#workflowCompletion"),
+  workflowCompletionLabel: $("#workflowCompletionLabel"),
+  workflowCompletionDetail: $("#workflowCompletionDetail"),
   workflowProgress: $("#workflowProgress"),
   workflowProgressText: $("#workflowProgressText"),
   stageGrid: $("#stageGrid"),
@@ -41,6 +45,9 @@ const elements = {
   liveResultSummary: $("#liveResultSummary"),
   liveNodeRows: $("#liveNodeRows"),
   copyLiveResults: $("#copyLiveResults"),
+  competitionResultSummary: $("#competitionResultSummary"),
+  competitionNodeRows: $("#competitionNodeRows"),
+  copyCompetitionResults: $("#copyCompetitionResults"),
   logOutput: $("#logOutput"),
   autoScroll: $("#autoScroll"),
   copyLog: $("#copyLog"),
@@ -59,6 +66,8 @@ const elements = {
 let allNodes = [];
 let filteredNodes = [];
 let liveNodes = [];
+let competitionNodes = [];
+let competitionReport = {};
 let liveTestRecords = [];
 let liveTestPage = 1;
 let liveTestPageSize = 200;
@@ -156,6 +165,21 @@ function renderStages(stages) {
   }).join("");
 }
 
+function renderRoundCompletion(state) {
+  const completion = state.round_completion || {
+    status: "idle",
+    label: "等待本轮开始",
+    detail: "完成复测与推送后会保持显示直到下一轮",
+  };
+  const allowed = ["idle", "running", "testing", "publishing", "completed", "failure"];
+  const status = allowed.includes(completion.status) ? completion.status : "idle";
+  elements.workflowCompletion.className = `round-completion ${status}`;
+  elements.workflowCompletionLabel.textContent = completion.label || "等待本轮开始";
+  elements.workflowCompletionDetail.textContent = completion.detail || "";
+  elements.workflowPanel.classList.toggle("round-complete", status === "completed");
+  elements.workflowPanel.classList.toggle("round-active", ["running", "testing", "publishing"].includes(status));
+}
+
 function renderState(state) {
   lastState = state;
   const labels = {
@@ -224,6 +248,7 @@ function renderState(state) {
   elements.workflowProgress.style.width = `${progressPercent}%`;
   elements.workflowProgressText.textContent = `已完成 ${completed} / ${total} 个步骤`;
   renderStages(state.stages || []);
+  renderRoundCompletion(state);
 
   const logChanged = elements.logOutput.textContent !== state.log;
   if (logChanged) {
@@ -330,6 +355,55 @@ function renderLiveNodes() {
   elements.liveNodeRows.innerHTML = liveNodes.length
     ? nodeRowsHtml(liveNodes)
     : '<tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>';
+}
+
+function selectedLatency(node) {
+  const probe = String(lastState?.local_rules?.latency_probe || elements.ruleLatencyProbe?.value || "tcp");
+  if (probe === "tls") return { label: "TLS", value: node.tls_latency_ms };
+  if (probe === "https") return { label: "HTTPS", value: node.http_latency_ms };
+  return { label: "TCP", value: node.tcp_latency_ms };
+}
+
+function competitionRowsHtml(nodes) {
+  return nodes.map((node) => {
+    const country = currentCountry(node);
+    const location = [node.city, node.region].filter(Boolean).join(" · ") || "未知位置";
+    const latency = selectedLatency(node);
+    const jitter = formatMetric(node.jitter_ms);
+    const loss = Number.isFinite(Number(node.loss_rate)) ? `${(Number(node.loss_rate) * 100).toFixed(1)}%` : "--";
+    const speed = formatMetric(node.speed_mbps);
+    const endpoint = node.ip_port || `${node.ip}:${node.port || 443}`;
+    return `
+      <tr>
+        <td class="rank">${node._rank}</td>
+        <td><span class="ip-value">${escapeHtml(endpoint)}</span></td>
+        <td><span class="location-main">${escapeHtml(country)} · ${escapeHtml(node.city || "未知城市")}</span><span class="location-sub">${escapeHtml(location)}</span></td>
+        <td>${escapeHtml(node.colo || "--")}</td>
+        <td class="number ${numberClass(latency.value, 150, 300)}"><span class="metric-label">${latency.label}</span> ${formatMetric(latency.value)} ms</td>
+        <td class="number ${numberClass(node.jitter_ms, 50, 200)}">${jitter} ms</td>
+        <td class="number ${numberClass(Number(node.loss_rate) * 100, 0, 10)}">${loss}</td>
+        <td><span class="speed">${speed} Mbps</span></td>
+        <td><button class="button secondary small copy-one" data-value="${escapeHtml(endpoint)}" type="button">复制</button></td>
+      </tr>`;
+  }).join("");
+}
+
+function renderCompetitionNodes() {
+  elements.copyCompetitionResults.disabled = competitionNodes.length === 0;
+  const status = String(competitionReport.status || "idle");
+  const counts = competitionReport.counts || {};
+  if (status === "running") {
+    elements.competitionResultSummary.textContent = `正在合并复测：输入 ${counts.input || 0} 条，已完成测速 ${counts.tested || 0} 条，当前 TOP ${competitionNodes.length}`;
+  } else if (status === "completed") {
+    elements.competitionResultSummary.textContent = `竞赛复测已完成：云端旧 IP 与本轮合格 IP 已去重并完整复测，当前选出 TOP ${competitionNodes.length}；JP 另行豁免附加`;
+  } else if (status === "degraded") {
+    elements.competitionResultSummary.textContent = competitionReport.stage || "竞赛复测结果读取失败";
+  } else {
+    elements.competitionResultSummary.textContent = "等待合并云端与本轮合格 IP 后开始完整复测";
+  }
+  elements.competitionNodeRows.innerHTML = competitionNodes.length
+    ? competitionRowsHtml(competitionNodes)
+    : '<tr><td class="empty" colspan="9">等待发布前竞赛复测结果</td></tr>';
 }
 
 function liveTestStatusLabel(status) {
@@ -530,6 +604,19 @@ async function fetchLiveNodes() {
     renderLiveNodes();
   } catch (error) {
     elements.liveResultSummary.textContent = `实时结果读取失败：${error.message}`;
+  }
+}
+
+async function fetchCompetitionNodes() {
+  try {
+    const response = await fetch("/api/competition-nodes", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    competitionReport = data.report || {};
+    competitionNodes = (data.nodes || []).map((node, index) => ({ ...node, _rank: index + 1 }));
+    renderCompetitionNodes();
+  } catch (error) {
+    elements.competitionResultSummary.textContent = `竞赛复测结果读取失败：${error.message}`;
   }
 }
 
@@ -782,6 +869,10 @@ elements.copyLiveResults.addEventListener("click", () => {
   const text = liveNodes.map((node) => node.ip_port || `${node.ip}:${node.port || 443}`).join("\n");
   copyText(text, `已复制本轮 ${liveNodes.length} 个 IP`);
 });
+elements.copyCompetitionResults.addEventListener("click", () => {
+  const text = competitionNodes.map((node) => node.ip_port || `${node.ip}:${node.port || 443}`).join("\n");
+  copyText(text, `已复制 ${competitionNodes.length} 个竞赛复测 IP`);
+});
 
 elements.exportCsv.addEventListener("click", exportCsv);
 elements.copyLog.addEventListener("click", () => copyText(elements.logOutput.textContent, "日志已复制"));
@@ -793,7 +884,10 @@ elements.liveNodeRows.addEventListener("click", (event) => {
   const button = event.target.closest(".copy-one");
   if (button) copyText(button.dataset.value, `已复制 ${button.dataset.value}`);
 });
-
+elements.competitionNodeRows.addEventListener("click", (event) => {
+  const button = event.target.closest(".copy-one");
+  if (button) copyText(button.dataset.value, `已复制 ${button.dataset.value}`);
+});
 document.addEventListener("pointerdown", (event) => {
   const button = event.target.closest(".button");
   if (!button || button.disabled) return;
@@ -803,15 +897,38 @@ document.addEventListener("pointerdown", (event) => {
   ripple.style.left = `${event.clientX - rect.left}px`;
   ripple.style.top = `${event.clientY - rect.top}px`;
   button.appendChild(ripple);
+  button.classList.remove("button-pressed");
+  void button.offsetWidth;
+  button.classList.add("button-pressed");
+  setTimeout(() => button.classList.remove("button-pressed"), 460);
   ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
 });
 
+function createAmbientParticles() {
+  const layer = $("#ambientParticles");
+  if (!layer || layer.childElementCount) return;
+  const colors = ["cyan", "green", "violet"];
+  for (let index = 0; index < 30; index += 1) {
+    const particle = document.createElement("i");
+    particle.className = `ambient-particle ${colors[index % colors.length]}`;
+    particle.style.setProperty("--x", `${(index * 37 + 11) % 100}%`);
+    particle.style.setProperty("--drift", `${((index * 29) % 31) - 15}vw`);
+    particle.style.setProperty("--size", `${2 + (index % 4)}px`);
+    particle.style.setProperty("--duration", `${14 + (index % 8) * 2}s`);
+    particle.style.setProperty("--delay", `${-(index % 12) * 1.7}s`);
+    layer.appendChild(particle);
+  }
+}
+
+createAmbientParticles();
 fetchState();
 fetchNodes();
 fetchLiveNodes();
+fetchCompetitionNodes();
 fetchLiveTests();
 fetchRules();
 setInterval(fetchState, 2500);
 setInterval(fetchNodes, 5000);
 setInterval(fetchLiveNodes, 1000);
+setInterval(fetchCompetitionNodes, 1000);
 setInterval(fetchLiveTests, 1000);

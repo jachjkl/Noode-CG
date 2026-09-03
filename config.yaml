@@ -191,6 +191,8 @@ handoff:
   accumulator_path: data/handoff/local-qualified.json.gz
   # Separate current-cycle UI data from the published subscription ranking.
   live_results_path: data/handoff/local-live-results.json.gz
+  # Current publish-competition winners are displayed in their own UI card.
+  competition_results_path: data/handoff/publish-competition-results.json.gz
   # Per-candidate local stage/status stream for the dashboard. This is kept
   # after cleanup so the completed run can still be inspected locally.
   live_tests_path: data/handoff/local-live-tests.json.gz

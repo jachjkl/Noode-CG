@@ -77,6 +77,15 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("云端已发布 IP 结果", html)
         self.assertIn('fetch("/api/live-nodes"', script)
 
+    def test_dashboard_has_a_separate_publish_competition_result_card(self) -> None:
+        html = (CONTROLLER_ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        script = (CONTROLLER_ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        style = (CONTROLLER_ROOT / "dashboard" / "app.css").read_text(encoding="utf-8")
+        self.assertIn('id="competitionNodeRows"', html)
+        self.assertIn("发布前竞赛复测 IP 结果", html)
+        self.assertIn('fetch("/api/competition-nodes"', script)
+        self.assertIn("result-dual-grid", style)
+
     def test_dashboard_has_live_test_stream_panel(self) -> None:
         html = (CONTROLLER_ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         script = (CONTROLLER_ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
@@ -139,6 +148,7 @@ class DashboardServerTests(unittest.TestCase):
             output = root / "app" / "output"
             handoff.mkdir(parents=True)
             output.mkdir(parents=True)
+            state = DashboardState(root, "owner/repo", "main")
             (output / "health.json").write_text(
                 json.dumps({"published": True}), encoding="utf-8"
             )
@@ -156,7 +166,6 @@ class DashboardServerTests(unittest.TestCase):
             )
             live.touch()
 
-            state = DashboardState(root, "owner/repo", "main")
             published, source, path = state.nodes_with_meta()
             nodes, live_source, live_path = state.live_nodes_with_meta()
 
@@ -322,12 +331,15 @@ class DashboardServerTests(unittest.TestCase):
             output.mkdir(parents=True, exist_ok=True)
             for path in (
                 state.live_tests_path,
+                state.competition_results_path,
                 handoff / "local-live-results.json.gz",
                 handoff / "cloud-raw10000.json.gz",
                 output / "health.json",
             ):
                 path.write_bytes(b"state")
             state.nodes_cache.write_text("[]", encoding="utf-8")
+            state.rules_path.parent.mkdir(parents=True, exist_ok=True)
+            state.rules_path.write_text('{"ordinary":{"loss_max_percent":30}}', encoding="utf-8")
             state.cycle_started = True
             state.run_id = 999
 
@@ -336,9 +348,36 @@ class DashboardServerTests(unittest.TestCase):
             self.assertFalse(state.cycle_started)
             self.assertIsNone(state.run_id)
             self.assertFalse(state.live_tests_path.exists())
+            self.assertFalse(state.competition_results_path.exists())
             self.assertFalse((handoff / "cloud-raw10000.json.gz").exists())
             self.assertFalse((output / "health.json").exists())
             self.assertTrue(state.nodes_cache.exists())
+            self.assertTrue(state.rules_path.exists())
+            self.assertEqual(state.local_rules()["loss_max_percent"], 30)
+
+    def test_reopening_controller_clears_stale_session_panels_but_keeps_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            handoff = root / "app" / "data" / "handoff"
+            handoff.mkdir(parents=True)
+            for name in (
+                "local-live-results.json.gz",
+                "local-live-tests.json.gz",
+                "publish-competition-results.json.gz",
+                "local-qualified.json.gz",
+            ):
+                (handoff / name).write_bytes(b"stale")
+            rules = root / "app" / "data" / "local-rules.json"
+            rules.parent.mkdir(parents=True, exist_ok=True)
+            rules.write_text('{"ordinary":{"loss_max_percent":30}}', encoding="utf-8")
+
+            state = DashboardState(root, "owner/repo", "main")
+
+            self.assertTrue(rules.exists())
+            self.assertEqual(state.local_rules()["loss_max_percent"], 30)
+            self.assertFalse(any(handoff.glob("*live*.json.gz")))
+            self.assertFalse(state.competition_results_path.exists())
+            self.assertFalse((handoff / "local-qualified.json.gz").exists())
 
     def test_force_continue_saves_current_nodes_and_dispatches_continuation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -408,6 +447,47 @@ class DashboardServerTests(unittest.TestCase):
             )
             self.assertEqual(state.cloud_round_count, 0)
 
+    def test_stopped_success_keeps_completed_cards_until_next_manual_round(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            state.gh = "gh.exe"
+            state.cycle_started = True
+            state.stop_requested = True
+            state.run_id = 123
+            state.run_list_checked_at = float("inf")
+            completed = subprocess.CompletedProcess(
+                [],
+                0,
+                json.dumps({
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://github.com/owner/repo/actions/runs/123",
+                    "jobs": [{
+                        "name": "cloud-publish",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "steps": [{
+                            "name": "Publish TOP300",
+                            "status": "completed",
+                            "conclusion": "success",
+                            "number": 1,
+                        }],
+                    }],
+                }),
+                "",
+            )
+
+            with patch.object(state, "_run_command", return_value=completed):
+                state.refresh_github(force=False)
+
+            self.assertFalse(state.round_status_cleared)
+            snapshot = state.snapshot()
+            publish = next(
+                stage for stage in snapshot["stages"]
+                if stage["name"] == "cloud-publish"
+            )
+            self.assertEqual(publish["conclusion"], "success")
+
     def test_cloud_connection_is_reported_separately_from_run_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             state = DashboardState(Path(temporary), "owner/repo", "main")
@@ -421,6 +501,7 @@ class DashboardServerTests(unittest.TestCase):
     def test_dashboard_exposes_cloud_badge_and_manual_publish_button(self) -> None:
         html = (CONTROLLER_ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         script = (CONTROLLER_ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        style = (CONTROLLER_ROOT / "dashboard" / "app.css").read_text(encoding="utf-8")
         self.assertIn('id="cloudConnectionBadge"', html)
         self.assertIn('id="publishButton"', html)
         self.assertIn('post("/api/publish")', script)
@@ -430,6 +511,10 @@ class DashboardServerTests(unittest.TestCase):
         self.assertNotIn('id="ruleTls"', html)
         self.assertNotIn('id="ruleHttp"', html)
         self.assertNotIn('id="continuousRounds"', html)
+        self.assertIn('id="workflowCompletion"', html)
+        self.assertIn('id="ambientParticles"', html)
+        self.assertIn("round-completion", style)
+        self.assertIn("createAmbientParticles", script)
 
     def test_force_continue_refuses_to_overlap_active_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

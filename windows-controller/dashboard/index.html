@@ -72,18 +72,28 @@
             <button id="saveRules" class="button primary" type="submit">保存到本地</button>
           </div>
         </form>
-        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、与上次软件会话不同的10000个官方IP和上一轮TOP100。普通节点与云端现有300个节点合并去重并复测，始终选出TOP300后才发布；不足时保留云端上一版，绝不缩成少量节点。日本节点独立豁免并附加；继续优选由按钮手动触发。</div>
+        <div class="rule-note"><strong>发布条件：</strong>无论本轮产生多少个合格普通IP，都会与云端现有普通IP合并去重，再按当前本地规则完整复测并选取最多TOP300；只有本轮复测合格的数据能进入新排名。日本节点独立豁免并附加；继续优选由按钮手动触发。</div>
       </section>
 
-      <section class="panel workflow-panel">
+      <section id="workflowPanel" class="panel workflow-panel">
         <div class="panel-heading">
           <div>
             <p class="section-kicker">WORKFLOW</p>
             <h2>当前工作流进程</h2>
           </div>
-          <div class="workflow-current">
-            <span id="currentStage">等待工作流</span>
-            <strong id="currentStep">尚未进入执行步骤</strong>
+          <div class="workflow-heading-status">
+            <div id="workflowCompletion" class="round-completion idle" role="status" aria-live="polite">
+              <span class="charge-orb" aria-hidden="true"><i></i></span>
+              <span class="completion-copy">
+                <small>本轮发布状态</small>
+                <strong id="workflowCompletionLabel">等待本轮开始</strong>
+                <em id="workflowCompletionDetail">完成复测与推送后会保持显示直到下一轮</em>
+              </span>
+            </div>
+            <div class="workflow-current">
+              <span id="currentStage">等待工作流</span>
+              <strong id="currentStep">尚未进入执行步骤</strong>
+            </div>
           </div>
         </div>
         <div class="progress-track" aria-label="工作流完成进度">
@@ -135,30 +145,56 @@
         </div>
       </section>
 
-      <section class="panel result-panel live-result-panel">
-        <div class="panel-heading result-heading">
-          <div>
-            <p class="section-kicker">LIVE RESULTS</p>
-            <h2>本轮实时优选 IP 结果</h2>
-            <p id="liveResultSummary" class="panel-copy">本轮尚未开始；开始新一轮时会清空这里，合格一个显示一个</p>
+      <div class="result-dual-grid">
+        <section class="panel result-panel live-result-panel">
+          <div class="panel-heading result-heading">
+            <div>
+              <p class="section-kicker">LIVE RESULTS</p>
+              <h2>本轮实时优选 IP 结果</h2>
+              <p id="liveResultSummary" class="panel-copy">只显示本会话初筛合格 IP；续选时累计，关闭软件后清空</p>
+            </div>
+            <button id="copyLiveResults" class="button secondary" type="button" disabled>复制本轮结果</button>
           </div>
-          <button id="copyLiveResults" class="button secondary" type="button" disabled>复制本轮结果</button>
-        </div>
-        <div class="table-wrap live-table-wrap">
-          <table id="liveNodeTable">
-            <thead>
-              <tr>
-                <th>序号</th><th>IP 地址</th><th>位置</th><th>数据中心</th>
-                <th>TCP</th><th>TLS</th><th>HTTPS TTFB</th><th>综合延迟</th>
-                <th>抖动</th><th>丢包率</th><th>下载速度</th><th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="liveNodeRows">
-              <tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <div class="table-wrap live-table-wrap compact-result-table">
+            <table id="liveNodeTable">
+              <thead>
+                <tr>
+                  <th>序号</th><th>IP 地址</th><th>位置</th><th>数据中心</th>
+                  <th>TCP</th><th>TLS</th><th>HTTPS TTFB</th><th>综合延迟</th>
+                  <th>抖动</th><th>丢包率</th><th>下载速度</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="liveNodeRows">
+                <tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel result-panel competition-result-panel">
+          <div class="panel-heading result-heading">
+            <div>
+              <p class="section-kicker">PUBLISH COMPETITION</p>
+              <h2>发布前竞赛复测 IP 结果</h2>
+              <p id="competitionResultSummary" class="panel-copy">等待合并云端与本轮合格 IP 后开始完整复测</p>
+            </div>
+            <button id="copyCompetitionResults" class="button secondary" type="button" disabled>复制复测结果</button>
+          </div>
+          <div class="table-wrap live-table-wrap compact-result-table competition-table-wrap">
+            <table id="competitionNodeTable">
+              <thead>
+                <tr>
+                  <th>排名</th><th>IP 地址</th><th>位置</th><th>数据中心</th>
+                  <th>规则延迟</th><th>抖动</th><th>丢包率</th><th>下载速度</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="competitionNodeRows">
+                <tr><td class="empty" colspan="9">等待发布前竞赛复测结果</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
 
       <section class="panel result-panel">
         <div class="panel-heading result-heading">
@@ -230,6 +266,7 @@
     </main>
   </div>
 
+  <div id="ambientParticles" class="ambient-particles" aria-hidden="true"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/app.js"></script>
 </body>

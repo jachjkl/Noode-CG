@@ -365,6 +365,7 @@ def validate_config(config: dict[str, Any]) -> None:
         "health_path",
         "accumulator_path",
         "live_results_path",
+        "competition_results_path",
         "live_tests_path",
         "attempted_path",
     ):
