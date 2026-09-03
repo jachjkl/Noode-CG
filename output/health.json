@@ -1,49 +1,49 @@
 {
-  "status": "ok",
+  "status": "degraded",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-03T09:52:12.585370+00:00",
-  "generated_at": "2026-09-03T09:53:18.205349+00:00",
+  "started_at": "2026-09-03T09:57:42.731874+00:00",
+  "generated_at": "2026-09-03T10:03:58.159127+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-03T09:51:53.308463+00:00",
+  "handoff_generated_at": "2026-09-03T09:57:25.002172+00:00",
   "cycle_round": 1,
   "max_replenishment_rounds": 1,
   "counts": {
     "cloud_pool": 22689,
-    "previous_loaded": 100,
-    "combined_unique": 22806,
-    "new_unique_tested": 22796,
+    "previous_loaded": 17,
+    "combined_unique": 22691,
+    "new_unique_tested": 22681,
     "accumulated_loaded": 0,
     "jp_candidates": 382,
     "jp_selected": 10,
-    "general_candidates": 22408,
-    "ordinary_probe_input_tested": 1000,
-    "tcp_qualified": 27,
-    "metric_qualified": 27,
-    "speed_tested": 27,
-    "speed_qualified": 7,
-    "ordinary_current_rules_qualified": 7,
-    "prepublish_competition_input": 300,
-    "prepublish_competition_qualified": 7,
-    "qualified_accumulated": 17,
+    "general_candidates": 22293,
+    "ordinary_probe_input_tested": 22293,
+    "tcp_qualified": 127,
+    "metric_qualified": 127,
+    "speed_tested": 127,
+    "speed_qualified": 45,
+    "ordinary_current_rules_qualified": 45,
+    "prepublish_competition_input": 48,
+    "prepublish_competition_qualified": 1,
+    "qualified_accumulated": 55,
     "fixed_source_ips_retained": 0,
     "general_target": 300,
     "general_minimum": 50,
-    "ordinary_selected": 7,
-    "ordinary_replacements": 0,
-    "previous_ordinary_retained": 7,
+    "ordinary_selected": 1,
+    "ordinary_replacements": 1,
+    "previous_ordinary_retained": 0,
     "final_target": 310,
     "minimum_publish_target": 60,
-    "final_selected": 17
+    "final_selected": 0
   },
   "jp_measurements": {
     "input_endpoints": 382,
     "input_unique_ips": 382,
     "tcping_attempts_per_endpoint": 3,
-    "tcping_measured": 319,
+    "tcping_measured": 317,
     "download_tested_once": 382,
-    "download_measured": 270,
+    "download_measured": 261,
     "selected_unique_ips": 10,
-    "duration_seconds": 35.625
+    "duration_seconds": 46.032
   },
   "metric_measurements": {
     "enabled_metrics": [
@@ -51,37 +51,182 @@
     ],
     "tls_three_pass_success": null,
     "https_ttfb_three_pass_success": null,
-    "foreign_combined_latency_qualified": 27,
-    "tls_and_https_duration_seconds": 0.0,
+    "foreign_combined_latency_qualified": 127,
+    "tls_and_https_duration_seconds": 0.016,
     "probe_batch_size": 1000,
-    "probe_batches": 1
+    "probe_batches": 23
   },
   "publish_retest": {
     "status": "completed",
-    "input": 300,
-    "tcp_tested": 300,
-    "metric_tested": 36,
-    "speed_tested": 36,
-    "qualified": 7,
-    "selected": 7,
+    "input": 48,
+    "tcp_tested": 48,
+    "metric_tested": 1,
+    "speed_tested": 1,
+    "qualified": 1,
+    "selected": 1,
     "batches": 1
   },
   "speed_batches": [
     {
-      "speed_tested_once": 27,
-      "speed_duration_seconds": 7.172,
-      "speed_at_least_minimum": 7,
-      "input": 27,
-      "qualified_total": 7,
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 5.797,
+      "speed_at_least_minimum": 4,
+      "input": 14,
+      "qualified_total": 4,
       "probe_batch": 1
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 0.781,
+      "speed_at_least_minimum": 1,
+      "input": 1,
+      "qualified_total": 5,
+      "probe_batch": 2
+    },
+    {
+      "speed_tested_once": 4,
+      "speed_duration_seconds": 2.0,
+      "speed_at_least_minimum": 3,
+      "input": 4,
+      "qualified_total": 8,
+      "probe_batch": 3
+    },
+    {
+      "speed_tested_once": 2,
+      "speed_duration_seconds": 3.329,
+      "speed_at_least_minimum": 0,
+      "input": 2,
+      "qualified_total": 8,
+      "probe_batch": 4
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 2.219,
+      "speed_at_least_minimum": 0,
+      "input": 1,
+      "qualified_total": 8,
+      "probe_batch": 5
+    },
+    {
+      "speed_tested_once": 5,
+      "speed_duration_seconds": 1.719,
+      "speed_at_least_minimum": 0,
+      "input": 5,
+      "qualified_total": 8,
+      "probe_batch": 7
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.547,
+      "speed_at_least_minimum": 0,
+      "input": 1,
+      "qualified_total": 8,
+      "probe_batch": 8
+    },
+    {
+      "speed_tested_once": 8,
+      "speed_duration_seconds": 6.078,
+      "speed_at_least_minimum": 3,
+      "input": 8,
+      "qualified_total": 11,
+      "probe_batch": 12
+    },
+    {
+      "speed_tested_once": 24,
+      "speed_duration_seconds": 6.282,
+      "speed_at_least_minimum": 7,
+      "input": 24,
+      "qualified_total": 18,
+      "probe_batch": 13
+    },
+    {
+      "speed_tested_once": 36,
+      "speed_duration_seconds": 35.141,
+      "speed_at_least_minimum": 9,
+      "input": 36,
+      "qualified_total": 27,
+      "probe_batch": 14
+    },
+    {
+      "speed_tested_once": 3,
+      "speed_duration_seconds": 12.656,
+      "speed_at_least_minimum": 0,
+      "input": 3,
+      "qualified_total": 27,
+      "probe_batch": 15
+    },
+    {
+      "speed_tested_once": 5,
+      "speed_duration_seconds": 6.234,
+      "speed_at_least_minimum": 1,
+      "input": 5,
+      "qualified_total": 28,
+      "probe_batch": 16
+    },
+    {
+      "speed_tested_once": 2,
+      "speed_duration_seconds": 9.093,
+      "speed_at_least_minimum": 0,
+      "input": 2,
+      "qualified_total": 28,
+      "probe_batch": 17
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 3.609,
+      "speed_at_least_minimum": 0,
+      "input": 1,
+      "qualified_total": 28,
+      "probe_batch": 18
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 5.313,
+      "speed_at_least_minimum": 0,
+      "input": 1,
+      "qualified_total": 28,
+      "probe_batch": 19
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 5.172,
+      "speed_at_least_minimum": 0,
+      "input": 1,
+      "qualified_total": 28,
+      "probe_batch": 20
+    },
+    {
+      "speed_tested_once": 3,
+      "speed_duration_seconds": 5.141,
+      "speed_at_least_minimum": 2,
+      "input": 3,
+      "qualified_total": 30,
+      "probe_batch": 21
+    },
+    {
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 2.453,
+      "speed_at_least_minimum": 14,
+      "input": 14,
+      "qualified_total": 44,
+      "probe_batch": 22
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.36,
+      "speed_at_least_minimum": 1,
+      "input": 1,
+      "qualified_total": 45,
+      "probe_batch": 23
     }
   ],
   "warnings": [
-    "已收到停止请求：已在当前1000-IP批次结束后停止扫描，并完成发布前竞赛复测"
+    "本地复测得到普通节点 1/300 条、日本节点 10/10 条，本轮没有可发布结果",
+    "已达到最多 1 轮本地补池限制"
   ],
   "needs_more": false,
-  "stopped_after_current": true,
-  "scan_stopped_at_batch": 1,
+  "stopped_after_current": false,
+  "scan_stopped_at_batch": null,
   "forced_rerank": false,
   "continuous_three_rounds": false,
   "local_rules": {
@@ -97,8 +242,8 @@
     "loss_max_percent": 20.0,
     "speed_min_mbps": 3.0
   },
-  "selected": 17,
-  "minimum_publish": 1,
-  "published": true,
-  "preserved_previous_output": false
+  "selected": 0,
+  "minimum_publish": 50,
+  "published": false,
+  "preserved_previous_output": true
 }
