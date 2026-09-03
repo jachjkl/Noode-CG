@@ -132,6 +132,15 @@ class WindowsLocalControlTests(unittest.TestCase):
             workflow,
         )
 
+    def test_workflow_supports_publish_only_and_finish_current_round_stop(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("publish_only:", workflow)
+        self.assertIn("NOODE_PUBLISH_ONLY", workflow)
+        self.assertIn("stop_requested:", workflow)
+        self.assertIn("needs.local-cleanup.outputs.stop_requested != 'true'", workflow)
+
     def test_dashboard_launcher_is_visible_and_manual_start_triggers_cloud_workflow(self) -> None:
         manual_path = ROOT / "windows-controller" / "manual-start.ps1"
         self.assertTrue(

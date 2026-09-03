@@ -1,9 +1,11 @@
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
+  cloudConnectionBadge: $("#cloudConnectionBadge"),
   connectionBadge: $("#connectionBadge"),
   startButton: $("#startButton"),
   continueButton: $("#continueButton"),
+  publishButton: $("#publishButton"),
   stopButton: $("#stopButton"),
   closeButton: $("#closeButton"),
   statusValue: $("#statusValue"),
@@ -162,12 +164,28 @@ function renderState(state) {
   const badgeClass = ["running", "stopping"].includes(state.status) ? "running" : state.status === "success" ? "success" : state.status === "failure" ? "failure" : "neutral";
   elements.connectionBadge.className = `badge ${badgeClass}`;
   elements.connectionBadge.textContent = labels[state.status] || "已连接";
+  const cloud = state.cloud_connection || {};
+  const cloudLabels = {
+    checking: "云端检测中",
+    connected: "云端已连接",
+    unauthenticated: "云端未登录",
+    offline: "云端不可达",
+    cli_missing: "缺少 GitHub CLI",
+  };
+  const cloudClass = cloud.status === "connected"
+    ? "success"
+    : cloud.status === "checking" ? "neutral" : "failure";
+  elements.cloudConnectionBadge.className = `badge ${cloudClass}`;
+  elements.cloudConnectionBadge.textContent = cloudLabels[cloud.status] || "云端未知";
+  elements.cloudConnectionBadge.title = cloud.detail || "尚未完成云端连接检查";
   elements.statusValue.textContent = labels[state.status] || state.status;
   elements.statusDetail.textContent = state.last_error || (state.gh_status ? `GitHub 状态：${statusLabel(state.gh_status, state.gh_conclusion)}` : "本地服务已连接");
   elements.elapsedValue.textContent = formatElapsed(state.elapsed_seconds);
   elements.processValue.textContent = state.pid ? `本地监控 PID ${state.pid}` : state.exit_code === 0 ? "本地监控已正常退出" : "本地监控进程未运行";
-  elements.startButton.disabled = Boolean(state.running);
-  elements.startButton.textContent = state.running ? "任务运行中" : "开始新一轮";
+  elements.startButton.disabled = Boolean(state.running || state.cycle_started);
+  elements.startButton.textContent = state.running
+    ? "任务运行中"
+    : state.cycle_started ? "本会话已开始" : "开始新一轮";
   if (!continueSubmitting) {
     elements.continueButton.disabled = !state.cycle_started;
     elements.continueButton.textContent = !state.cycle_started
@@ -178,6 +196,10 @@ function renderState(state) {
   }
   elements.stopButton.disabled = Boolean(state.stop_requested && !state.running);
   elements.stopButton.textContent = state.status === "stopping" ? "已请求停止" : "停止优选";
+  elements.publishButton.disabled = !state.cycle_started;
+  elements.publishButton.textContent = state.publish_queued
+    ? "推送已排队"
+    : state.running ? "排队手动推送" : "手动推送";
 
   if (state.run_id) {
     elements.runLink.textContent = `#${state.run_id}`;
@@ -397,6 +419,8 @@ function renderNodes() {
   const sourceLabels = {
     "local-ready": "本机保存的云端已发布结果",
     "published-cache": "线上已发布结果",
+    "published-cloud": "已从 GitHub 核对的云端发布结果",
+    "published-unavailable": "云端发布结果暂不可用",
   };
   elements.nodeCount.textContent = String(allNodes.length);
   elements.filterSummary.textContent = `${sourceLabels[resultSource] || "当前结果"} · 共 ${allNodes.length} 条，当前显示 ${filteredNodes.length} 条`;
@@ -644,16 +668,32 @@ elements.continueButton.addEventListener("click", async () => {
 elements.stopButton.addEventListener("click", async () => {
   try {
     elements.stopButton.disabled = true;
-    elements.stopButton.textContent = "正在停止";
+    elements.stopButton.textContent = "正在登记";
     const result = await post("/api/stop-selection");
-    showToast(result.workflow_active
-      ? "本地优选已停止；当前云端轮次结束后不会继续自动补充"
+    showToast(result.stopped
+      ? "已登记：当前整轮完成并发布后停止，不再自动补充"
       : "当前没有运行中的优选任务");
     await fetchState();
   } catch (error) {
     elements.stopButton.disabled = false;
     elements.stopButton.textContent = "停止优选";
     showToast(`停止失败：${error.message}`);
+  }
+});
+
+elements.publishButton.addEventListener("click", async () => {
+  try {
+    elements.publishButton.disabled = true;
+    elements.publishButton.textContent = "正在提交或排队";
+    const result = await post("/api/publish");
+    showToast(result.started
+      ? "已启动手动推送：先按本地规则复测和重排，再发布到 GitHub"
+      : result.reason || "手动推送已排队");
+    await fetchState();
+  } catch (error) {
+    elements.publishButton.disabled = !lastState?.cycle_started;
+    elements.publishButton.textContent = "手动推送";
+    showToast(`手动推送失败：${error.message}`);
   }
 });
 
@@ -697,10 +737,11 @@ elements.continuousRounds.addEventListener("change", async () => {
 elements.closeButton.addEventListener("click", async () => {
   try {
     await post("/api/shutdown");
-    showToast("本地面板正在关闭，GitHub Actions 不受影响");
+    showToast("正在关闭浏览器页面和本地 CMD 窗口");
     elements.closeButton.disabled = true;
+    setTimeout(() => window.close(), 250);
   } catch (error) {
-    showToast(`关闭失败：${error.message}`);
+    showToast(error.message);
   }
 });
 

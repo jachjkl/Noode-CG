@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from core.handoff import (
     _rank_with_colo_diversity,
+    load_cloud_handoff,
     prepare_cloud_handoff,
     run_local_selection,
 )
@@ -76,6 +77,45 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertTrue(report["cloud_prefilter_skipped"])
             self.assertEqual(scanned, set())
             self.assertEqual({jp.ip, us.ip, official.ip}, {node["ip"] for node in nodes})
+
+    def test_publish_only_handoff_skips_sources_and_official_sampling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "output"
+            output.mkdir()
+            published = qualified(NodeResult(ip="198.51.100.200"))
+            (output / "nodes.json").write_text(
+                json.dumps([published.to_dict()]), encoding="utf-8"
+            )
+            config = {
+                "_base_dir": str(root),
+                "paths": {"output": "output"},
+                "rolling": {"snapshot_path": "previous.json", "previous_limit": 100},
+                "sources": {"cloudflare_ranges": {"official_batch_size": 10000}},
+                "pipeline": {"source_priority": []},
+                "handoff": {
+                    "pool_path": "pool.json.gz",
+                    "health_path": "health.json",
+                    "target": 10000,
+                },
+            }
+            with (
+                patch.dict(os.environ, {
+                    "NOODE_CONTINUATION": "true",
+                    "NOODE_PUBLISH_ONLY": "true",
+                }),
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.collect_source_candidates") as sources,
+                patch("core.handoff.collect_official_batch") as official,
+            ):
+                report = prepare_cloud_handoff(config)
+
+            sources.assert_not_called()
+            official.assert_not_called()
+            self.assertTrue(report["publish_only"])
+            payload = json.loads(gzip.decompress((root / "pool.json.gz").read_bytes()))
+            self.assertEqual(payload["nodes"], [])
+            self.assertEqual(payload["state"]["published_nodes"][0]["ip"], published.ip)
 
     def test_continuation_excludes_attempted_and_prior_official_ips(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -497,7 +537,7 @@ class HandoffPipelineTests(unittest.TestCase):
             ):
                 report = run_local_selection(config)
 
-            self.assertFalse(report["published"])
+            self.assertTrue(report["published"])
             self.assertTrue(report["needs_more"])
             self.assertTrue((root / "data" / "handoff" / "local-qualified.json.gz").is_file())
             attempted = gzip.decompress(
@@ -565,7 +605,7 @@ class HandoffPipelineTests(unittest.TestCase):
             ).decode().splitlines()
             self.assertEqual(attempted, [fresh.ip])
 
-    def test_next_local_pass_uses_accumulator_without_retesting_old_successes(self) -> None:
+    def test_next_local_pass_retests_old_ordinary_successes_before_publish(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "locations.json").write_text("{}", encoding="utf-8")
@@ -618,9 +658,9 @@ class HandoffPipelineTests(unittest.TestCase):
 
             self.assertTrue(report["published"])
             self.assertFalse(report["needs_more"])
-            self.assertEqual(scanned, {new_us.ip})
-            self.assertFalse((handoff_dir / "local-qualified.json.gz").exists())
-            self.assertFalse((handoff_dir / "local-attempted-ips.txt.gz").exists())
+            self.assertEqual(scanned, {old_us.ip, new_us.ip})
+            self.assertTrue((handoff_dir / "local-qualified.json.gz").exists())
+            self.assertTrue((handoff_dir / "local-attempted-ips.txt.gz").exists())
 
     def test_continuous_mode_publishes_accumulated_results_after_third_round(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -629,6 +669,9 @@ class HandoffPipelineTests(unittest.TestCase):
             handoff_dir = root / "data" / "handoff"
             handoff_dir.mkdir(parents=True)
             config = self._local_config(root, target=5, jp_count=1)
+            config["handoff"]["live_results_path"] = (
+                "data/handoff/local-live-results.json.gz"
+            )
             japan = NodeResult(ip="198.18.0.80", country_hint="JP")
 
             async def scan(records, _options):
@@ -678,15 +721,71 @@ class HandoffPipelineTests(unittest.TestCase):
                     )
                     reports.append(run_local_selection(config))
 
-            self.assertFalse(reports[0]["published"])
+            self.assertTrue(reports[0]["published"])
             self.assertTrue(reports[0]["needs_more"])
-            self.assertFalse(reports[1]["published"])
+            self.assertTrue(reports[1]["published"])
             self.assertTrue(reports[1]["needs_more"])
             self.assertTrue(reports[2]["published"])
             self.assertFalse(reports[2]["needs_more"])
             self.assertEqual(reports[2]["cycle_round"], 3)
-            self.assertEqual(reports[2]["counts"]["ordinary_replacements"], 3)
+            self.assertEqual(reports[2]["counts"]["ordinary_replacements"], 1)
             self.assertEqual(reports[2]["counts"]["final_selected"], 4)
+            live_nodes, _ = load_cloud_handoff(
+                handoff_dir / "local-live-results.json.gz"
+            )
+            self.assertEqual(
+                {node.ip for node in live_nodes},
+                {"198.51.100.81", "198.51.100.82", "198.51.100.83", japan.ip},
+            )
+
+    def test_every_published_node_is_retested_and_failed_old_node_is_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            keep = qualified(NodeResult(ip="198.51.100.110"))
+            fail = qualified(NodeResult(ip="198.51.100.111"))
+            fresh = NodeResult(ip="198.51.100.112", country_hint="US")
+            handoff_dir = root / "data" / "handoff"
+            handoff_dir.mkdir(parents=True)
+            (handoff_dir / "cloud-raw10000.json.gz").write_bytes(gzip.compress(json.dumps({
+                "schema": 1,
+                "report": {"continuation": True},
+                "nodes": [fresh.to_dict()],
+                "state": {"published_nodes": [keep.to_dict(), fail.to_dict()]},
+            }).encode(), mtime=0))
+            config = self._local_config(root, target=3, jp_count=0)
+            scanned: set[str] = set()
+
+            async def scan(records, _options, **_kwargs):
+                scanned.update(node.ip for node in records)
+                return [qualified(node) for node in records if node.ip != fail.ip]
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+                patch(
+                    "core.handoff._three_metric_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"foreign_combined_latency_qualified": len(records)},
+                    ),
+                ),
+                patch(
+                    "core.handoff._speed_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"speed_at_least_minimum": len(records)},
+                    ),
+                ),
+                patch("core.handoff._source_country_tcp_speed_checks", return_value=([], {})),
+                patch("core.handoff.load_locations", return_value={}),
+            ):
+                report = run_local_selection(config)
+
+            self.assertEqual(scanned, {keep.ip, fail.ip, fresh.ip})
+            self.assertTrue(report["published"])
+            published = json.loads((root / "output" / "nodes.json").read_text(encoding="utf-8"))
+            self.assertEqual({node["ip"] for node in published}, {keep.ip, fresh.ip})
 
     def test_local_pass_restores_embedded_cloud_state_without_git_checkout(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -740,7 +839,7 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertTrue(report["published"])
             self.assertEqual(report["counts"]["previous_loaded"], 1)
             self.assertEqual(report["counts"]["accumulated_loaded"], 2)
-            self.assertEqual(scanned, {new_us.ip, previous.ip})
+            self.assertEqual(scanned, {old_us.ip, new_us.ip, previous.ip})
 
     @staticmethod
     def _local_config(root: Path, *, target: int, jp_count: int) -> dict:

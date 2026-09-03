@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      publish_only:
+        description: Retest current cloud and local qualified nodes, then publish without a new RAW10000
+        required: false
+        default: false
+        type: boolean
 permissions: {}
 
 concurrency:
@@ -27,6 +32,7 @@ jobs:
       NOODE_VANTAGE: github-cloud-prepare
       NOODE_RUN_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
       NOODE_CONTINUATION: ${{ inputs.continuation || 'false' }}
+      NOODE_PUBLISH_ONLY: ${{ inputs.publish_only || 'false' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -89,6 +95,7 @@ jobs:
     env:
       NOODE_VANTAGE: windows-self-hosted-local-network
       NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
+      NOODE_PUBLISH_ONLY: ${{ inputs.publish_only || 'false' }}
       PSExecutionPolicyPreference: Bypass
     steps:
       - name: Validate the installed local application
@@ -224,6 +231,8 @@ jobs:
     runs-on: [self-hosted, windows, x64, noode-cg]
     timeout-minutes: 10
     permissions: {}
+    outputs:
+      stop_requested: ${{ steps.stop-state.outputs.requested }}
     defaults:
       run:
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File "{0}"
@@ -231,6 +240,17 @@ jobs:
     env:
       NOODE_LOCAL_ROOT: D:\桌面\软件\Noode-CG-Local
     steps:
+      - name: Read finish-current-round stop request
+        id: stop-state
+        run: |
+          $marker = "data/handoff/stop-after-current.json"
+          $requested = Test-Path -LiteralPath $marker
+          $utf8 = New-Object Text.UTF8Encoding($false)
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "requested=$($requested.ToString().ToLowerInvariant())`n", $utf8)
+          if ($requested) {
+            Remove-Item -LiteralPath $marker -Force
+            Write-Host "Stop-after-current request recorded; automatic replenishment will be skipped."
+          }
       - name: Notify successful cloud publication
         continue-on-error: true
         run: |
@@ -250,7 +270,7 @@ jobs:
 
   replenish-cloud-pool:
     needs: [local-select, cloud-publish, local-cleanup]
-    if: needs.local-select.outputs.needs_more == 'true'
+    if: needs.local-select.outputs.needs_more == 'true' && needs.local-cleanup.outputs.stop_requested != 'true' && inputs.publish_only != true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -260,4 +280,4 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Dispatch a fresh disjoint cloud RAW10000
-        run: gh workflow run update.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" -f continuation=true
+        run: gh workflow run update.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" -f continuation=true -f publish_only=false

@@ -87,10 +87,12 @@ class DashboardState:
         self.live_tests_path = root / "app" / "data" / "handoff" / "local-live-tests.json.gz"
         self.options_path = root / "local-options.json"
         self.continue_queue_path = root / "app" / "data" / "handoff" / "dashboard-continue-request.json"
+        self.publish_queue_path = root / "app" / "data" / "handoff" / "dashboard-publish-request.json"
         self.stop_after_current_path = root / "app" / "data" / "handoff" / "stop-after-current.json"
         # Reopening the dashboard is a new manual session. A queued Continue
         # from an older process must never launch work by itself.
         self.continue_queue_path.unlink(missing_ok=True)
+        self.publish_queue_path.unlink(missing_ok=True)
         self.gh = shutil.which("gh")
         self.process: subprocess.Popen[str] | None = None
         self.process_started_at: float | None = None
@@ -110,6 +112,9 @@ class DashboardState:
         self.dispatch_pending_until = 0.0
         self.queue_retry_after = 0.0
         self.cycle_started = False
+        self.cloud_connection_status = "checking" if self.gh else "cli_missing"
+        self.cloud_connection_detail = "正在验证 GitHub 连接" if self.gh else "未找到 GitHub CLI"
+        self.cloud_connection_checked_at = 0.0
 
     def _run_command(self, args: list[str], timeout: int = 25) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -125,6 +130,9 @@ class DashboardState:
 
     def start_controller(self) -> bool:
         with self.lock:
+            if self.cycle_started:
+                self.last_error = "本次面板会话已经开始；需要增加候选时请点击“继续优选并重排”。"
+                return False
             if self.process is not None and self.process.poll() is None:
                 return False
             if not self.manual_script.is_file():
@@ -145,6 +153,8 @@ class DashboardState:
             self.gh_state = {}
             self.observed_run_ids = []
             self.shutdown_at = None
+            # A new dashboard session clears the preceding session exactly
+            # once. Later continuation rounds append to the same live result.
             self._clear_cycle_state()
             self.log_path.unlink(missing_ok=True)
             self.process = subprocess.Popen(
@@ -247,18 +257,21 @@ class DashboardState:
         return [int(value) for value in values if isinstance(value, int)] if isinstance(values, list) else []
 
     def stop_selection(self) -> dict[str, object]:
-        """Stop local probes now and suppress automatic replenishment."""
+        """Finish the active round, then suppress every queued/automatic round."""
         self.refresh_github(force=True)
         workflow_active = self._workflow_active()
+        local_active = bool(self._local_selection_pids())
+        round_active = workflow_active or local_active
         self.continue_queue_path.unlink(missing_ok=True)
+        self.publish_queue_path.unlink(missing_ok=True)
         (self.root / "app" / "data" / "handoff" / "force-rerank.json").unlink(missing_ok=True)
         self.stop_after_current_path.parent.mkdir(parents=True, exist_ok=True)
-        if workflow_active:
+        if round_active:
             self.stop_after_current_path.write_text(
                 json.dumps(
                     {
                         "requested_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                        "mode": "stop-local-and-finish-current-cloud-run",
+                        "mode": "finish-current-round-then-stop",
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -268,25 +281,67 @@ class DashboardState:
         else:
             self.stop_after_current_path.unlink(missing_ok=True)
 
-        terminated: list[int] = []
-        for pid in self._local_selection_pids():
-            result = self._run_command(["taskkill", "/PID", str(pid), "/T", "/F"], timeout=15)
-            if result.returncode == 0:
-                terminated.append(pid)
         with self.lock:
-            self.stop_requested = True
+            self.stop_requested = round_active
             self.dispatch_pending_until = 0.0
             self.last_error = ""
             self.shutdown_at = None
-        self._append_dashboard_log(
-            "已请求停止优选：本地探测立即结束，当前 GitHub 工作流完成后不再自动补池。"
-        )
+        if round_active:
+            self._append_dashboard_log(
+                "已请求停止优选：当前整轮会继续完成并发布，完成后不再自动补池或执行排队任务。"
+            )
         return {
-            "stopped": True,
+            "stopped": round_active,
             "workflow_active": workflow_active,
-            "local_processes_terminated": terminated,
+            "local_active": local_active,
+            "local_processes_terminated": [],
             "finish_current_cloud_run": workflow_active,
         }
+
+    def check_cloud_connection(self, force: bool = False) -> dict[str, object]:
+        now = utc_timestamp()
+        with self.lock:
+            if not force and now - self.cloud_connection_checked_at < 15:
+                return self.cloud_connection()
+            self.cloud_connection_checked_at = now
+        if not self.gh:
+            with self.lock:
+                self.cloud_connection_status = "cli_missing"
+                self.cloud_connection_detail = "未找到 GitHub CLI"
+            return self.cloud_connection()
+        try:
+            auth = self._run_command([self.gh, "auth", "status"], timeout=20)
+            if auth.returncode != 0:
+                with self.lock:
+                    self.cloud_connection_status = "unauthenticated"
+                    self.cloud_connection_detail = "GitHub CLI 尚未登录"
+                return self.cloud_connection()
+            remote = self._run_command(
+                [self.gh, "api", f"repos/{self.repository}", "--jq", ".full_name"],
+                timeout=20,
+            )
+            if remote.returncode != 0:
+                detail = (remote.stderr or remote.stdout or "无法访问 GitHub 仓库").strip()
+                with self.lock:
+                    self.cloud_connection_status = "offline"
+                    self.cloud_connection_detail = detail[:180]
+                return self.cloud_connection()
+            with self.lock:
+                self.cloud_connection_status = "connected"
+                self.cloud_connection_detail = f"已连接 {self.repository}"
+        except (OSError, subprocess.SubprocessError) as exc:
+            with self.lock:
+                self.cloud_connection_status = "offline"
+                self.cloud_connection_detail = f"云端连接失败：{exc}"
+        return self.cloud_connection()
+
+    def cloud_connection(self) -> dict[str, object]:
+        with self.lock:
+            return {
+                "status": self.cloud_connection_status,
+                "detail": self.cloud_connection_detail,
+                "checked_at": self.cloud_connection_checked_at,
+            }
 
     def _append_dashboard_log(self, message: str) -> None:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -436,6 +491,76 @@ class DashboardState:
             self.last_error = str(result.get("reason") or "排队续选暂时无法启动")
         return {**result, "queued": True}
 
+    def request_publish(self) -> dict[str, object]:
+        with self.lock:
+            if not self.cycle_started:
+                return {
+                    "started": False,
+                    "queued": False,
+                    "reason": "请先完成至少一轮本地优选，再手动推送。",
+                }
+        self.publish_queue_path.parent.mkdir(parents=True, exist_ok=True)
+        self.publish_queue_path.write_text(
+            json.dumps({
+                "requested_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "mode": "retest-and-publish-current-session",
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        self.refresh_github(force=True)
+        if self._workflow_active():
+            self._append_dashboard_log("已排队手动推送；当前整轮结束后复测云端与本地合格节点并发布。")
+            return {"started": False, "queued": True, "reason": "手动推送已排队。"}
+        return self.process_publish_queue(force=True)
+
+    def process_publish_queue(self, force: bool = False) -> dict[str, object]:
+        if not self.publish_queue_path.is_file():
+            return {"started": False, "queued": False}
+        if self._workflow_active():
+            return {"started": False, "queued": True}
+        result = self._dispatch_workflow(publish_only=True)
+        if result.get("started"):
+            self.publish_queue_path.unlink(missing_ok=True)
+            return {**result, "queued": False}
+        return {**result, "queued": True}
+
+    def _dispatch_workflow(self, *, publish_only: bool) -> dict[str, object]:
+        if not self.gh:
+            return {"started": False, "reason": "找不到 GitHub CLI。"}
+        result = self._run_command([
+            self.gh,
+            "workflow",
+            "run",
+            "update.yml",
+            "--repo",
+            self.repository,
+            "--ref",
+            self.branch,
+            "-f",
+            "continuation=true",
+            "-f",
+            f"publish_only={'true' if publish_only else 'false'}",
+        ])
+        if result.returncode != 0:
+            reason = (result.stderr or result.stdout or "GitHub 工作流触发失败").strip()
+            return {"started": False, "reason": reason}
+        with self.lock:
+            self.process_started_at = utc_timestamp()
+            self.process_ended_at = None
+            self.exit_code = None
+            self.last_error = ""
+            self.run_id = None
+            self.run_url = ""
+            self.gh_state = {}
+            self.observed_run_ids = []
+            self.dispatch_pending_until = utc_timestamp() + 90
+            self.shutdown_at = None
+            self.run_list_checked_at = 0.0
+            self.gh_checked_at = 0.0
+        mode = "手动推送复测" if publish_only else "续选"
+        self._append_dashboard_log(f"{mode}工作流已触发。")
+        return {"started": True, "publish_only": publish_only}
+
     def force_continue(self) -> dict[str, object]:
         with self.lock:
             if not self.cycle_started:
@@ -453,54 +578,22 @@ class DashboardState:
                 return {"started": False, "reason": "当前已有工作流正在运行，请等待本轮结束。"}
         if not self.gh:
             return {"started": False, "reason": "找不到 GitHub CLI。"}
-        self.refresh_remote_outputs(force=True)
-        nodes = self.nodes()
-        previous_top100_ips = {
-            str(item.get("ip") or "")
-            for item in nodes[:100]
-            if str(item.get("ip") or "")
-        }
-
         handoff_dir = self.root / "app" / "data" / "handoff"
         handoff_dir.mkdir(parents=True, exist_ok=True)
         accumulator = handoff_dir / "local-qualified.json.gz"
         marker = handoff_dir / "force-rerank.json"
         generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        # Manual continuation belongs to the same open dashboard session. Keep
-        # all live qualified nodes and seed the next local pass with them; a
-        # brand-new Start action is the only operation that clears this panel.
-        merged_nodes, _source, _path = self.live_nodes_with_meta()
-        payload = {
-            "schema": 1,
-            "generated_at": generated_at,
-            "report": {
-                "cycle_round": 0,
-                "forced_rerank": True,
-                "existing_count": len(merged_nodes),
-                "previous_top100_reserved_for_retest": 0,
-            },
-            "nodes": merged_nodes,
-        }
-        encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        temporary = accumulator.with_suffix(accumulator.suffix + ".tmp")
-        temporary.write_bytes(gzip.compress(encoded, compresslevel=9, mtime=0))
-        temporary.replace(accumulator)
-        attempted = handoff_dir / "local-attempted-ips.txt.gz"
-        attempted_values = {
-            str(item.get("ip") or "")
-            for item in merged_nodes
-            if str(item.get("ip") or "")
-        } | previous_top100_ips
-        attempted_text = "\n".join(sorted(attempted_values))
-        if attempted_text:
-            attempted_text += "\n"
-        attempted.write_bytes(gzip.compress(attempted_text.encode("utf-8"), compresslevel=9, mtime=0))
+        # local-qualified is the active selection accumulator. The live-result
+        # file is append-only UI history and must never be copied back into the
+        # candidate pool because it may contain nodes eliminated by a later
+        # fresh retest.
+        existing_count = len(self._nodes_from_handoff(accumulator))
         marker.write_text(
             json.dumps(
                 {
                     "mode": "force-rerank",
                     "created_at": generated_at,
-                    "existing_count": len(merged_nodes),
+                    "existing_count": existing_count,
                     "previous_top100_reserved_for_retest": 0,
                     "ranking": "latency-speed-loss-jitter",
                     "general_target": 300,
@@ -511,44 +604,17 @@ class DashboardState:
             ),
             encoding="utf-8",
         )
-        result = self._run_command(
-            [
-                self.gh,
-                "workflow",
-                "run",
-                "update.yml",
-                "--repo",
-                self.repository,
-                "--ref",
-                self.branch,
-                "-f",
-                "continuation=true",
-            ]
-        )
-        if result.returncode != 0:
-            reason = (result.stderr or result.stdout or "GitHub 工作流触发失败").strip()
-            return {"started": False, "reason": reason}
-        with self.lock:
-            self.process_started_at = utc_timestamp()
-            self.process_ended_at = None
-            self.exit_code = None
-            self.last_error = ""
-            self.run_id = None
-            self.run_url = ""
-            self.gh_state = {}
-            self.observed_run_ids = []
-            self.dispatch_pending_until = utc_timestamp() + 90
-            self.shutdown_at = None
-            self.run_list_checked_at = 0.0
-            self.gh_checked_at = 0.0
+        dispatch = self._dispatch_workflow(publish_only=False)
+        if not dispatch.get("started"):
+            return dispatch
         self._append_dashboard_log(
-            f"可视化面板已强制续选：保存历史 {len(merged_nodes)} 条，"
+            f"可视化面板已强制续选：保留当前合格池 {existing_count} 条，"
             "本次会话中的上一轮节点不重复测试；"
             "正在请求新的10000个官方候选，完成后按本地规则重排300条普通节点并附加日本节点。"
         )
         return {
             "started": True,
-            "existing_count": len(merged_nodes),
+            "existing_count": existing_count,
             "previous_top100_retest_count": 0,
         }
 
@@ -667,6 +733,9 @@ class DashboardState:
             nodes = self._download_repo_json("output/nodes.json")
             if isinstance(nodes, list) and nodes:
                 self.nodes_cache.write_text(json.dumps(nodes, ensure_ascii=False), encoding="utf-8")
+                with self.lock:
+                    self.cloud_connection_status = "connected"
+                    self.cloud_connection_detail = f"已连接 {self.repository}"
             health = self._download_repo_json("output/health.json")
             if isinstance(health, dict):
                 self.health_cache.write_text(json.dumps(health, ensure_ascii=False), encoding="utf-8")
@@ -767,15 +836,17 @@ class DashboardState:
         return report, tests[start:start + capped], "live-test-stream", path
 
     def nodes_with_meta(self) -> tuple[list[dict[str, object]], str, Path | None]:
+        # The published panel represents GitHub, so a successfully verified
+        # remote cache takes precedence over transient local output.
+        data = self.load_json_file(self.nodes_cache, [])
+        if isinstance(data, list) and data:
+            return data, "published-cloud", self.nodes_cache
         local_nodes = self.root / "app" / "output" / "nodes.json"
         if local_nodes.is_file():
             data = self.load_json_file(local_nodes, [])
             if isinstance(data, list) and data:
                 return data, "local-ready", local_nodes
-        data = self.load_json_file(self.nodes_cache, [])
-        return (data if isinstance(data, list) else []), "published-cache", (
-            self.nodes_cache if self.nodes_cache.is_file() else None
-        )
+        return [], "published-unavailable", None
 
     def nodes(self) -> list[dict[str, object]]:
         return self.nodes_with_meta()[0]
@@ -891,6 +962,8 @@ class DashboardState:
                 "log": self.read_log(),
                 "last_error": self.last_error,
                 "continuation_queued": self.continue_queue_path.is_file(),
+                "publish_queued": self.publish_queue_path.is_file(),
+                "cloud_connection": self.cloud_connection(),
                 "cycle_started": self.cycle_started,
                 "stop_requested": self.stop_requested,
                 "local_rules": self.local_rules(),
@@ -1015,6 +1088,9 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                 result = state.request_continue()
                 self._json(result)
                 return
+            if route == "/api/publish":
+                self._json(state.request_publish())
+                return
             if route == "/api/stop-selection":
                 self._json(state.stop_selection())
                 return
@@ -1041,6 +1117,18 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                 self._json({"stopped": True})
                 return
             if route == "/api/shutdown":
+                state.refresh_github(force=True)
+                local_active = bool(state._local_selection_pids())
+                with state.lock:
+                    controller_active = (
+                        state.process is not None and state.process.poll() is None
+                    )
+                if state._workflow_active() or local_active or controller_active:
+                    self._json({
+                        "closing": False,
+                        "error": "当前优选或 GitHub 工作流仍在运行，请等待本轮完成后再关闭。",
+                    }, HTTPStatus.CONFLICT)
+                    return
                 self._json({"closing": True})
                 server = server_ref.get("server")
                 if server:
@@ -1092,6 +1180,7 @@ def serve(
                 if (
                     workflow_status in {"queued", "in_progress", "waiting", "pending"}
                     or state.continue_queue_path.is_file()
+                    or state.publish_queue_path.is_file()
                 ):
                     state.shutdown_at = utc_timestamp() + 300
                     continue
@@ -1103,8 +1192,11 @@ def serve(
         while True:
             try:
                 state.refresh_github()
+                state.check_cloud_connection()
                 state.refresh_remote_outputs()
-                state.process_continue_queue()
+                state.process_publish_queue()
+                if not state.publish_queue_path.is_file():
+                    state.process_continue_queue()
             except Exception as exc:  # pragma: no cover - keep the local UI alive on transient network failures
                 with state.lock:
                     state.last_error = f"后台状态刷新失败：{exc}"

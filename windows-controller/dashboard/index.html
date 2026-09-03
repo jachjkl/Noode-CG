@@ -15,9 +15,11 @@
         <p class="subtitle">云端提供10000个原始官方候选，本地完成全部网络测试、排序和发布</p>
       </div>
       <div class="header-actions">
+        <span id="cloudConnectionBadge" class="badge neutral" title="正在验证 GitHub 登录和仓库连接">云端检测中</span>
         <span id="connectionBadge" class="badge neutral">正在连接</span>
         <button id="startButton" class="button primary" type="button">开始新一轮</button>
         <button id="continueButton" class="button continue" type="button">继续优选并重排</button>
+        <button id="publishButton" class="button secondary" type="button">手动推送</button>
         <button id="stopButton" class="button danger" type="button">停止优选</button>
         <button id="closeButton" class="button secondary" type="button">关闭本地面板</button>
       </div>
@@ -70,7 +72,7 @@
           </div>
         </form>
         <label class="toggle-field cycle-option"><input id="continuousRounds" type="checkbox" checked> 开启三轮连续筛选：不足300个时自动获取下一批不同的10000个官方候选，最多连续3轮</label>
-        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、10000个官方IP和上一轮TOP100；后续轮次只补充未在本会话测试过的10000个官方IP。开启连续筛选时达到300个立即发布，连续3轮仍不足则发布已合格结果；关闭时每轮立即按合格数量替换云端末尾节点并重新排序。日本节点在同一会话的实时结果中只保留一份。</div>
+        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、10000个官方IP和上一轮TOP100；后续轮次只补充未在本会话测试过的10000个官方IP。每一轮都会复测云端现有节点并把本轮合格结果重新排序发布；不足300个且开启连续筛选时继续补池，最多3轮。日本节点在同一会话的实时结果中只保留一份。</div>
       </section>
 
       <section class="panel workflow-panel">

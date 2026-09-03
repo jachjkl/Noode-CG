@@ -123,7 +123,7 @@ class DashboardServerTests(unittest.TestCase):
             state = DashboardState(root, "owner/repo", "main")
             nodes, source, path = state.nodes_with_meta()
 
-            self.assertEqual(source, "published-cache")
+            self.assertEqual(source, "published-cloud")
             self.assertEqual(path, cache / "nodes.json")
             self.assertEqual(nodes[0]["ip"], "192.0.2.1")
 
@@ -256,7 +256,7 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(rules["loss_max_percent"], 30)
             self.assertEqual(rules["speed_min_mbps"], 3)
 
-    def test_stop_selection_kills_only_detected_local_probe_and_clears_requeue(self) -> None:
+    def test_stop_selection_finishes_current_round_without_killing_local_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             state = DashboardState(root, "owner/repo", "main")
@@ -275,13 +275,11 @@ class DashboardServerTests(unittest.TestCase):
                 result = state.stop_selection()
 
             self.assertTrue(result["workflow_active"])
-            self.assertEqual(result["local_processes_terminated"], [4321])
+            self.assertEqual(result["local_processes_terminated"], [])
             self.assertTrue(state.stop_after_current_path.is_file())
             self.assertFalse(state.continue_queue_path.exists())
             self.assertFalse(force.exists())
-            command.assert_called_once_with(
-                ["taskkill", "/PID", "4321", "/T", "/F"], timeout=15
-            )
+            command.assert_not_called()
 
     def test_force_continue_saves_current_nodes_and_dispatches_continuation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -313,16 +311,53 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(result["previous_top100_retest_count"], 0)
             command.assert_called_once()
             args = command.call_args.args[0]
-            self.assertEqual(args[-2:], ["-f", "continuation=true"])
+            self.assertIn("continuation=true", args)
+            self.assertIn("publish_only=false", args)
             handoff = root / "app" / "data" / "handoff"
             marker = json.loads((handoff / "force-rerank.json").read_text(encoding="utf-8"))
             self.assertEqual(marker["general_target"], 300)
             self.assertEqual(marker["jp_target"], 10)
             self.assertEqual(marker["previous_top100_reserved_for_retest"], 0)
-            payload = json.loads(gzip.decompress(
-                (handoff / "local-qualified.json.gz").read_bytes()
-            ))
-            self.assertEqual(payload["nodes"], [])
+            self.assertFalse((handoff / "local-qualified.json.gz").exists())
+
+    def test_manual_publish_queues_while_active_and_uses_publish_only_when_idle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = DashboardState(root, "owner/repo", "main")
+            state.gh = "gh.exe"
+            state.cycle_started = True
+            state.gh_state = {"status": "in_progress"}
+            with patch.object(state, "refresh_github"):
+                queued = state.request_publish()
+            self.assertTrue(queued["queued"])
+            self.assertTrue(state.publish_queue_path.is_file())
+
+            state.gh_state = {"status": "completed", "conclusion": "success"}
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with patch.object(state, "_run_command", return_value=completed) as command:
+                started = state.process_publish_queue(force=True)
+            self.assertTrue(started["started"])
+            self.assertFalse(state.publish_queue_path.exists())
+            args = command.call_args.args[0]
+            self.assertIn("publish_only=true", args)
+
+    def test_cloud_connection_is_reported_separately_from_run_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            state.gh = "gh.exe"
+            completed = subprocess.CompletedProcess([], 0, "owner/repo\n", "")
+            with patch.object(state, "_run_command", return_value=completed):
+                connection = state.check_cloud_connection(force=True)
+            self.assertEqual(connection["status"], "connected")
+            self.assertEqual(state.snapshot()["cloud_connection"]["status"], "connected")
+
+    def test_dashboard_exposes_cloud_badge_and_manual_publish_button(self) -> None:
+        html = (CONTROLLER_ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        script = (CONTROLLER_ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="cloudConnectionBadge"', html)
+        self.assertIn('id="publishButton"', html)
+        self.assertIn('post("/api/publish")', script)
+        self.assertIn("state.cloud_connection", script)
 
     def test_force_continue_refuses_to_overlap_active_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

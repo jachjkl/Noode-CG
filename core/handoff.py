@@ -448,6 +448,11 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         os.getenv("NOODE_CONTINUATION", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+    publish_only = (
+        os.getenv("NOODE_PUBLISH_ONLY", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    published_nodes = _load_published_nodes(config)
     # Only an explicitly dispatched replenishment belongs to the same cycle.
     # A scheduled/manual fresh run may reuse addresses from an older cycle.
     attempted_ips = loaded_attempted_ips if continuation else set()
@@ -460,22 +465,24 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         if attempted_path:
             attempted_path.unlink(missing_ok=True)
     sources: list[NodeResult] = []
-    if not continuation:
+    if not continuation and not publish_only:
         sources, source_warnings = collect_source_candidates(config)
         warnings.extend(source_warnings)
     source_ips = {node.ip for node in sources}
-    official, official_warnings = collect_official_batch(
-        config,
-        exclude_ips=(
-            previous_ips | source_ips | attempted_ips | prior_official_ips
-        ),
-        round_index=0,
-    )
-    warnings.extend(official_warnings)
-    official = _unique_by_ip(official)[:target]
+    official: list[NodeResult] = []
+    if not publish_only:
+        official, official_warnings = collect_official_batch(
+            config,
+            exclude_ips=(
+                previous_ips | source_ips | attempted_ips | prior_official_ips
+            ),
+            round_index=0,
+        )
+        warnings.extend(official_warnings)
+        official = _unique_by_ip(official)[:target]
     official_ips = {node.ip for node in official}
     selected = _unique_by_ip([*sources, *official])
-    status = "ok" if len(official) >= target else "degraded"
+    status = "ok" if publish_only or len(official) >= target else "degraded"
     print(
         f"云端候选生成完成: 官方唯一IP={len(official)}/{target} "
         f"链接全量IP={len(sources)} 交接合计={len(selected)}；未进行网络初筛",
@@ -493,6 +500,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         "attempted_excluded": len(attempted_ips),
         "prior_official_excluded": len(prior_official_ips),
         "continuation": continuation,
+        "publish_only": publish_only,
         "stale_attempted_ignored": (
             len(loaded_attempted_ips) if not continuation else 0
         ),
@@ -500,7 +508,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
             len(loaded_prior_official_ips) if not continuation else 0
         ),
         "source_candidates": len(sources),
-        "links_included": not continuation,
+        "links_included": not continuation and not publish_only,
         "cloud_prefilter_skipped": True,
         "official_sampled": len(official_ips),
         "tested_unique": 0,
@@ -522,6 +530,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
             report,
             state={
                 "previous_top100": [node.to_dict() for node in previous],
+                "published_nodes": [node.to_dict() for node in published_nodes],
                 "accumulated": [node.to_dict() for node in accumulated],
                 "attempted_ips": sorted(attempted_ips),
             },
@@ -529,7 +538,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     else:
         report["warnings"].append("官方候选不足 10000 个，保留上一版云端交接文件")
     atomic_write_json(health_path, report)
-    if official_path:
+    if official_path and not publish_only:
         snapshot = prior_official_ips | official_ips if continuation else official_ips
         _write_ip_set(official_path, snapshot)
     return report
@@ -541,34 +550,6 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     handoff_path = resolve_path(config, config["handoff"]["pool_path"])
     force_marker_path = handoff_path.parent / "force-rerank.json"
     stop_marker_path = handoff_path.parent / "stop-after-current.json"
-    if stop_marker_path.is_file():
-        output_options = config["output"]
-        total_target = int(output_options["top_nodes"])
-        source_rule = config["pipeline"].get("jp_source_requirement", {})
-        source_target = int(source_rule.get("count", 10))
-        report = {
-            "status": "stopped",
-            "stage": "local-self-hosted-selection",
-            "started_at": started.isoformat(),
-            "generated_at": datetime.now(UTC).isoformat(),
-            "vantage": "windows-self-hosted-local-network",
-            "counts": {
-                "general_target": total_target,
-                "final_target": total_target + source_target,
-                "final_selected": 0,
-            },
-            "warnings": ["已按本地停止请求结束本轮；保留上一版订阅且不再自动补池"],
-            "needs_more": False,
-            "stopped_by_user": True,
-            "local_rules": config.get("_local_rules", {}),
-        }
-        stop_marker_path.unlink(missing_ok=True)
-        return publish_outputs(
-            resolve_path(config, config["paths"]["output"]),
-            [],
-            report,
-            output_options,
-        )
     force_rerank = force_marker_path.is_file()
     cloud_nodes, cloud_payload = load_cloud_handoff(handoff_path)
     cloud_report = cloud_payload.get("report", {})
@@ -578,10 +559,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         else False
     )
     local_previous, warnings = _load_previous(config)
-    published_previous = _load_published_nodes(config)
     embedded_state = cloud_payload.get("state", {})
     if not isinstance(embedded_state, dict):
         embedded_state = {}
+    embedded_published = _nodes_from_payload(embedded_state.get("published_nodes"))
+    published_previous = _unique_by_ip([
+        *embedded_published,
+        *_load_published_nodes(config),
+    ])
     embedded_previous = _nodes_from_payload(embedded_state.get("previous_top100"))
     previous_limit = int(config.get("rolling", {}).get("previous_limit", 100))
     previous = _unique_by_ip([*local_previous, *embedded_previous])[:previous_limit]
@@ -590,7 +575,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     accumulator_path = resolve_path(config, accumulator_value) if accumulator_value else None
     live_value = handoff.get("live_results_path")
     live_path = resolve_path(config, live_value) if live_value else None
-    if live_path and not continuation:
+    session_live_nodes: list[NodeResult] = []
+    if live_path and live_path.is_file() and continuation:
+        session_live_nodes, _ = load_cloud_handoff(live_path)
+    elif live_path and not continuation:
         live_path.unlink(missing_ok=True)
     live_tests_value = handoff.get("live_tests_path")
     live_tests_path = resolve_path(config, live_tests_value) if live_tests_value else None
@@ -631,16 +619,37 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     # Fixed links are fetched once by the cloud at the beginning of a local
     # session. Replenishment must not download them again, so the local stage
     # only consumes the handoff and records every address it attempted.
+    accumulated_loaded_count = len(accumulated)
+    published_ips = {node.ip for node in published_previous}
+    exempt_country = str(
+        config.get("pipeline", {}).get("jp_source_requirement", {}).get("country", "JP")
+    ).upper()
+    retained_jp = _unique_by_ip([
+        node for node in [*published_previous, *accumulated]
+        if (node.country_hint or node.country).upper() == exempt_country
+    ])
+    # Every cloud-published and locally accumulated node competes again under
+    # the current ordinary-node rules before each push. JP remains in its
+    # explicitly exempt lane and is not duplicated on continuation rounds.
+    retained_retests = _unique_by_ip([
+        node for node in [*published_previous, *accumulated]
+        if (node.country_hint or node.country).upper() != exempt_country
+    ])
+    retained_retest_ips = {node.ip for node in retained_retests}
+    accumulated = retained_jp
     incoming = _unique_by_ip([
         *_fresh(cloud_nodes, "cloud-handoff"),
         *_fresh(previous, "previous-top100"),
     ])
     accumulated_ips = {node.ip for node in accumulated}
-    new_candidates = [
+    ordinary_new_candidates = [
         node for node in incoming
         if node.ip not in attempted_ips
         and node.ip not in accumulated_ips
+        and node.ip not in retained_retest_ips
     ]
+    active_retests = _fresh(retained_retests, "published-and-qualified-retest")
+    new_candidates = _unique_by_ip([*active_retests, *ordinary_new_candidates])
     combined = _unique_by_ip([*accumulated, *new_candidates])
 
     pipeline = config["pipeline"]
@@ -797,7 +806,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if not force and now - last_live_write < 0.25:
             return
         ordinary_preview = current_eligible_general()
-        preview = _unique_by_ip([*ordinary_preview, *jp_selected[:source_target]])
+        preview_by_ip = {node.ip: node for node in session_live_nodes}
+        for node in [*ordinary_preview, *jp_selected[:source_target]]:
+            preview_by_ip[node.ip] = node
+        preview = list(preview_by_ip.values())
         _write_handoff(
             live_path,
             preview,
@@ -927,32 +939,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             source_country=source_country,
         )
     ]
-    replacement_ips = {node.ip for node in current_general}
-    previous_general_candidates = [
-        node
-        for node in published_previous
-        if (node.country or node.country_hint).upper() != source_country
-        and node.ip not in replacement_ips
-        and _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
-    ]
-    previous_keep = max(0, general_target - len(current_general))
-    previous_general = _rank_with_colo_diversity(
-        previous_general_candidates,
-        count=previous_keep,
-        max_per_colo=max_per_colo,
-        latency_speed_first=True,
-    )
-    # Every newly qualified address replaces one tail address. Re-rank the
-    # resulting ordinary pool after the replacement so the cloud and dashboard
-    # always expose the same order.
-    merged_general = _rank_with_colo_diversity(
-        _unique_by_ip([*current_general, *previous_general]),
-        count=general_target,
-        max_per_colo=max_per_colo,
-        latency_speed_first=True,
-    )
+    # Only nodes that passed this round's local rule matrix may be published.
+    # Old cloud nodes were included in new_candidates and therefore compete on
+    # the same fresh TCP/TLS/TTFB/jitter/loss/speed measurements.
+    merged_general = current_general
     selected = _unique_by_ip([*merged_general, *jp_selected[:source_target]])
-    ordinary_replacements = len(current_general)
+    ordinary_replacements = sum(
+        1 for node in merged_general if node.ip not in published_ips
+    )
     ordinary_selected = len(merged_general)
     jp_selected_count = len(selected) - ordinary_selected
     attempted_ips.update(node.ip for node in new_candidates)
@@ -969,20 +963,23 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     cycle_round = previous_cycle_round + 1
     configured_rounds = int(handoff.get("max_replenishment_rounds", 3))
     max_cycle_rounds = min(3, configured_rounds) if continuous_three_rounds else 1
-    target_reached = ordinary_replacements >= general_target
-    final_allowed_round = cycle_round >= max_cycle_rounds
-    has_new_ordinary = ordinary_replacements > 0
+    target_reached = ordinary_selected >= general_target
+    has_ordinary = ordinary_selected > 0
     publish_ready = (
         jp_selected_count >= source_target
-        and has_new_ordinary
-        and (target_reached or final_allowed_round or not continuous_three_rounds)
+        and has_ordinary
     )
+    stop_after_current = stop_marker_path.is_file()
     needs_more = (
         continuous_three_rounds
         and not target_reached
         and cycle_round < max_cycle_rounds
         and jp_selected_count >= source_target
+        and not stop_after_current
+        and not bool(cloud_report.get("publish_only", False))
     )
+    if stop_after_current:
+        warnings.append("已收到停止请求：本轮照常完成并发布，本轮结束后不再自动补池")
     if not publish_ready:
         if needs_more:
             warnings.append(
@@ -1013,7 +1010,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "previous_loaded": len(previous),
             "combined_unique": len(combined),
             "new_unique_tested": len(new_candidates),
-            "accumulated_loaded": len(accumulated),
+            "accumulated_loaded": accumulated_loaded_count,
             "jp_candidates": len(jp_candidates),
             "jp_selected": len(jp_selected),
             "general_candidates": len(general_candidates),
@@ -1038,18 +1035,18 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         "speed_batches": speed_batches,
         "warnings": warnings,
         "needs_more": needs_more,
+        "stopped_after_current": stop_after_current,
         "forced_rerank": force_rerank,
         "continuous_three_rounds": continuous_three_rounds,
         "local_rules": config.get("_local_rules", {}),
     }
-    if not publish_ready:
-        if accumulator_path:
-            _write_handoff(accumulator_path, qualified_accumulator, report)
-        if attempted_path:
-            _write_ip_set(
-                attempted_path,
-                attempted_ips,
-            )
+    # Keep the current session's qualified and attempted state after every
+    # round, including successful publishes. It is cleared only when the next
+    # dashboard session starts.
+    if accumulator_path:
+        _write_handoff(accumulator_path, qualified_accumulator, report)
+    if attempted_path:
+        _write_ip_set(attempted_path, attempted_ips)
     output_dir = resolve_path(config, config["paths"]["output"])
     publish_options = dict(output_options)
     if publish_ready:
@@ -1071,10 +1068,6 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 resolve_path(config, snapshot_value),
                 selected[: int(rolling.get("previous_limit", 100))],
             )
-        if accumulator_path:
-            accumulator_path.unlink(missing_ok=True)
-        if attempted_path:
-            attempted_path.unlink(missing_ok=True)
         if force_rerank:
             force_marker_path.unlink(missing_ok=True)
     print(
