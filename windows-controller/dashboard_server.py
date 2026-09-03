@@ -25,7 +25,8 @@ from urllib.parse import parse_qs, urlsplit
 STAGE_LABELS = {
     "cloud-prepare": "云端生成 RAW10000",
     "local-select": "本地网络优选",
-    "cloud-publish": "发布订阅结果",
+    "pre-publish-test": "发布前竞赛复测",
+    "cloud-publish": "推送到 GitHub",
     "local-cleanup": "清理本地缓存",
     "replenish-cloud-pool": "自动补充候选池",
 }
@@ -81,7 +82,9 @@ class DashboardState:
         self.repository = repository
         self.branch = branch
         self.dashboard_dir = root / "dashboard"
-        self.log_path = root / "logs" / "manual-last.log"
+        self.session_stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.log_path = root / "logs" / f"run-{self.session_stamp}.log"
+        self.latest_log_path = root / "logs" / "manual-last.log"
         self.cache_dir = root / "dashboard-cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.nodes_cache = self.cache_dir / "nodes.json"
@@ -161,6 +164,7 @@ class DashboardState:
             # once. Later continuation rounds append to the same live result.
             self._clear_cycle_state()
             self.log_path.unlink(missing_ok=True)
+            self.latest_log_path.unlink(missing_ok=True)
             self.process = subprocess.Popen(
                 [
                     str(powershell),
@@ -175,6 +179,8 @@ class DashboardState:
                     self.branch,
                     "-LocalRoot",
                     str(self.root),
+                    "-LogPath",
+                    str(self.log_path),
                 ],
                 cwd=str(self.root),
                 stdout=subprocess.PIPE,
@@ -198,6 +204,45 @@ class DashboardState:
         ):
             (handoff / name).unlink(missing_ok=True)
 
+    def clear_session_state(self) -> None:
+        """Clear transient run/UI state only when the panel really closes."""
+        self._clear_cycle_state()
+        handoff = self.root / "app" / "data" / "handoff"
+        for path in (
+            self.continue_queue_path,
+            self.publish_queue_path,
+            self.stop_after_current_path,
+            handoff / "force-rerank.json",
+            handoff / "cloud-raw10000.json.gz",
+            self.root / "app" / "output" / "health.json",
+            self.health_cache,
+        ):
+            path.unlink(missing_ok=True)
+        with self.lock:
+            self.cycle_started = False
+            self.stop_requested = False
+            self.run_id = None
+            self.run_url = ""
+            self.gh_state = {}
+            self.observed_run_ids = []
+            self.exit_code = None
+            self.process_started_at = None
+            self.process_ended_at = None
+            self.dispatch_pending_until = 0.0
+            self.shutdown_at = None
+
+    def _rotate_successful_logs(self, pattern: str, *, keep: int) -> None:
+        try:
+            logs = sorted(
+                (path for path in (self.root / "logs").glob(pattern) if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            for path in logs[max(1, keep):]:
+                path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def _drain_controller(self) -> None:
         process = self.process
         if process is None:
@@ -214,7 +259,11 @@ class DashboardState:
         with self.lock:
             self.exit_code = code
             self.process_ended_at = utc_timestamp()
-            self.shutdown_at = utc_timestamp() + (300 if code == 0 else 1800)
+            # A completed workflow must not close the dashboard or release the
+            # session Start lock. Only the explicit Close button ends it.
+            self.shutdown_at = None
+        if code == 0:
+            self._rotate_successful_logs("run-*.log", keep=2)
         self.refresh_remote_outputs(force=True)
         self.refresh_github(force=True)
 
@@ -261,21 +310,53 @@ class DashboardState:
         return [int(value) for value in values if isinstance(value, int)] if isinstance(values, list) else []
 
     def stop_selection(self) -> dict[str, object]:
-        """Finish the active round, then suppress every queued/automatic round."""
+        """Stop at a safe boundary and preserve qualified nodes for publishing."""
         self.refresh_github(force=True)
         workflow_active = self._workflow_active()
         local_active = bool(self._local_selection_pids())
         round_active = workflow_active or local_active
+        jobs = self.gh_state.get("jobs", []) if isinstance(self.gh_state.get("jobs"), list) else []
+        local_job = next(
+            (job for job in jobs if isinstance(job, dict) and job.get("name") == "local-select"),
+            {},
+        )
+        publish_job = next(
+            (job for job in jobs if isinstance(job, dict) and job.get("name") == "cloud-publish"),
+            {},
+        )
+        local_started = str(local_job.get("status") or "") == "in_progress" or (
+            str(local_job.get("status") or "") == "completed"
+            and str(local_job.get("conclusion") or "") == "success"
+        )
+        publish_started = str(publish_job.get("status") or "") in {"in_progress", "completed"}
+        cloud_cancelled = False
         self.continue_queue_path.unlink(missing_ok=True)
         self.publish_queue_path.unlink(missing_ok=True)
         (self.root / "app" / "data" / "handoff" / "force-rerank.json").unlink(missing_ok=True)
         self.stop_after_current_path.parent.mkdir(parents=True, exist_ok=True)
-        if round_active:
+        if (
+            workflow_active
+            and not local_active
+            and not local_started
+            and not publish_started
+            and self.run_id is not None
+            and self.gh
+        ):
+            cancel = self._run_command([
+                self.gh,
+                "run",
+                "cancel",
+                str(self.run_id),
+                "--repo",
+                self.repository,
+            ])
+            cloud_cancelled = cancel.returncode == 0
+        if round_active and not cloud_cancelled:
             self.stop_after_current_path.write_text(
                 json.dumps(
                     {
                         "requested_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                        "mode": "finish-current-round-then-stop",
+                        "mode": "finish-current-1000-batch-retest-publish-then-stop",
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -290,16 +371,19 @@ class DashboardState:
             self.dispatch_pending_until = 0.0
             self.last_error = ""
             self.shutdown_at = None
-        if round_active:
+        if cloud_cancelled:
+            self._append_dashboard_log("已停止优选：本地测速尚未开始，云端工作流已取消。")
+        elif round_active:
             self._append_dashboard_log(
-                "已请求停止优选：当前整轮会继续完成并发布，完成后不再自动补池或执行排队任务。"
+                "已请求停止优选：当前1000-IP批次结束后停止扫描；随后完成发布前竞赛复测并推送合格结果。"
             )
         return {
             "stopped": round_active,
             "workflow_active": workflow_active,
             "local_active": local_active,
             "local_processes_terminated": [],
-            "finish_current_cloud_run": workflow_active,
+            "finish_current_cloud_run": workflow_active and not cloud_cancelled,
+            "cloud_cancelled": cloud_cancelled,
         }
 
     def check_cloud_connection(self, force: bool = False) -> dict[str, object]:
@@ -351,6 +435,8 @@ class DashboardState:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
         with self.log_path.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+        with self.latest_log_path.open("a", encoding="utf-8") as handle:
             handle.write(line)
 
     @staticmethod
@@ -937,6 +1023,41 @@ class DashboardState:
                         if isinstance(step, dict)
                     ],
                 }
+            health_data = self.health()
+            live_report, _tests, _live_source, _live_path = self.live_tests_with_meta(
+                limit=1,
+                offset=0,
+            )
+            live_stage = str(live_report.get("stage") or "")
+            publish_retest = health_data.get("publish_retest", {})
+            publish_retest_done = (
+                isinstance(publish_retest, dict)
+                and str(publish_retest.get("status") or "") == "completed"
+            )
+            if publish_retest_done or "发布前竞赛复测完成" in live_stage:
+                pretest_status, pretest_conclusion = "completed", "success"
+                pretest_detail = "发布前竞赛复测已完成，等待或正在推送"
+            elif live_stage.startswith("发布前竞赛复测"):
+                pretest_status, pretest_conclusion = "in_progress", ""
+                pretest_detail = live_stage
+            else:
+                pretest_status, pretest_conclusion = "pending", ""
+                pretest_detail = "等待本地初筛完成"
+            jobs["pre-publish-test"] = {
+                "name": "pre-publish-test",
+                "label": STAGE_LABELS["pre-publish-test"],
+                "status": pretest_status,
+                "conclusion": pretest_conclusion,
+                "startedAt": "",
+                "completedAt": "",
+                "url": "",
+                "steps": [{
+                    "name": pretest_detail,
+                    "status": pretest_status,
+                    "conclusion": pretest_conclusion,
+                    "number": 0,
+                }],
+            }
             stages = []
             for name, label in STAGE_LABELS.items():
                 stages.append(jobs.get(name, {"name": name, "label": label, "status": "pending", "conclusion": "", "steps": []}))
@@ -1000,7 +1121,13 @@ class DashboardState:
                     "current_step": current_step.get("name") if current_step else "",
                     "round": len(self.observed_run_ids),
                 },
-                "health": self.health(),
+                "health": health_data,
+                "publish_status": {
+                    "status": str(jobs.get("cloud-publish", {}).get("status") or "pending"),
+                    "conclusion": str(jobs.get("cloud-publish", {}).get("conclusion") or ""),
+                    "pretest": pretest_status,
+                    "detail": pretest_detail,
+                },
                 "log": self.read_log(),
                 "last_error": self.last_error,
                 "continuation_queued": self.continue_queue_path.is_file(),
@@ -1171,6 +1298,7 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                         "error": "当前优选或 GitHub 工作流仍在运行，请等待本轮完成后再关闭。",
                     }, HTTPStatus.CONFLICT)
                     return
+                state.clear_session_state()
                 self._json({"closing": True})
                 server = server_ref.get("server")
                 if server:

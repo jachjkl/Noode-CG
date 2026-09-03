@@ -68,9 +68,9 @@ pipeline:
   # Download only the best 400 at a time and stop as soon as 290 strict
   # non-JP addresses plus JP10 are ready.
   speed_batch_size: 400
-  # The Windows runner completes all enabled tests for 50 endpoints, releases
-  # that batch's resources, then advances to the next 50.
-  local_probe_batch_size: 50
+  # Windows local selection processes every cloud candidate.  Probe 1000
+  # endpoints at a time, then release the completed batch before continuing.
+  local_probe_batch_size: 1000
   # Keep drawing new disjoint official batches until TOP300 is complete.
   # Thirty rounds cover the available official IPv4 space; runtime and range
   # exhaustion remain the only safety stops.

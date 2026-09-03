@@ -876,14 +876,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         )
 
     # Show retained valid nodes and the JP lane immediately. Ordinary nodes are
-    # then tested end-to-end in small batches so TCP socket pressure cannot
-    # starve the following TLS/HTTPS stages on Windows.
+    # tested end-to-end in bounded batches. Every socket/probe owned by a batch
+    # is closed by its stage before the next group starts.
     write_live_preview(force=True)
     metric_kwargs: dict[str, Any] = {}
     if live_tests is not None:
         metric_kwargs["on_result"] = ordinary_metric_result
         metric_kwargs["on_stage"] = ordinary_stage
-    probe_batch_size = max(1, int(pipeline.get("local_probe_batch_size", 50)))
+    probe_batch_size = max(1, int(pipeline.get("local_probe_batch_size", 1000)))
     tcp_enabled = bool(pipeline.get("quality_tcp", {}).get("enabled", True))
     tcp_valid: list[NodeResult] = []
     metric_valid: list[NodeResult] = []
@@ -898,8 +898,11 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     }
     total_batches = (len(general_candidates) + probe_batch_size - 1) // probe_batch_size
     progress_every = max(1, total_batches // 20)
+    scan_stopped_at_batch: int | None = None
+    ordinary_probe_input_tested = 0
     for offset in range(0, len(general_candidates), probe_batch_size):
         chunk = general_candidates[offset : offset + probe_batch_size]
+        ordinary_probe_input_tested += len(chunk)
         batch_number = offset // probe_batch_size + 1
         if tcp_enabled:
             if live_tests is not None:
@@ -972,15 +975,141 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 f"metrics={len(batch_metrics)} qualified={len(current_eligible_general())}",
                 flush=True,
             )
-        # Preserve the previous non-rerank behaviour: a normal round stops as
-        # soon as the target can be published.  Manual "continue and rerank"
-        # deliberately scans the complete fresh pool to discover replacements.
-        if not force_rerank and len(current_eligible_general()) >= general_target:
+        # A stop request is cooperative: finish the current 1000-IP group so
+        # its sockets are closed and measured winners are retained, then move
+        # directly to the mandatory pre-publish competition pass. Without a
+        # stop request every cloud-pushed candidate is always tested.
+        if stop_marker_path.is_file():
+            scan_stopped_at_batch = batch_number
             break
 
     eligible_general = current_eligible_general()
+
+    # Mandatory pre-publish competition. Re-measure every ordinary IP that
+    # qualified locally together with all currently published ordinary IPs,
+    # then apply the current local rules and keep the best 300. JP is kept in
+    # its independent exempt lane and never enters these ordinary gates.
+    published_ordinary = [
+        node for node in published_previous
+        if (node.country_hint or node.country).upper() != source_country
+    ]
+    competition_candidates = _fresh(
+        _unique_by_ip([*eligible_general, *published_ordinary]),
+        "pre-publish-competition-retest",
+    )
+    competition_qualified: dict[str, NodeResult] = {}
+    competition_tcp_tested = 0
+    competition_metric_tested = 0
+    competition_speed_tested = 0
+    competition_batches = 0
+
+    def competition_tcp_result(node: NodeResult) -> None:
+        if live_tests is not None:
+            live_tests.update(
+                node,
+                "发布前竞赛复测 · TCPing",
+                "passed" if node.tcp_ok else "eliminated",
+                "" if node.tcp_ok else latest_reason(node, "TCPing 未通过"),
+            )
+
+    def competition_metric_result(node: NodeResult, stage: str, passed: bool) -> None:
+        if live_tests is not None:
+            live_tests.update(
+                node,
+                f"发布前竞赛复测 · {stage}",
+                "passed" if passed else "eliminated",
+                "" if passed else latest_reason(node, f"{stage} 未通过"),
+            )
+
+    def competition_stage(stage_records: list[NodeResult], stage: str) -> None:
+        if live_tests is not None:
+            live_tests.start_stage(stage_records, f"发布前竞赛复测 · {stage}")
+
+    def competition_speed_result(node: NodeResult) -> None:
+        if live_tests is None:
+            return
+        minimum_mbps = float(pipeline["speed"].get("minimum_mbps", 0))
+        passed = node.speed_mbps is not None and node.speed_mbps >= minimum_mbps
+        live_tests.update(
+            node,
+            "发布前竞赛复测 · 下载测速",
+            "passed" if passed else "eliminated",
+            "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
+        )
+
+    if live_tests is not None:
+        live_tests.seed(competition_candidates, "ordinary")
+    for offset in range(0, len(competition_candidates), probe_batch_size):
+        chunk = competition_candidates[offset : offset + probe_batch_size]
+        competition_batches += 1
+        if tcp_enabled:
+            if live_tests is not None:
+                live_tests.start_stage(chunk, "发布前竞赛复测 · TCPing")
+                batch_tcp = asyncio.run(scan_tcp(
+                    chunk,
+                    pipeline["quality_tcp"],
+                    on_result=competition_tcp_result,
+                ))
+            else:
+                batch_tcp = asyncio.run(scan_tcp(chunk, pipeline["quality_tcp"]))
+        else:
+            batch_tcp = list(chunk)
+        competition_tcp_tested += len(chunk)
+        competition_metric_kwargs: dict[str, Any] = {}
+        if live_tests is not None:
+            competition_metric_kwargs["on_result"] = competition_metric_result
+            competition_metric_kwargs["on_stage"] = competition_stage
+        batch_metrics, _batch_counts = _three_metric_checks(
+            batch_tcp,
+            domain=str(config["project"]["target_domain"]),
+            pipeline=pipeline,
+            user_agent=user_agent,
+            locations=locations,
+            **competition_metric_kwargs,
+        )
+        competition_metric_tested += len(batch_tcp)
+        for speed_offset in range(0, len(batch_metrics), max(1, min(speed_batch_size, probe_batch_size))):
+            speed_chunk = rank_final(
+                batch_metrics[speed_offset : speed_offset + max(1, min(speed_batch_size, probe_batch_size))],
+                count=max(1, min(speed_batch_size, probe_batch_size)),
+            )
+            if not speed_chunk:
+                continue
+            if live_tests is not None:
+                live_tests.start_stage(speed_chunk, "发布前竞赛复测 · 下载测速")
+            competition_speed_kwargs: dict[str, Any] = {}
+            if live_tests is not None:
+                competition_speed_kwargs["on_result"] = competition_speed_result
+            qualified, _counts = _speed_checks(
+                speed_chunk,
+                pipeline=pipeline,
+                user_agent=user_agent,
+                probe_paths=probe_paths,
+                **competition_speed_kwargs,
+            )
+            competition_speed_tested += len(speed_chunk)
+            for node in qualified:
+                competition_qualified[node.ip] = node
+        print(
+            f"[PUBLISH-RETEST] {competition_batches}/"
+            f"{max(1, (len(competition_candidates) + probe_batch_size - 1) // probe_batch_size)} "
+            f"input={len(chunk)} qualified={len(competition_qualified)}",
+            flush=True,
+        )
+
+    competition_eligible = [
+        node for node in competition_qualified.values()
+        if _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
+        and _final_ordinary_quality_allowed(
+            node,
+            pipeline=pipeline,
+            source_country=source_country,
+        )
+    ]
+    if live_tests is not None:
+        live_tests.start_stage([], "发布前竞赛复测完成 · 等待推送")
     current_general = _rank_with_colo_diversity(
-        eligible_general,
+        competition_eligible,
         count=general_target,
         max_per_colo=max_per_colo,
         latency_speed_first=force_rerank,
@@ -1020,12 +1149,13 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     configured_rounds = int(handoff.get("max_replenishment_rounds", 3))
     max_cycle_rounds = min(3, configured_rounds) if continuous_three_rounds else 1
     target_reached = ordinary_selected >= general_target
-    has_minimum_ordinary = ordinary_selected >= minimum_general
+    stop_after_current = stop_marker_path.is_file()
+    required_ordinary = 1 if stop_after_current else minimum_general
+    has_minimum_ordinary = ordinary_selected >= required_ordinary
     publish_ready = (
         jp_selected_count >= source_target
         and has_minimum_ordinary
     )
-    stop_after_current = stop_marker_path.is_file()
     needs_more = (
         continuous_three_rounds
         and not target_reached
@@ -1035,7 +1165,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         and not bool(cloud_report.get("publish_only", False))
     )
     if stop_after_current:
-        warnings.append("已收到停止请求：本轮照常完成并发布，本轮结束后不再自动补池")
+        warnings.append("已收到停止请求：已在当前1000-IP批次结束后停止扫描，并完成发布前竞赛复测")
     if not publish_ready:
         if needs_more:
             warnings.append(
@@ -1070,11 +1200,14 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "jp_candidates": len(jp_candidates),
             "jp_selected": len(jp_selected),
             "general_candidates": len(general_candidates),
+            "ordinary_probe_input_tested": ordinary_probe_input_tested,
             "tcp_qualified": len(tcp_valid),
             "metric_qualified": len(metric_valid),
             "speed_tested": len(speed_processed),
             "speed_qualified": len(speed_qualified),
             "ordinary_current_rules_qualified": len(eligible_general),
+            "prepublish_competition_input": len(competition_candidates),
+            "prepublish_competition_qualified": len(competition_eligible),
             "qualified_accumulated": len(qualified_accumulator),
             "fixed_source_ips_retained": 0,
             "general_target": general_target,
@@ -1088,10 +1221,21 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         },
         "jp_measurements": jp_counts,
         "metric_measurements": metric_counts,
+        "publish_retest": {
+            "status": "completed",
+            "input": len(competition_candidates),
+            "tcp_tested": competition_tcp_tested,
+            "metric_tested": competition_metric_tested,
+            "speed_tested": competition_speed_tested,
+            "qualified": len(competition_eligible),
+            "selected": len(merged_general),
+            "batches": competition_batches,
+        },
         "speed_batches": speed_batches,
         "warnings": warnings,
         "needs_more": needs_more,
         "stopped_after_current": stop_after_current,
+        "scan_stopped_at_batch": scan_stopped_at_batch,
         "forced_rerank": force_rerank,
         "continuous_three_rounds": continuous_three_rounds,
         "local_rules": config.get("_local_rules", {}),

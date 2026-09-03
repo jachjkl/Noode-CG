@@ -1,19 +1,39 @@
 ﻿param(
     [string]$Repository = "jachjkl/Noode-CG",
     [string]$Branch = "main",
-    [string]$LocalRoot = "D:\桌面\软件\Noode-CG-Local"
+    [string]$LocalRoot = "D:\桌面\软件\Noode-CG-Local",
+    [string]$LogPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 $logDirectory = Join-Path $LocalRoot "logs"
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
-$log = Join-Path $logDirectory "manual-last.log"
+$latestLog = Join-Path $logDirectory "manual-last.log"
+$log = if ($LogPath) { [IO.Path]::GetFullPath($LogPath) } else {
+    Join-Path $logDirectory ("run-{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+}
 $notifier = Join-Path $LocalRoot "notify-user.ps1"
 $workflow = "update.yml"
 
 try { $Host.UI.RawUI.WindowTitle = "Noode-CG 手动优选 - 可在任务管理器结束" } catch { }
 
 Set-Content -LiteralPath $log -Value "" -Encoding UTF8
+
+function Sync-LatestLog {
+    if ([IO.Path]::GetFullPath($log) -ne [IO.Path]::GetFullPath($latestLog)) {
+        Copy-Item -LiteralPath $log -Destination $latestLog -Force
+    }
+}
+
+function Invoke-GhLogged {
+    param([string[]]$Arguments)
+    & $script:gh.Source @Arguments 2>&1 | ForEach-Object {
+        $text = [string]$_
+        Write-Host $text
+        Add-Content -LiteralPath $log -Value $text -Encoding UTF8
+    }
+    return $LASTEXITCODE
+}
 
 function Write-Status {
     param([string]$Message, [ConsoleColor]$Color = [ConsoleColor]::Gray)
@@ -32,8 +52,12 @@ function Notify {
 
 function Get-Runs {
     $output = & $script:gh.Source run list --repo $Repository --workflow $workflow --limit 20 `
-        --json databaseId,status,conclusion,url,createdAt,event 2>> $log
-    if ($LASTEXITCODE -ne 0) { throw "无法读取 GitHub Actions 运行列表。" }
+        --json databaseId,status,conclusion,url,createdAt,event 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        @($output) | ForEach-Object { Add-Content -LiteralPath $log -Value ([string]$_) -Encoding UTF8 }
+        throw "无法读取 GitHub Actions 运行列表。"
+    }
     if (-not $output) { return @() }
     $parsed = (($output | Out-String) | ConvertFrom-Json)
     foreach ($run in @($parsed)) {
@@ -64,9 +88,11 @@ try {
         $knownIds = @($runs | ForEach-Object { [long]$_.databaseId })
         Notify -Title "Noode-CG" -Message "正在请求云端生成10000个官方候选和首次全量链接。"
         Write-Status "正在触发 GitHub Actions 云端 RAW10000 工作流……" Yellow
-        & $script:gh.Source workflow run $workflow --repo $Repository --ref $Branch `
-            -f continuation=false 2>&1 | Tee-Object -FilePath $log -Append
-        if ($LASTEXITCODE -ne 0) { throw "云端工作流触发失败。" }
+        $triggerCode = Invoke-GhLogged @(
+            "workflow", "run", $workflow, "--repo", $Repository, "--ref", $Branch,
+            "-f", "continuation=false"
+        )
+        if ($triggerCode -ne 0) { throw "云端工作流触发失败。" }
 
         $deadline = (Get-Date).AddSeconds(60)
         $newRun = $null
@@ -95,12 +121,10 @@ try {
     else {
         Write-Status "当前 GitHub CLI 不支持 compact，已自动使用兼容显示模式。" Yellow
     }
-    & $script:gh.Source @watchArguments 2>&1 |
-        Tee-Object -FilePath $log -Append
-    if ($LASTEXITCODE -ne 0) {
+    $watchCode = Invoke-GhLogged $watchArguments
+    if ($watchCode -ne 0) {
         Write-Status "任务失败，正在下载详细日志……" Red
-        & $script:gh.Source run view $runId --repo $Repository --log-failed 2>&1 |
-            Tee-Object -FilePath $log -Append
+        [void](Invoke-GhLogged @("run", "view", [string]$runId, "--repo", $Repository, "--log-failed"))
         throw "GitHub Actions 运行失败，请查看上方错误或日志 $log"
     }
 
@@ -108,6 +132,7 @@ try {
     Write-Status "是否连续补足由本地面板复选框控制；开启时最多连续3轮。" Yellow
     Notify -Title "Noode-CG" -Message "本轮云端和本地任务已成功完成。"
     Write-Status "窗口将在5秒后自动关闭。" DarkGray
+    Sync-LatestLog
     Start-Sleep -Seconds 5
     exit 0
 }
@@ -117,5 +142,6 @@ catch {
     $_ | Out-String | Add-Content -LiteralPath $log -Encoding UTF8
     Notify -Title "Noode-CG 启动失败" -Message $message -Level "Error"
     Write-Status "错误窗口会保留；按任意键后关闭。" Yellow
+    Sync-LatestLog
     exit 1
 }

@@ -15,7 +15,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["sources"]["cloudflare_ranges"]["official_batch_size"], 10000)
         self.assertEqual(config["pipeline"]["prefilter_shortlist"], 10000)
         self.assertEqual(config["pipeline"]["speed_batch_size"], 400)
-        self.assertEqual(config["pipeline"]["local_probe_batch_size"], 50)
+        self.assertEqual(config["pipeline"]["local_probe_batch_size"], 1000)
         self.assertTrue(config["pipeline"]["quality_tcp"]["enabled"])
         self.assertFalse(config["pipeline"]["tls"]["enabled"])
         self.assertFalse(config["pipeline"]["http"]["enabled"])

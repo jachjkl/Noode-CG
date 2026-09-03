@@ -845,7 +845,7 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertEqual(report["counts"]["accumulated_loaded"], 2)
             self.assertEqual(scanned, {old_us.ip, new_us.ip, previous.ip})
 
-    def test_normal_local_pass_stops_after_target_batch(self) -> None:
+    def test_normal_local_pass_tests_every_candidate_then_retests_before_publish(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "locations.json").write_text("{}", encoding="utf-8")
@@ -894,10 +894,70 @@ class HandoffPipelineTests(unittest.TestCase):
             ):
                 report = run_local_selection(config)
 
-            self.assertEqual(len(scanned), 100)
+            # Every candidate is tested in the initial pass and then all 120
+            # qualified candidates compete again immediately before publish.
+            self.assertEqual(len(scanned), 240)
+            self.assertEqual(set(scanned), {node.ip for node in candidates})
             self.assertEqual(report["metric_measurements"]["probe_batch_size"], 50)
-            self.assertEqual(report["metric_measurements"]["probe_batches"], 2)
+            self.assertEqual(report["metric_measurements"]["probe_batches"], 3)
+            self.assertEqual(report["publish_retest"]["batches"], 3)
+            self.assertEqual(report["counts"]["ordinary_probe_input_tested"], 120)
             self.assertEqual(report["counts"]["ordinary_selected"], 60)
+
+    def test_stop_marker_finishes_current_batch_then_retests_and_publishes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "locations.json").write_text("{}", encoding="utf-8")
+            candidates = [
+                NodeResult(ip=f"198.51.100.{index}", country_hint="US")
+                for index in range(1, 121)
+            ]
+            handoff_dir = root / "data" / "handoff"
+            handoff_dir.mkdir(parents=True)
+            (handoff_dir / "cloud-raw10000.json.gz").write_bytes(gzip.compress(json.dumps({
+                "schema": 1,
+                "report": {"continuation": False},
+                "nodes": [node.to_dict() for node in candidates],
+            }).encode(), mtime=0))
+            (handoff_dir / "stop-after-current.json").write_text("{}", encoding="utf-8")
+            config = self._local_config(root, target=60, jp_count=0)
+            config["pipeline"]["local_probe_batch_size"] = 50
+            config["pipeline"]["speed_batch_size"] = 50
+            scanned: list[str] = []
+
+            async def scan(records, _options):
+                scanned.extend(node.ip for node in records)
+                return [qualified(node) for node in records]
+
+            with (
+                patch("core.handoff.load_previous_top", return_value=([], [])),
+                patch("core.handoff.scan_tcp", new=AsyncMock(side_effect=scan)),
+                patch(
+                    "core.handoff._three_metric_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"foreign_combined_latency_qualified": len(records)},
+                    ),
+                ),
+                patch(
+                    "core.handoff._speed_checks",
+                    side_effect=lambda records, **_kwargs: (
+                        [qualified(node) for node in records],
+                        {"speed_at_least_minimum": len(records)},
+                    ),
+                ),
+                patch("core.handoff._source_country_tcp_speed_checks", return_value=([], {})),
+                patch("core.handoff.load_locations", return_value={}),
+            ):
+                report = run_local_selection(config)
+
+            self.assertTrue(report["published"])
+            self.assertEqual(report["scan_stopped_at_batch"], 1)
+            self.assertEqual(report["counts"]["ordinary_probe_input_tested"], 50)
+            self.assertEqual(report["publish_retest"]["input"], 50)
+            self.assertEqual(len(scanned), 100)
+            self.assertEqual(report["counts"]["ordinary_selected"], 50)
+            self.assertFalse(report["needs_more"])
 
     @staticmethod
     def _local_config(root: Path, *, target: int, jp_count: int) -> dict:

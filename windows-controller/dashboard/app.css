@@ -224,7 +224,7 @@ h2 { font-size: 19px; font-weight: 680; letter-spacing: -.01em; }
 
 .stage-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 9px;
 }
 

@@ -91,9 +91,8 @@ switch ($Mode) {
         }
         Get-ChildItem -LiteralPath $repo -Directory -Filter "__pycache__" -Recurse -ErrorAction SilentlyContinue |
             ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
-        $logDirectory = Join-Path $LocalRoot "logs"
-        if (Test-Path -LiteralPath $logDirectory) {
-            Remove-Item -LiteralPath $logDirectory -Recurse -Force
-        }
+        # Session logs are owned by the dashboard launcher/controller and are
+        # retained with timestamped names. Runtime cleanup must never erase
+        # diagnostic evidence from the just-completed selection.
     }
 }

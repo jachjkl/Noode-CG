@@ -85,6 +85,11 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn('id="liveTestNext"', html)
         self.assertIn("本地实时测速与自动淘汰", html)
         self.assertIn('fetch(`/api/live-tests?', script)
+        self.assertIn('<option value="200" selected>200</option>', html)
+        self.assertIn('<option value="600">600</option>', html)
+        self.assertIn('<option value="1000">1000</option>', html)
+        self.assertNotIn('<option value="100">100</option>', html)
+        self.assertNotIn('<option value="500">500</option>', html)
 
     def test_published_results_do_not_get_replaced_by_unpublished_accumulator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -284,6 +289,56 @@ class DashboardServerTests(unittest.TestCase):
             self.assertFalse(state.continue_queue_path.exists())
             self.assertFalse(force.exists())
             command.assert_not_called()
+            marker = json.loads(state.stop_after_current_path.read_text(encoding="utf-8"))
+            self.assertIn("1000-batch", marker["mode"])
+
+    def test_stop_selection_cancels_cloud_before_local_testing_starts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            state.gh = "gh.exe"
+            state.run_id = 123
+            state.gh_state = {
+                "status": "in_progress",
+                "jobs": [{"name": "cloud-prepare", "status": "in_progress"}],
+            }
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with (
+                patch.object(state, "refresh_github"),
+                patch.object(state, "_local_selection_pids", return_value=[]),
+                patch.object(state, "_run_command", return_value=completed) as command,
+            ):
+                result = state.stop_selection()
+            self.assertTrue(result["cloud_cancelled"])
+            self.assertFalse(state.stop_after_current_path.exists())
+            self.assertIn("cancel", command.call_args.args[0])
+
+    def test_close_session_clears_transient_state_but_keeps_published_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = DashboardState(root, "owner/repo", "main")
+            handoff = root / "app" / "data" / "handoff"
+            output = root / "app" / "output"
+            handoff.mkdir(parents=True, exist_ok=True)
+            output.mkdir(parents=True, exist_ok=True)
+            for path in (
+                state.live_tests_path,
+                handoff / "local-live-results.json.gz",
+                handoff / "cloud-raw10000.json.gz",
+                output / "health.json",
+            ):
+                path.write_bytes(b"state")
+            state.nodes_cache.write_text("[]", encoding="utf-8")
+            state.cycle_started = True
+            state.run_id = 999
+
+            state.clear_session_state()
+
+            self.assertFalse(state.cycle_started)
+            self.assertIsNone(state.run_id)
+            self.assertFalse(state.live_tests_path.exists())
+            self.assertFalse((handoff / "cloud-raw10000.json.gz").exists())
+            self.assertFalse((output / "health.json").exists())
+            self.assertTrue(state.nodes_cache.exists())
 
     def test_force_continue_saves_current_nodes_and_dispatches_continuation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

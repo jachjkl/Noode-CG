@@ -142,7 +142,10 @@ function renderStages(stages) {
     const klass = statusClass(stage.status, stage.conclusion);
     const currentStep = (stage.steps || []).find((step) => step.status === "in_progress");
     const completed = (stage.steps || []).filter((step) => step.status === "completed").length;
-    const detail = currentStep?.name || ((stage.steps || []).length ? `${completed}/${stage.steps.length} 个步骤` : "等待工作流数据");
+    const firstStep = (stage.steps || [])[0];
+    const detail = currentStep?.name
+      || (stage.name === "pre-publish-test" && firstStep?.name)
+      || ((stage.steps || []).length ? `${completed}/${stage.steps.length} 个步骤` : "等待工作流数据");
     const cardClass = stage.status === "in_progress" ? "active" : stage.conclusion === "success" ? "done" : "";
     return `
       <article class="stage-card ${cardClass}">
@@ -694,9 +697,11 @@ elements.stopButton.addEventListener("click", async () => {
     elements.stopButton.disabled = true;
     elements.stopButton.textContent = "正在登记";
     const result = await post("/api/stop-selection");
-    showToast(result.stopped
-      ? "已登记：当前整轮完成并发布后停止，不再自动补充"
-      : "当前没有运行中的优选任务");
+    showToast(result.cloud_cancelled
+      ? "本地测速尚未开始，云端工作流已取消"
+      : result.stopped
+        ? "已登记：完成当前1000-IP批次后，进行发布前竞赛复测并推送"
+        : "当前没有运行中的优选任务");
     await fetchState();
   } catch (error) {
     elements.stopButton.disabled = false;

@@ -140,6 +140,8 @@ class WindowsLocalControlTests(unittest.TestCase):
         self.assertIn("NOODE_PUBLISH_ONLY", workflow)
         self.assertIn("stop_requested:", workflow)
         self.assertIn("needs.local-cleanup.outputs.stop_requested != 'true'", workflow)
+        runtime = (ROOT / "scripts" / "local-runtime.ps1").read_text(encoding="utf-8-sig")
+        self.assertNotIn('Remove-Item -LiteralPath $logDirectory -Recurse -Force', runtime)
 
     def test_dashboard_launcher_is_visible_and_manual_start_triggers_cloud_workflow(self) -> None:
         manual_path = ROOT / "windows-controller" / "manual-start.ps1"
@@ -153,7 +155,9 @@ class WindowsLocalControlTests(unittest.TestCase):
         launcher = (ROOT / "windows-controller" / "开始云端和本地优选.cmd").read_text(
             encoding="utf-8-sig"
         )
-        self.assertIn("workflow run $workflow", manual)
+        self.assertIn('"workflow", "run", $workflow', manual)
+        self.assertNotIn("Tee-Object", manual)
+        self.assertIn('"run-{0}.log"', manual)
         self.assertIn("jachjkl/Noode-CG", manual)
         self.assertIn('$watchArguments = @("run", "watch"', manual)
         self.assertIn("foreach ($run in @($parsed))", manual)

@@ -8,19 +8,29 @@ param(
 $ErrorActionPreference = "Stop"
 $resolvedRoot = [IO.Path]::GetFullPath($Root)
 $logDirectory = Join-Path $resolvedRoot "logs"
-$logPath = Join-Path $logDirectory "dashboard-launch.log"
+$latestLogPath = Join-Path $logDirectory "dashboard-launch.log"
+$logPath = Join-Path $logDirectory ("dashboard-{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
 $python = Join-Path $resolvedRoot "runtime\python\python.exe"
 $dashboard = Join-Path $resolvedRoot "dashboard_server.py"
 $url = "http://127.0.0.1:$Port/"
 $stateUrl = "${url}api/state"
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+Set-Content -LiteralPath $latestLogPath -Value "" -Encoding UTF8
 
 function Write-LaunchLog {
     param([string]$Message)
     $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
     Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+    Add-Content -LiteralPath $latestLogPath -Value $line -Encoding UTF8
     Write-Host $line
+}
+
+function Remove-OldSuccessfulLogs {
+    Get-ChildItem -LiteralPath $logDirectory -Filter "dashboard-*.log" -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -Skip 2 |
+        Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 try {
@@ -39,6 +49,7 @@ try {
             if (-not $NoBrowser) {
                 Start-Process -FilePath $url | Out-Null
             }
+            Remove-OldSuccessfulLogs
             exit 0
         }
     }
@@ -61,6 +72,7 @@ try {
     & $python @serverArguments
     $exitCode = $LASTEXITCODE
     Write-LaunchLog "Dashboard server exited with code $exitCode."
+    if ($exitCode -eq 0) { Remove-OldSuccessfulLogs }
     exit $exitCode
 }
 catch {
