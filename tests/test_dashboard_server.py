@@ -290,7 +290,7 @@ class DashboardServerTests(unittest.TestCase):
             self.assertFalse(force.exists())
             command.assert_not_called()
             marker = json.loads(state.stop_after_current_path.read_text(encoding="utf-8"))
-            self.assertIn("1000-batch", marker["mode"])
+            self.assertIn("100-batch", marker["mode"])
 
     def test_stop_selection_cancels_cloud_before_local_testing_starts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -399,6 +399,14 @@ class DashboardServerTests(unittest.TestCase):
             self.assertFalse(state.publish_queue_path.exists())
             args = command.call_args.args[0]
             self.assertIn("publish_only=true", args)
+            marker = json.loads((
+                root / "app" / "data" / "handoff" / "force-rerank.json"
+            ).read_text(encoding="utf-8"))
+            self.assertEqual(
+                marker["mode"],
+                "manual-publish-merge-cloud-dedupe-retest-top300",
+            )
+            self.assertEqual(state.cloud_round_count, 0)
 
     def test_cloud_connection_is_reported_separately_from_run_status(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -417,6 +425,11 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn('id="publishButton"', html)
         self.assertIn('post("/api/publish")', script)
         self.assertIn("state.cloud_connection", script)
+        self.assertIn('id="ruleLatencyMax"', html)
+        self.assertNotIn('id="ruleTcp"', html)
+        self.assertNotIn('id="ruleTls"', html)
+        self.assertNotIn('id="ruleHttp"', html)
+        self.assertNotIn('id="continuousRounds"', html)
 
     def test_force_continue_refuses_to_overlap_active_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -445,13 +458,13 @@ class DashboardServerTests(unittest.TestCase):
             request = json.loads(state.continue_queue_path.read_text(encoding="utf-8"))
             self.assertEqual(request["mode"], "always-fetch-new-raw10000-and-rerank")
 
-    def test_continuous_three_round_option_is_persisted(self) -> None:
+    def test_continuous_three_round_option_is_permanently_disabled(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             state = DashboardState(Path(temporary), "owner/repo", "main")
-            self.assertTrue(state.local_options()["continuous_three_rounds"])
+            self.assertFalse(state.local_options()["continuous_three_rounds"])
 
             saved = state.save_local_options({
-                "selection": {"continuous_three_rounds": False}
+                "selection": {"continuous_three_rounds": True}
             })
 
             self.assertFalse(saved["continuous_three_rounds"])
@@ -502,10 +515,7 @@ class DashboardServerTests(unittest.TestCase):
             rules = state.save_local_rules({
                 "ordinary": {
                     "latency_probe": "tls",
-                    "tcp_max_ms": 220,
-                    "tls_max_ms": 240,
-                    "http_ttfb_max_ms": 260,
-                    "average_max_ms": 230,
+                    "latency_max_ms": 240,
                     "jitter_max_ms": 80,
                     "loss_max_percent": 15,
                     "speed_min_mbps": 6,
@@ -517,6 +527,7 @@ class DashboardServerTests(unittest.TestCase):
             self.assertFalse(state.local_rules()["tcp_enabled"])
             self.assertTrue(state.local_rules()["tls_enabled"])
             self.assertEqual(state.local_rules()["latency_probe"], "tls")
+            self.assertEqual(state.local_rules()["latency_max_ms"], 240)
             document = json.loads(state.rules_path.read_text(encoding="utf-8"))
             self.assertTrue(document["jp_exempt"])
 

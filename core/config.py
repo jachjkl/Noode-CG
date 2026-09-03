@@ -21,6 +21,7 @@ LOCAL_RULE_DEFAULTS: dict[str, float | bool | str] = {
     "tcp_enabled": True,
     "tls_enabled": False,
     "http_enabled": False,
+    "latency_max_ms": 200.0,
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
     "http_ttfb_max_ms": 200.0,
@@ -31,7 +32,7 @@ LOCAL_RULE_DEFAULTS: dict[str, float | bool | str] = {
 }
 
 LOCAL_OPTION_DEFAULTS: dict[str, bool] = {
-    "continuous_three_rounds": True,
+    "continuous_three_rounds": False,
 }
 
 
@@ -89,8 +90,22 @@ def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool | str],
     rules["tcp_enabled"] = selected_probe == "tcp"
     rules["tls_enabled"] = selected_probe == "tls"
     rules["http_enabled"] = selected_probe == "https"
+    legacy_limit_key = {
+        "tcp": "tcp_max_ms",
+        "tls": "tls_max_ms",
+        "https": "http_ttfb_max_ms",
+    }[selected_probe]
+    raw_latency_limit = values.get(
+        "latency_max_ms",
+        values.get(legacy_limit_key, LOCAL_RULE_DEFAULTS["latency_max_ms"]),
+    )
+    if not isinstance(raw_latency_limit, (int, float)) or isinstance(raw_latency_limit, bool):
+        raise ConfigError("本地自定义规则 latency_max_ms 必须是数字")
+    rules["latency_max_ms"] = float(raw_latency_limit)
+    if not math.isfinite(rules["latency_max_ms"]):
+        raise ConfigError("本地自定义规则 latency_max_ms 必须是有限数字")
     for name, default in LOCAL_RULE_DEFAULTS.items():
-        if name == "latency_probe" or name.endswith("_enabled"):
+        if name in {"latency_probe", "latency_max_ms"} or name.endswith("_enabled"):
             continue
         raw = values.get(name, default)
         if not isinstance(raw, (int, float)) or isinstance(raw, bool):
@@ -98,7 +113,7 @@ def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool | str],
         rules[name] = float(raw)
         if not math.isfinite(rules[name]):
             raise ConfigError(f"本地自定义规则 {name} 必须是有限数字")
-    for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
+    for name in ("latency_max_ms", "tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
         if rules[name] <= 0:
             raise ConfigError(f"本地自定义规则 {name} 必须大于 0")
     if rules["jitter_max_ms"] < 0:
@@ -121,23 +136,29 @@ def _apply_local_rules(data: dict[str, Any], config_path: Path) -> None:
     speed = pipeline.get("speed")
     if not all(isinstance(block, dict) for block in (quality_tcp, tls, http, speed)):
         return
-    quality_tcp["maximum_average_latency_ms"] = rules["tcp_max_ms"]
+    latency_limit = rules["latency_max_ms"]
+    quality_tcp["maximum_average_latency_ms"] = latency_limit
     quality_tcp["maximum_jitter_ms"] = rules["jitter_max_ms"]
     quality_tcp["maximum_loss_rate"] = rules["loss_max_percent"] / 100.0
-    tls["maximum_average_latency_ms"] = rules["tls_max_ms"]
+    tls["maximum_average_latency_ms"] = latency_limit
     tls["maximum_jitter_ms"] = rules["jitter_max_ms"]
-    http["maximum_average_ttfb_ms"] = rules["http_ttfb_max_ms"]
+    http["maximum_average_ttfb_ms"] = latency_limit
     http["maximum_jitter_ms"] = rules["jitter_max_ms"]
-    pipeline["maximum_combined_latency_ms"] = rules["average_max_ms"]
-    pipeline["maximum_component_latency_ms"] = max(
-        rules["tcp_max_ms"], rules["tls_max_ms"], rules["http_ttfb_max_ms"]
-    )
+    pipeline["maximum_combined_latency_ms"] = latency_limit
+    pipeline["maximum_component_latency_ms"] = latency_limit
     pipeline["maximum_jitter_ms"] = rules["jitter_max_ms"]
     pipeline["maximum_loss_rate"] = rules["loss_max_percent"] / 100.0
     speed["minimum_mbps"] = rules["speed_min_mbps"]
     quality_tcp["enabled"] = bool(rules["tcp_enabled"])
     tls["enabled"] = bool(rules["tls_enabled"])
     http["enabled"] = bool(rules["http_enabled"])
+    # Whichever latency probe is selected must complete exactly three
+    # measurements; filtering and ranking use the arithmetic mean.
+    for block in (quality_tcp, tls, http):
+        block["attempts"] = 3
+        block["stop_on_failure"] = False
+        block["stop_when_average_impossible"] = False
+    quality_tcp["stop_when_loss_impossible"] = False
     data["_local_rules"] = rules
     data["_local_rules_path"] = str(rules_path)
 
@@ -162,7 +183,9 @@ def _apply_local_options(data: dict[str, Any], config_path: Path) -> None:
             raw = values.get(name, default)
             if not isinstance(raw, bool):
                 raise ConfigError(f"本地运行选项 {name} 必须是布尔值")
-            options[name] = raw
+            # Automatic three-round chaining was removed because it could
+            # overlap large local probe batches. Continue is now explicit.
+            options[name] = False
     data["_local_options"] = options
     data["_local_options_path"] = str(options_path)
 
@@ -278,7 +301,7 @@ def validate_config(config: dict[str, Any]) -> None:
         pipeline["http"].get("maximum_average_ttfb_ms"),
         "pipeline.http.maximum_average_ttfb_ms",
     )
-    expected_attempts = {"prefilter_tcp": 3, "quality_tcp": 5, "tls": 3, "http": 3}
+    expected_attempts = {"prefilter_tcp": 3, "quality_tcp": 3, "tls": 3, "http": 3}
     for stage, attempts in expected_attempts.items():
         if int(pipeline[stage].get("attempts", 0)) != attempts:
             raise ConfigError(f"pipeline.{stage}.attempts 必须等于 {attempts}")

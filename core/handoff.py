@@ -346,6 +346,30 @@ class LiveTestRecorder:
                 except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
                     pass
 
+    def synchronize_results(
+        self,
+        nodes: Iterable[NodeResult],
+        *,
+        exempt_country: str,
+    ) -> None:
+        """Make pass counters match the live qualified-results panel."""
+        selected = {node.key: node for node in nodes}
+        exempt = exempt_country.upper()
+        with self.lock:
+            for key, node in selected.items():
+                country = str(node.country or node.country_hint or "").upper()
+                lane = "jp" if country == exempt else "ordinary"
+                record = self.records.get(key) or self._snapshot(node, lane)
+                record.update(self._snapshot(node, lane))
+                record.update({
+                    "status": "retained" if lane == "jp" else "passed",
+                    "stage": "日本节点豁免保留" if lane == "jp" else "本轮实时优选合格",
+                    "reason": "JP 豁免普通节点门槛" if lane == "jp" else "",
+                    "updated_at": datetime.now(UTC).isoformat(),
+                })
+                self.records[key] = record
+            self._write_locked(force=True)
+
 
 def _load_ip_set(path: Path) -> set[str]:
     if not path.is_file():
@@ -453,10 +477,11 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         in {"1", "true", "yes", "on"}
     )
     published_nodes = _load_published_nodes(config)
-    # Only an explicitly dispatched replenishment belongs to the same cycle.
-    # A scheduled/manual fresh run may reuse addresses from an older cycle.
+    # Attempted addresses are session-local, while the official snapshot is
+    # deliberately carried across dashboard sessions so the next software
+    # launch receives a different official batch.
     attempted_ips = loaded_attempted_ips if continuation else set()
-    prior_official_ips = loaded_prior_official_ips if continuation else set()
+    prior_official_ips = loaded_prior_official_ips
     if not continuation:
         # A manual Start begins a genuinely new dashboard session. Do not let
         # unfinished state committed by an older run leak into its live panel.
@@ -504,9 +529,7 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
         "stale_attempted_ignored": (
             len(loaded_attempted_ips) if not continuation else 0
         ),
-        "stale_official_ignored": (
-            len(loaded_prior_official_ips) if not continuation else 0
-        ),
+        "stale_official_ignored": 0,
         "source_candidates": len(sources),
         "links_included": not continuation and not publish_only,
         "cloud_prefilter_skipped": True,
@@ -656,12 +679,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     output_options = config["output"]
     total_target = int(output_options["top_nodes"])
     minimum_general = min(total_target, int(output_options.get("minimum_publish", 1)))
-    local_options = config.get("_local_options", {})
-    continuous_three_rounds = bool(
-        local_options.get("continuous_three_rounds", True)
-        if isinstance(local_options, dict)
-        else True
-    )
+    # Automatic multi-round chaining was removed. A new cloud batch is only
+    # requested by the explicit Continue button, which avoids overlapping
+    # high-cost local probes and keeps each round inspectable.
+    continuous_three_rounds = False
     source_rule = pipeline.get("jp_source_requirement", {})
     source_country = str(source_rule.get("country", "JP")).upper()
     source_target = int(source_rule.get("count", 10))
@@ -698,7 +719,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         live_tests.update(
             node,
             "TCPing",
-            "passed" if node.tcp_latency_ms is not None else "retained",
+            "retained",
             "" if node.tcp_latency_ms is not None else latest_reason(node, "TCPing 未测得延迟；JP 继续参与排名"),
         )
 
@@ -706,7 +727,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if live_tests is None:
             return
         if node.speed_mbps is not None:
-            live_tests.update(node, "下载测速", "passed", "JP 豁免普通节点规则")
+            live_tests.update(node, "下载测速", "retained", "JP 豁免普通节点规则")
         else:
             live_tests.update(
                 node,
@@ -799,13 +820,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
 
     last_live_write = 0.0
 
-    def write_live_preview(force: bool = False) -> None:
-        nonlocal last_live_write
-        if not live_path:
-            return
-        now = time.monotonic()
-        if not force and now - last_live_write < 0.25:
-            return
+    def current_live_preview() -> list[NodeResult]:
         ordinary_preview = _rank_with_colo_diversity(
             current_eligible_general(),
             count=general_target,
@@ -815,7 +830,21 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         preview_by_ip = {node.ip: node for node in session_live_nodes}
         for node in [*ordinary_preview, *jp_selected[:source_target]]:
             preview_by_ip[node.ip] = node
-        preview = list(preview_by_ip.values())
+        return list(preview_by_ip.values())
+
+    def write_live_preview(force: bool = False) -> None:
+        nonlocal last_live_write
+        if not live_path:
+            return
+        now = time.monotonic()
+        if not force and now - last_live_write < 0.25:
+            return
+        preview = current_live_preview()
+        ordinary_count = sum(
+            (node.country_hint or node.country).upper() != source_country
+            for node in preview
+        )
+        jp_count = len(preview) - ordinary_count
         _write_handoff(
             live_path,
             preview,
@@ -825,10 +854,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 "live_preview": True,
                 "generated_at": datetime.now(UTC).isoformat(),
                 "counts": {
-                    "ordinary_qualified": len(ordinary_preview),
+                    "ordinary_qualified": ordinary_count,
                     "ordinary_minimum": minimum_general,
                     "ordinary_maximum": general_target,
-                    "jp_selected": len(jp_selected[:source_target]),
+                    "jp_selected": jp_count,
                 },
                 "local_rules": config.get("_local_rules", {}),
             },
@@ -845,7 +874,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         live_tests.update(
             node,
             "TCPing",
-            "passed" if node.tcp_ok else "eliminated",
+            "testing" if node.tcp_ok else "eliminated",
             "" if node.tcp_ok else latest_reason(node, "TCPing 未通过"),
         )
 
@@ -855,7 +884,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         live_tests.update(
             node,
             stage,
-            "passed" if passed else "eliminated",
+            "testing" if passed else "eliminated",
             "" if passed else latest_reason(node, f"{stage} 未通过"),
         )
 
@@ -883,7 +912,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     if live_tests is not None:
         metric_kwargs["on_result"] = ordinary_metric_result
         metric_kwargs["on_stage"] = ordinary_stage
-    probe_batch_size = max(1, int(pipeline.get("local_probe_batch_size", 1000)))
+    probe_batch_size = max(1, int(pipeline.get("local_probe_batch_size", 100)))
     tcp_enabled = bool(pipeline.get("quality_tcp", {}).get("enabled", True))
     tcp_valid: list[NodeResult] = []
     metric_valid: list[NodeResult] = []
@@ -975,7 +1004,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 f"metrics={len(batch_metrics)} qualified={len(current_eligible_general())}",
                 flush=True,
             )
-        # A stop request is cooperative: finish the current 1000-IP group so
+        # A stop request is cooperative: finish the current 100-IP group so
         # its sockets are closed and measured winners are retained, then move
         # directly to the mandatory pre-publish competition pass. Without a
         # stop request every cloud-pushed candidate is always tested.
@@ -1008,7 +1037,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             live_tests.update(
                 node,
                 "发布前竞赛复测 · TCPing",
-                "passed" if node.tcp_ok else "eliminated",
+                "testing" if node.tcp_ok else "eliminated",
                 "" if node.tcp_ok else latest_reason(node, "TCPing 未通过"),
             )
 
@@ -1017,7 +1046,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             live_tests.update(
                 node,
                 f"发布前竞赛复测 · {stage}",
-                "passed" if passed else "eliminated",
+                "testing" if passed else "eliminated",
                 "" if passed else latest_reason(node, f"{stage} 未通过"),
             )
 
@@ -1033,7 +1062,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         live_tests.update(
             node,
             "发布前竞赛复测 · 下载测速",
-            "passed" if passed else "eliminated",
+            "testing" if passed else "eliminated",
             "" if passed else latest_reason(node, f"下载速度低于 {minimum_mbps:g} Mbps"),
         )
 
@@ -1108,8 +1137,28 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     ]
     if live_tests is not None:
         live_tests.start_stage([], "发布前竞赛复测完成 · 等待推送")
+    # A full published ordinary pool is a last-good safety net. Every old node
+    # is still re-tested above, but transient batch pressure must never turn a
+    # healthy cloud TOP300 into a 17-node file. Fresh passing measurements win
+    # by IP; compatible last-good measurements fill only missing slots. If the
+    # current local rules make even that impossible, publishing is skipped and
+    # the existing cloud output is preserved intact.
+    published_pool_was_full = len(published_ordinary) >= general_target
+    fallback_by_ip = {
+        node.ip: node
+        for node in published_ordinary
+        if published_pool_was_full
+        and _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
+        and _final_ordinary_quality_allowed(
+            node,
+            pipeline=pipeline,
+            source_country=source_country,
+        )
+    }
+    competition_by_ip = dict(fallback_by_ip)
+    competition_by_ip.update({node.ip: node for node in competition_eligible})
     current_general = _rank_with_colo_diversity(
-        competition_eligible,
+        competition_by_ip.values(),
         count=general_target,
         max_per_colo=max_per_colo,
         latency_speed_first=force_rerank,
@@ -1124,10 +1173,12 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             source_country=source_country,
         )
     ]
-    # Only nodes that passed this round's local rule matrix may be published.
-    # Old cloud nodes were included in new_candidates and therefore compete on
-    # the same fresh TCP/TLS/TTFB/jitter/loss/speed measurements.
     merged_general = current_general
+    freshly_qualified_ips = {node.ip for node in competition_eligible}
+    fallback_retained = sum(
+        node.ip in fallback_by_ip and node.ip not in freshly_qualified_ips
+        for node in merged_general
+    )
     selected = _unique_by_ip([*merged_general, *jp_selected[:source_target]])
     ordinary_replacements = sum(
         1 for node in merged_general if node.ip not in published_ips
@@ -1146,11 +1197,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         else 0
     )
     cycle_round = previous_cycle_round + 1
-    configured_rounds = int(handoff.get("max_replenishment_rounds", 3))
-    max_cycle_rounds = min(3, configured_rounds) if continuous_three_rounds else 1
+    max_cycle_rounds = 1
     target_reached = ordinary_selected >= general_target
     stop_after_current = stop_marker_path.is_file()
-    required_ordinary = 1 if stop_after_current else minimum_general
+    required_ordinary = general_target if published_pool_was_full else minimum_general
     has_minimum_ordinary = ordinary_selected >= required_ordinary
     publish_ready = (
         jp_selected_count >= source_target
@@ -1165,7 +1215,12 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         and not bool(cloud_report.get("publish_only", False))
     )
     if stop_after_current:
-        warnings.append("已收到停止请求：已在当前1000-IP批次结束后停止扫描，并完成发布前竞赛复测")
+        warnings.append("已收到停止请求：已在当前100-IP批次结束后停止扫描，并完成发布前竞赛复测")
+    if published_pool_was_full and fallback_retained:
+        warnings.append(
+            f"发布前复测出现瞬时失败；为防止云端TOP{general_target}缩水，"
+            f"按当前规则保留 {fallback_retained} 条上次合格测量"
+        )
     if not publish_ready:
         if needs_more:
             warnings.append(
@@ -1208,6 +1263,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             "ordinary_current_rules_qualified": len(eligible_general),
             "prepublish_competition_input": len(competition_candidates),
             "prepublish_competition_qualified": len(competition_eligible),
+            "prepublish_fallback_retained": fallback_retained,
             "qualified_accumulated": len(qualified_accumulator),
             "fixed_source_ips_retained": 0,
             "general_target": general_target,
@@ -1254,6 +1310,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     final_report = publish_outputs(output_dir, selected, report, publish_options)
     write_live_preview(force=True)
     if live_tests is not None:
+        live_tests.synchronize_results(
+            current_live_preview(),
+            exempt_country=source_country,
+        )
         live_tests.finish(
             "completed" if final_report.get("published") else "degraded",
             selection_status=final_report.get("status", ""),

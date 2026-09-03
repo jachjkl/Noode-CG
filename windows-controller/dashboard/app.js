@@ -48,16 +48,12 @@ const elements = {
   rulesForm: $("#rulesForm"),
   rulesStatus: $("#rulesStatus"),
   ruleLatencyProbe: $("#ruleLatencyProbe"),
-  ruleTcp: $("#ruleTcp"),
-  ruleTls: $("#ruleTls"),
-  ruleHttp: $("#ruleHttp"),
-  ruleAverage: $("#ruleAverage"),
+  ruleLatencyMax: $("#ruleLatencyMax"),
   ruleJitter: $("#ruleJitter"),
   ruleLoss: $("#ruleLoss"),
   ruleSpeed: $("#ruleSpeed"),
   resetRules: $("#resetRules"),
   saveRules: $("#saveRules"),
-  continuousRounds: $("#continuousRounds"),
 };
 
 let allNodes = [];
@@ -78,6 +74,7 @@ const defaultRules = {
   tcp_enabled: true,
   tls_enabled: false,
   http_enabled: false,
+  latency_max_ms: 200,
   tcp_max_ms: 200,
   tls_max_ms: 200,
   http_ttfb_max_ms: 200,
@@ -167,7 +164,7 @@ function renderState(state) {
     stopping: "正在停止优选",
     success: "本轮已完成",
     failure: "运行失败",
-    stopped: "本地监控已停止",
+    stopped: "本轮优选已停止",
   };
   const badgeClass = ["running", "stopping"].includes(state.status) ? "running" : state.status === "success" ? "success" : state.status === "failure" ? "failure" : "neutral";
   elements.connectionBadge.className = `badge ${badgeClass}`;
@@ -218,7 +215,7 @@ function renderState(state) {
   }
 
   const progress = state.workflow_progress || {};
-  elements.roundValue.textContent = `本次面板已跟踪 ${progress.round || 0} 轮`;
+  elements.roundValue.textContent = `本会话已获取 ${progress.round || 0} 轮云端候选`;
   elements.currentStage.textContent = progress.current_stage || (state.gh_status === "queued" ? "工作流排队中" : "等待工作流");
   elements.currentStep.textContent = progress.current_step || (state.gh_conclusion === "success" ? "本轮全部步骤已完成" : progress.current_stage ? "正在等待该阶段开始执行" : "尚未进入执行步骤");
   const total = Number(progress.total_steps || 0);
@@ -328,7 +325,7 @@ function nodeRowsHtml(nodes) {
 function renderLiveNodes() {
   elements.copyLiveResults.disabled = liveNodes.length === 0;
   elements.liveResultSummary.textContent = liveNodes.length
-    ? `本轮已实时优选 ${liveNodes.length} 条（连续模式以 300 个普通节点为目标，第三轮结束后发布已有合格结果；单轮模式完成即替换；日本节点另行附加）`
+    ? `本会话已实时优选 ${liveNodes.length} 条；后续手动续选只追加去重，关闭软件后下次运行才清空；日本节点独立豁免`
     : "本轮尚无合格结果；测速通过一个，这里立即增加一个";
   elements.liveNodeRows.innerHTML = liveNodes.length
     ? nodeRowsHtml(liveNodes)
@@ -572,10 +569,12 @@ function renderRules(rules) {
   elements.ruleLatencyProbe.value = ["tcp", "tls", "https"].includes(values.latency_probe)
     ? values.latency_probe
     : legacyProbe;
-  elements.ruleTcp.value = values.tcp_max_ms;
-  elements.ruleTls.value = values.tls_max_ms;
-  elements.ruleHttp.value = values.http_ttfb_max_ms;
-  elements.ruleAverage.value = values.average_max_ms;
+  const legacyLimit = elements.ruleLatencyProbe.value === "tls"
+    ? values.tls_max_ms
+    : elements.ruleLatencyProbe.value === "https"
+      ? values.http_ttfb_max_ms
+      : values.tcp_max_ms;
+  elements.ruleLatencyMax.value = values.latency_max_ms ?? legacyLimit ?? 200;
   elements.ruleJitter.value = values.jitter_max_ms;
   elements.ruleLoss.value = values.loss_max_percent;
   elements.ruleSpeed.value = values.speed_min_mbps;
@@ -584,18 +583,12 @@ function renderRules(rules) {
 
 function renderRuleAvailability() {
   const selected = elements.ruleLatencyProbe.value;
-  elements.ruleTcp.disabled = selected !== "tcp";
   elements.ruleLoss.disabled = selected !== "tcp";
-  elements.ruleTls.disabled = selected !== "tls";
-  elements.ruleHttp.disabled = selected !== "https";
 }
 
 function collectRules() {
   const fields = {
-    tcp_max_ms: elements.ruleTcp,
-    tls_max_ms: elements.ruleTls,
-    http_ttfb_max_ms: elements.ruleHttp,
-    average_max_ms: elements.ruleAverage,
+    latency_max_ms: elements.ruleLatencyMax,
     jitter_max_ms: elements.ruleJitter,
     loss_max_percent: elements.ruleLoss,
     speed_min_mbps: elements.ruleSpeed,
@@ -628,17 +621,6 @@ async function fetchRules() {
     elements.rulesStatus.className = "badge failure";
     elements.rulesStatus.textContent = "规则读取失败";
     showToast(`规则读取失败：${error.message}`);
-  }
-}
-
-async function fetchOptions() {
-  try {
-    const response = await fetch("/api/options", { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    elements.continuousRounds.checked = Boolean(data.selection?.continuous_three_rounds);
-  } catch (error) {
-    showToast(`连续筛选选项读取失败：${error.message}`);
   }
 }
 
@@ -700,7 +682,7 @@ elements.stopButton.addEventListener("click", async () => {
     showToast(result.cloud_cancelled
       ? "本地测速尚未开始，云端工作流已取消"
       : result.stopped
-        ? "已登记：完成当前1000-IP批次后，进行发布前竞赛复测并推送"
+        ? "已登记：完成当前100-IP批次后，进行发布前竞赛复测并推送TOP300"
         : "当前没有运行中的优选任务");
     await fetchState();
   } catch (error) {
@@ -750,17 +732,6 @@ elements.resetRules.addEventListener("click", () => {
   renderRules(defaultRules);
   elements.rulesStatus.className = "badge neutral";
   elements.rulesStatus.textContent = "默认值尚未保存";
-});
-
-elements.continuousRounds.addEventListener("change", async () => {
-  try {
-    const enabled = elements.continuousRounds.checked;
-    await post("/api/options", { selection: { continuous_three_rounds: enabled } });
-    showToast(enabled ? "已开启最多三轮连续筛选" : "已关闭连续筛选：每轮合格结果立即发布");
-  } catch (error) {
-    elements.continuousRounds.checked = !elements.continuousRounds.checked;
-    showToast(`运行选项保存失败：${error.message}`);
-  }
 });
 
 elements.closeButton.addEventListener("click", async () => {
@@ -840,7 +811,6 @@ fetchNodes();
 fetchLiveNodes();
 fetchLiveTests();
 fetchRules();
-fetchOptions();
 setInterval(fetchState, 2500);
 setInterval(fetchNodes, 5000);
 setInterval(fetchLiveNodes, 1000);

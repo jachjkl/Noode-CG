@@ -68,9 +68,9 @@ pipeline:
   # Download only the best 400 at a time and stop as soon as 290 strict
   # non-JP addresses plus JP10 are ready.
   speed_batch_size: 400
-  # Windows local selection processes every cloud candidate.  Probe 1000
+  # Windows local selection processes every cloud candidate. Probe 100
   # endpoints at a time, then release the completed batch before continuing.
-  local_probe_batch_size: 1000
+  local_probe_batch_size: 100
   # Keep drawing new disjoint official batches until TOP300 is complete.
   # Thirty rounds cover the available official IPv4 space; runtime and range
   # exhaustion remain the only safety stops.
@@ -106,9 +106,8 @@ pipeline:
   quality_tcp:
     concurrency: 300
     timeout_seconds: 1.0
-    # Run all five probes. Failed attempts become packet loss and are used by
-    # final ranking; at least one successful measurement is still required.
-    attempts: 5
+    # Run exactly three probes and filter/rank by their arithmetic mean.
+    attempts: 3
     require_all_attempts: false
     maximum_average_latency_ms: 300
     maximum_jitter_ms: 500
@@ -117,10 +116,8 @@ pipeline:
     maximum_loss_rate: 0.30
     stop_on_failure: false
     stop_when_average_impossible: false
-    # Stop once the remaining attempts can no longer satisfy the locally
-    # saved packet-loss limit. This preserves the rule while avoiding three
-    # redundant timeouts for an already-failed endpoint.
-    stop_when_loss_impossible: true
+    # Never stop early: the local rule is based on all three measurements.
+    stop_when_loss_impossible: false
 
   tls:
     concurrency: 250
@@ -131,8 +128,8 @@ pipeline:
     require_all_attempts: true
     maximum_average_latency_ms: 300
     maximum_jitter_ms: 500
-    stop_on_failure: true
-    stop_when_average_impossible: true
+    stop_on_failure: false
+    stop_when_average_impossible: false
 
   http:
     concurrency: 200
@@ -144,8 +141,8 @@ pipeline:
     require_all_attempts: true
     maximum_average_ttfb_ms: 300
     maximum_jitter_ms: 500
-    stop_on_failure: true
-    stop_when_average_impossible: true
+    stop_on_failure: false
+    stop_when_average_impossible: false
 
   websocket:
     # Enable only after setting the exact path used by your Worker.
@@ -157,15 +154,16 @@ pipeline:
   speed:
     enabled: true
     domain: speed.cloudflare.com
-    # One 256 KiB response is required. Results below 3 Mbps are excluded.
-    path: /__down?bytes=262144
-    bytes_per_test: 262144
+    # A larger 512 KiB sample and lower concurrency reduce short-burst and
+    # local bandwidth-contention errors. Results below the saved rule fail.
+    path: /__down?bytes=524288
+    bytes_per_test: 524288
     minimum_completion_ratio: 0.95
     candidates: 400
     minimum_mbps: 3.0
-    concurrency: 64
-    timeout_seconds: 5.0
-    maximum_download_seconds: 4.5
+    concurrency: 20
+    timeout_seconds: 8.0
+    maximum_download_seconds: 7.0
 
   location_filter:
     require_known_endpoint_country: true

@@ -61,12 +61,9 @@
         <form id="rulesForm" class="rule-grid">
           <div class="probe-select-row">
             <label class="field probe-select"><span>延迟测试方式（三选一）</span><select id="ruleLatencyProbe"><option value="tcp" selected>TCP 延迟与丢包（默认）</option><option value="tls">TLS 握手延迟</option><option value="https">HTTPS TTFB</option></select></label>
-            <b>每次按 50 个 IP 一组完成所选延迟测试，再强制执行下载测速并释放资源</b>
+            <b>每组 100 个 IP；所选延迟连续测试 3 次取平均值，随后完成下载测速并释放资源</b>
           </div>
-          <label class="field"><span>TCP 最大延迟</span><div class="input-unit"><input id="ruleTcp" name="tcp_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
-          <label class="field"><span>TLS 最大延迟</span><div class="input-unit"><input id="ruleTls" name="tls_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
-          <label class="field"><span>HTTPS TTFB 最大延迟</span><div class="input-unit"><input id="ruleHttp" name="http_ttfb_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
-          <label class="field"><span>已启用项平均延迟</span><div class="input-unit"><input id="ruleAverage" name="average_max_ms" type="number" min="1" step="1" required><b>ms</b></div></label>
+          <label class="field"><span>三次平均延迟上限</span><div class="input-unit"><input id="ruleLatencyMax" name="latency_max_ms" type="number" min="1" step="1" value="200" required><b>ms</b></div></label>
           <label class="field"><span>最大抖动</span><div class="input-unit"><input id="ruleJitter" name="jitter_max_ms" type="number" min="0" step="1" required><b>ms</b></div></label>
           <label class="field"><span>最大丢包率</span><div class="input-unit"><input id="ruleLoss" name="loss_max_percent" type="number" min="0" max="100" step="0.1" required><b>%</b></div></label>
           <label class="field"><span>最低下载速度（必测）</span><div class="input-unit"><input id="ruleSpeed" name="speed_min_mbps" type="number" min="0" step="0.1" required><b>Mbps</b></div></label>
@@ -75,8 +72,7 @@
             <button id="saveRules" class="button primary" type="submit">保存到本地</button>
           </div>
         </form>
-        <label class="toggle-field cycle-option"><input id="continuousRounds" type="checkbox" checked> 开启三轮连续筛选：不足300个时自动获取下一批不同的10000个官方候选，最多连续3轮</label>
-        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、10000个官方IP和上一轮TOP100；后续轮次只补充未在本会话测试过的10000个官方IP。每轮普通节点达到至少50个即复测云端现有节点、统一重排并发布；不足300个且开启连续筛选时继续补池，最多3轮。日本节点不计入50个普通节点，在同一会话的实时结果中只保留一份。</div>
+        <div class="rule-note"><strong>发布条件：</strong>新会话首轮包含两个指定链接的全部IP、与上次软件会话不同的10000个官方IP和上一轮TOP100。普通节点与云端现有300个节点合并去重并复测，始终选出TOP300后才发布；不足时保留云端上一版，绝不缩成少量节点。日本节点独立豁免并附加；继续优选由按钮手动触发。</div>
       </section>
 
       <section class="panel workflow-panel">

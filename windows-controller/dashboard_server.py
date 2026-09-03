@@ -36,6 +36,7 @@ LOCAL_RULE_DEFAULTS = {
     "tcp_enabled": True,
     "tls_enabled": False,
     "http_enabled": False,
+    "latency_max_ms": 200.0,
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
     "http_ttfb_max_ms": 200.0,
@@ -46,12 +47,19 @@ LOCAL_RULE_DEFAULTS = {
 }
 
 LOCAL_OPTION_DEFAULTS = {
-    "continuous_three_rounds": True,
+    "continuous_three_rounds": False,
 }
 
 
 def utc_timestamp() -> float:
     return time.time()
+
+
+def iso_timestamp(value: object) -> float:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def open_dashboard_url(url: str) -> bool:
@@ -113,6 +121,8 @@ class DashboardState:
         self.gh_checked_at = 0.0
         self.run_list_checked_at = 0.0
         self.observed_run_ids: list[int] = []
+        self.cloud_round_count = 0
+        self.round_status_cleared = False
         self.nodes_checked_at = 0.0
         self.last_error = ""
         self.shutdown_at: float | None = None
@@ -159,10 +169,13 @@ class DashboardState:
             self.run_url = ""
             self.gh_state = {}
             self.observed_run_ids = []
+            self.cloud_round_count = 1
+            self.round_status_cleared = False
             self.shutdown_at = None
             # A new dashboard session clears the preceding session exactly
             # once. Later continuation rounds append to the same live result.
             self._clear_cycle_state()
+            self._reset_round_status()
             self.log_path.unlink(missing_ok=True)
             self.latest_log_path.unlink(missing_ok=True)
             self.process = subprocess.Popen(
@@ -204,6 +217,15 @@ class DashboardState:
         ):
             (handoff / name).unlink(missing_ok=True)
 
+    def _reset_round_status(self) -> None:
+        """Remove stale stage telemetry but keep this session's winners."""
+        for path in (
+            self.live_tests_path,
+            self.root / "app" / "output" / "health.json",
+            self.health_cache,
+        ):
+            path.unlink(missing_ok=True)
+
     def clear_session_state(self) -> None:
         """Clear transient run/UI state only when the panel really closes."""
         self._clear_cycle_state()
@@ -225,6 +247,8 @@ class DashboardState:
             self.run_url = ""
             self.gh_state = {}
             self.observed_run_ids = []
+            self.cloud_round_count = 0
+            self.round_status_cleared = False
             self.exit_code = None
             self.process_started_at = None
             self.process_ended_at = None
@@ -356,7 +380,7 @@ class DashboardState:
                 json.dumps(
                     {
                         "requested_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                        "mode": "finish-current-1000-batch-retest-publish-then-stop",
+                        "mode": "finish-current-100-batch-retest-publish-then-stop",
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -375,7 +399,7 @@ class DashboardState:
             self._append_dashboard_log("已停止优选：本地测速尚未开始，云端工作流已取消。")
         elif round_active:
             self._append_dashboard_log(
-                "已请求停止优选：当前1000-IP批次结束后停止扫描；随后完成发布前竞赛复测并推送合格结果。"
+                "已请求停止优选：当前100-IP批次结束后停止扫描；随后完成发布前竞赛复测并推送TOP300。"
             )
         return {
             "stopped": round_active,
@@ -478,6 +502,19 @@ class DashboardState:
             rules["tcp_enabled"] = selected_probe == "tcp"
             rules["tls_enabled"] = selected_probe == "tls"
             rules["http_enabled"] = selected_probe == "https"
+            legacy_limit_key = {
+                "tcp": "tcp_max_ms",
+                "tls": "tls_max_ms",
+                "https": "http_ttfb_max_ms",
+            }[selected_probe]
+            raw_limit = values.get(
+                "latency_max_ms",
+                values.get(legacy_limit_key, LOCAL_RULE_DEFAULTS["latency_max_ms"]),
+            )
+            if isinstance(raw_limit, (int, float)) and not isinstance(raw_limit, bool):
+                rules["latency_max_ms"] = float(raw_limit)
+            for key in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
+                rules[key] = rules["latency_max_ms"]
         return rules
 
     def save_local_rules(self, payload: object) -> dict[str, float | bool | str]:
@@ -491,9 +528,23 @@ class DashboardState:
             "tls_enabled": selected_probe == "tls",
             "http_enabled": selected_probe == "https",
         }
-        for name, default in LOCAL_RULE_DEFAULTS.items():
-            if name == "latency_probe" or name.endswith("_enabled"):
-                continue
+        legacy_limit_key = {
+            "tcp": "tcp_max_ms",
+            "tls": "tls_max_ms",
+            "https": "http_ttfb_max_ms",
+        }[selected_probe]
+        raw_limit = values.get(
+            "latency_max_ms",
+            values.get(legacy_limit_key, LOCAL_RULE_DEFAULTS["latency_max_ms"]),
+        )
+        if not isinstance(raw_limit, (int, float)) or isinstance(raw_limit, bool):
+            raise ValueError("latency_max_ms 必须是数字")
+        latency_limit = float(raw_limit)
+        if not math.isfinite(latency_limit) or latency_limit <= 0:
+            raise ValueError("latency_max_ms 必须是大于 0 的有限数字")
+        rules["latency_max_ms"] = latency_limit
+        for name in ("jitter_max_ms", "loss_max_percent", "speed_min_mbps"):
+            default = LOCAL_RULE_DEFAULTS[name]
             raw = values.get(name, default)
             if not isinstance(raw, (int, float)) or isinstance(raw, bool):
                 raise ValueError(f"{name} 必须是数字")
@@ -501,8 +552,7 @@ class DashboardState:
             if not math.isfinite(rules[name]):
                 raise ValueError(f"{name} 必须是有限数字")
         for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
-            if rules[name] <= 0:
-                raise ValueError(f"{name} 必须大于 0")
+            rules[name] = latency_limit
         if rules["jitter_max_ms"] < 0:
             raise ValueError("jitter_max_ms 不能小于 0")
         if not 0 <= rules["loss_max_percent"] <= 100:
@@ -534,24 +584,13 @@ class DashboardState:
         return rules
 
     def local_options(self) -> dict[str, bool]:
-        payload = self.load_json_file(self.options_path, {})
-        values = payload.get("selection", payload) if isinstance(payload, dict) else {}
-        options = dict(LOCAL_OPTION_DEFAULTS)
-        if isinstance(values, dict):
-            for name, default in LOCAL_OPTION_DEFAULTS.items():
-                raw = values.get(name, default)
-                if isinstance(raw, bool):
-                    options[name] = raw
-        return options
+        return dict(LOCAL_OPTION_DEFAULTS)
 
     def save_local_options(self, payload: object) -> dict[str, bool]:
         values = payload.get("selection", payload) if isinstance(payload, dict) else None
         if not isinstance(values, dict):
             raise ValueError("运行选项必须是对象")
-        raw = values.get("continuous_three_rounds", True)
-        if not isinstance(raw, bool):
-            raise ValueError("continuous_three_rounds 必须是布尔值")
-        options = {"continuous_three_rounds": raw}
+        options = {"continuous_three_rounds": False}
         document = {
             "schema": 1,
             "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -571,8 +610,7 @@ class DashboardState:
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
-        mode = "开启" if raw else "关闭"
-        self._append_dashboard_log(f"三轮连续筛选已{mode}。")
+        self._append_dashboard_log("自动三轮连续筛选已移除；需要新候选时请手动点击继续优选。")
         return options
 
     def _workflow_active(self) -> bool:
@@ -646,15 +684,66 @@ class DashboardState:
             return {"started": False, "queued": False}
         if self._workflow_active():
             return {"started": False, "queued": True}
+        handoff_dir = self.root / "app" / "data" / "handoff"
+        handoff_dir.mkdir(parents=True, exist_ok=True)
+        existing_count = len(
+            self._nodes_from_handoff(handoff_dir / "local-qualified.json.gz")
+        )
+        self._write_rerank_marker(
+            handoff_dir,
+            existing_count=existing_count,
+            mode="manual-publish-merge-cloud-dedupe-retest-top300",
+        )
         result = self._dispatch_workflow(publish_only=True)
         if result.get("started"):
             self.publish_queue_path.unlink(missing_ok=True)
-            return {**result, "queued": False}
+            self._append_dashboard_log(
+                "手动推送已启动：本会话合格IP与云端现有IP合并去重，"
+                "按当前本地规则复测后仅发布TOP300普通节点，并附加JP。"
+            )
+            return {**result, "queued": False, "existing_count": existing_count}
+        (handoff_dir / "force-rerank.json").unlink(missing_ok=True)
         return {**result, "queued": True}
+
+    @staticmethod
+    def _write_rerank_marker(
+        handoff_dir: Path,
+        *,
+        existing_count: int,
+        mode: str,
+    ) -> None:
+        marker = handoff_dir / "force-rerank.json"
+        marker.write_text(
+            json.dumps(
+                {
+                    "mode": mode,
+                    "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "existing_count": existing_count,
+                    "previous_top100_reserved_for_retest": 0,
+                    "ranking": "local-rules-latency-speed-loss-jitter",
+                    "general_target": 300,
+                    "jp_target": 10,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     def _dispatch_workflow(self, *, publish_only: bool) -> dict[str, object]:
         if not self.gh:
             return {"started": False, "reason": "找不到 GitHub CLI。"}
+        with self.lock:
+            if (
+                str(self.gh_state.get("status") or "")
+                in {"queued", "in_progress", "waiting", "pending"}
+                or utc_timestamp() < self.dispatch_pending_until
+            ):
+                return {"started": False, "reason": "当前已有任务正在触发或运行。"}
+            # Claim the dispatch slot before invoking gh so two rapid clicks
+            # cannot create duplicate cloud rounds.
+            self.dispatch_pending_until = utc_timestamp() + 90
+        self._reset_round_status()
         result = self._run_command([
             self.gh,
             "workflow",
@@ -671,6 +760,8 @@ class DashboardState:
         ])
         if result.returncode != 0:
             reason = (result.stderr or result.stdout or "GitHub 工作流触发失败").strip()
+            with self.lock:
+                self.dispatch_pending_until = 0.0
             return {"started": False, "reason": reason}
         with self.lock:
             self.process_started_at = utc_timestamp()
@@ -680,8 +771,10 @@ class DashboardState:
             self.run_id = None
             self.run_url = ""
             self.gh_state = {}
-            self.observed_run_ids = []
             self.dispatch_pending_until = utc_timestamp() + 90
+            if not publish_only:
+                self.cloud_round_count += 1
+            self.round_status_cleared = False
             self.shutdown_at = None
             self.run_list_checked_at = 0.0
             self.gh_checked_at = 0.0
@@ -709,28 +802,15 @@ class DashboardState:
         handoff_dir = self.root / "app" / "data" / "handoff"
         handoff_dir.mkdir(parents=True, exist_ok=True)
         accumulator = handoff_dir / "local-qualified.json.gz"
-        marker = handoff_dir / "force-rerank.json"
-        generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
         # local-qualified is the active selection accumulator. The live-result
         # file is append-only UI history and must never be copied back into the
         # candidate pool because it may contain nodes eliminated by a later
         # fresh retest.
         existing_count = len(self._nodes_from_handoff(accumulator))
-        marker.write_text(
-            json.dumps(
-                {
-                    "mode": "force-rerank",
-                    "created_at": generated_at,
-                    "existing_count": existing_count,
-                    "previous_top100_reserved_for_retest": 0,
-                    "ranking": "latency-speed-loss-jitter",
-                    "general_target": 300,
-                    "jp_target": 10,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        self._write_rerank_marker(
+            handoff_dir,
+            existing_count=existing_count,
+            mode="continue-fetch-new-raw10000-merge-cloud-dedupe-retest-top300",
         )
         dispatch = self._dispatch_workflow(publish_only=False)
         if not dispatch.get("started"):
@@ -836,6 +916,15 @@ class DashboardState:
                 with self.lock:
                     self.gh_state = data
                     self.run_url = str(data.get("url") or self.run_url)
+                    if str(data.get("status") or "") == "completed":
+                        if self.process_ended_at is None:
+                            self.process_ended_at = utc_timestamp()
+                        if (
+                            self.stop_requested
+                            and str(data.get("conclusion") or "") == "success"
+                        ):
+                            self.round_status_cleared = True
+                            self.stop_after_current_path.unlink(missing_ok=True)
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
             with self.lock:
                 self.last_error = f"GitHub 状态读取失败：{exc}"
@@ -1030,7 +1119,25 @@ class DashboardState:
             )
             live_stage = str(live_report.get("stage") or "")
             publish_retest = health_data.get("publish_retest", {})
+            telemetry_started = self.process_started_at or 0.0
+            health_is_current = (
+                self.cycle_started
+                and not self.round_status_cleared
+                and iso_timestamp(health_data.get("generated_at")) >= telemetry_started - 5
+            )
+            live_is_current = (
+                self.cycle_started
+                and not self.round_status_cleared
+                and max(
+                    iso_timestamp(live_report.get("started_at")),
+                    iso_timestamp(live_report.get("generated_at")),
+                ) >= telemetry_started - 5
+            )
+            if not live_is_current:
+                live_stage = ""
             publish_retest_done = (
+                health_is_current
+                and
                 isinstance(publish_retest, dict)
                 and str(publish_retest.get("status") or "") == "completed"
             )
@@ -1119,7 +1226,7 @@ class DashboardState:
                     "total_steps": len(all_steps),
                     "current_stage": current_stage.get("label") if current_stage else "",
                     "current_step": current_step.get("name") if current_step else "",
-                    "round": len(self.observed_run_ids),
+                    "round": self.cloud_round_count,
                 },
                 "health": health_data,
                 "publish_status": {
