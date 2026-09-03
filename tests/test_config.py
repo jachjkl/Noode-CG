@@ -35,7 +35,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["pipeline"]["http"]["attempts"], 3)
         self.assertTrue(config["pipeline"]["http"]["require_all_attempts"])
         self.assertEqual(config["output"]["top_nodes"], 300)
-        self.assertEqual(config["output"]["minimum_publish"], 1)
+        self.assertEqual(config["output"]["minimum_publish"], 50)
         self.assertEqual(len(config["sources"]["remote"]), 2)
         self.assertEqual(
             {entry["url"] for entry in config["sources"]["remote"]},

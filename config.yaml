@@ -170,7 +170,7 @@ output:
   # A three-round cycle publishes whatever passed after its final round. With
   # continuous mode disabled, one successful ordinary node may replace one
   # tail entry immediately. The ordinary pool still keeps at most TOP300.
-  minimum_publish: 1
+  minimum_publish: 50
   preserve_last_good: true
   node_label: country
   write_compatibility_zip: true

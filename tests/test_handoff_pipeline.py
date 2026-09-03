@@ -508,6 +508,7 @@ class HandoffPipelineTests(unittest.TestCase):
                 "nodes": [us.to_dict(), jp.to_dict()],
             }).encode(), mtime=0))
             config = self._local_config(root, target=3, jp_count=1)
+            config["output"]["minimum_publish"] = 1
 
             async def scan(records, _options):
                 return [qualified(node) for node in records]
@@ -628,6 +629,7 @@ class HandoffPipelineTests(unittest.TestCase):
             )
             config = self._local_config(root, target=3, jp_count=1)
             config["_local_options"] = {"continuous_three_rounds": False}
+            config["output"]["minimum_publish"] = 1
             scanned: set[str] = set()
 
             async def scan(records, _options):
@@ -669,6 +671,7 @@ class HandoffPipelineTests(unittest.TestCase):
             handoff_dir = root / "data" / "handoff"
             handoff_dir.mkdir(parents=True)
             config = self._local_config(root, target=5, jp_count=1)
+            config["output"]["minimum_publish"] = 1
             config["handoff"]["live_results_path"] = (
                 "data/handoff/local-live-results.json.gz"
             )
@@ -754,6 +757,7 @@ class HandoffPipelineTests(unittest.TestCase):
                 "state": {"published_nodes": [keep.to_dict(), fail.to_dict()]},
             }).encode(), mtime=0))
             config = self._local_config(root, target=3, jp_count=0)
+            config["output"]["minimum_publish"] = 1
             scanned: set[str] = set()
 
             async def scan(records, _options, **_kwargs):

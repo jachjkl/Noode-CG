@@ -964,10 +964,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     configured_rounds = int(handoff.get("max_replenishment_rounds", 3))
     max_cycle_rounds = min(3, configured_rounds) if continuous_three_rounds else 1
     target_reached = ordinary_selected >= general_target
-    has_ordinary = ordinary_selected > 0
+    has_minimum_ordinary = ordinary_selected >= minimum_general
     publish_ready = (
         jp_selected_count >= source_target
-        and has_ordinary
+        and has_minimum_ordinary
     )
     stop_after_current = stop_marker_path.is_file()
     needs_more = (
