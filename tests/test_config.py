@@ -17,8 +17,9 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["pipeline"]["speed_batch_size"], 400)
         self.assertEqual(config["pipeline"]["local_probe_batch_size"], 50)
         self.assertTrue(config["pipeline"]["quality_tcp"]["enabled"])
-        self.assertTrue(config["pipeline"]["tls"]["enabled"])
-        self.assertTrue(config["pipeline"]["http"]["enabled"])
+        self.assertFalse(config["pipeline"]["tls"]["enabled"])
+        self.assertFalse(config["pipeline"]["http"]["enabled"])
+        self.assertEqual(config["_local_rules"]["latency_probe"], "tcp")
         self.assertEqual(config["pipeline"]["prefilter_tcp"]["attempts"], 3)
         self.assertEqual(config["pipeline"]["quality_tcp"]["attempts"], 5)
         self.assertEqual(config["pipeline"]["tls"]["attempts"], 3)
@@ -103,7 +104,7 @@ class ConfigTests(unittest.TestCase):
             rules_path = local_root / "app" / "data" / "local-rules.json"
             rules_path.parent.mkdir(parents=True)
             rules_path.write_text(
-                '{"ordinary":{"tcp_enabled":false,"tls_enabled":true,"http_enabled":false}}',
+                '{"ordinary":{"latency_probe":"tls"}}',
                 encoding="utf-8",
             )
             with patch.dict("os.environ", {"NOODE_LOCAL_ROOT": str(local_root)}):
@@ -111,6 +112,22 @@ class ConfigTests(unittest.TestCase):
 
             self.assertFalse(config["pipeline"]["quality_tcp"]["enabled"])
             self.assertTrue(config["pipeline"]["tls"]["enabled"])
+            self.assertFalse(config["pipeline"]["http"]["enabled"])
+
+    def test_legacy_multi_metric_rule_is_normalized_to_tcp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            local_root = Path(temporary)
+            rules_path = local_root / "app" / "data" / "local-rules.json"
+            rules_path.parent.mkdir(parents=True)
+            rules_path.write_text(
+                '{"ordinary":{"tcp_enabled":true,"tls_enabled":true,"http_enabled":true}}',
+                encoding="utf-8",
+            )
+            with patch.dict("os.environ", {"NOODE_LOCAL_ROOT": str(local_root)}):
+                config = load_config(Path(__file__).parents[1] / "config.yaml")
+
+            self.assertTrue(config["pipeline"]["quality_tcp"]["enabled"])
+            self.assertFalse(config["pipeline"]["tls"]["enabled"])
             self.assertFalse(config["pipeline"]["http"]["enabled"])
 
     def test_rejects_url_as_domain(self) -> None:

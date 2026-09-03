@@ -16,10 +16,11 @@ class ConfigError(ValueError):
     pass
 
 
-LOCAL_RULE_DEFAULTS: dict[str, float | bool] = {
+LOCAL_RULE_DEFAULTS: dict[str, float | bool | str] = {
+    "latency_probe": "tcp",
     "tcp_enabled": True,
-    "tls_enabled": True,
-    "http_enabled": True,
+    "tls_enabled": False,
+    "http_enabled": False,
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
     "http_ttfb_max_ms": 200.0,
@@ -44,7 +45,29 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
-def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool], Path]:
+def _selected_latency_probe(values: dict[str, Any]) -> str:
+    explicit = values.get("latency_probe")
+    if explicit is not None:
+        if not isinstance(explicit, str) or explicit.lower() not in {"tcp", "tls", "https"}:
+            raise ConfigError("本地自定义规则 latency_probe 必须是 tcp、tls 或 https")
+        return explicit.lower()
+    legacy = []
+    for key, probe in (
+        ("tcp_enabled", "tcp"),
+        ("tls_enabled", "tls"),
+        ("http_enabled", "https"),
+    ):
+        raw = values.get(key, LOCAL_RULE_DEFAULTS[key])
+        if not isinstance(raw, bool):
+            raise ConfigError(f"本地自定义规则 {key} 必须是布尔值")
+        if raw:
+            legacy.append(probe)
+    # Older versions allowed several probes. Prefer TCP when present and
+    # otherwise keep the first enabled legacy choice.
+    return "tcp" if "tcp" in legacy or not legacy else legacy[0]
+
+
+def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool | str], Path]:
     local_root = os.getenv("NOODE_LOCAL_ROOT", "").strip()
     rules_path = (
         Path(local_root) / "app" / "data" / "local-rules.json"
@@ -61,15 +84,13 @@ def _load_local_rules(config_path: Path) -> tuple[dict[str, float | bool], Path]
     values = payload.get("ordinary", payload) if isinstance(payload, dict) else None
     if not isinstance(values, dict):
         raise ConfigError("本地自定义规则必须是对象")
-    for name in ("tcp_enabled", "tls_enabled", "http_enabled"):
-        raw = values.get(name, LOCAL_RULE_DEFAULTS[name])
-        if not isinstance(raw, bool):
-            raise ConfigError(f"本地自定义规则 {name} 必须是布尔值")
-        rules[name] = raw
-    if not any(bool(rules[name]) for name in ("tcp_enabled", "tls_enabled", "http_enabled")):
-        raise ConfigError("TCP、TLS、HTTPS TTFB 至少启用一项")
+    selected_probe = _selected_latency_probe(values)
+    rules["latency_probe"] = selected_probe
+    rules["tcp_enabled"] = selected_probe == "tcp"
+    rules["tls_enabled"] = selected_probe == "tls"
+    rules["http_enabled"] = selected_probe == "https"
     for name, default in LOCAL_RULE_DEFAULTS.items():
-        if name.endswith("_enabled"):
+        if name == "latency_probe" or name.endswith("_enabled"):
             continue
         raw = values.get(name, default)
         if not isinstance(raw, (int, float)) or isinstance(raw, bool):

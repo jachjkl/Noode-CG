@@ -31,9 +31,10 @@ STAGE_LABELS = {
 }
 
 LOCAL_RULE_DEFAULTS = {
+    "latency_probe": "tcp",
     "tcp_enabled": True,
-    "tls_enabled": True,
-    "http_enabled": True,
+    "tls_enabled": False,
+    "http_enabled": False,
     "tcp_max_ms": 200.0,
     "tls_max_ms": 200.0,
     "http_ttfb_max_ms": 200.0,
@@ -352,33 +353,60 @@ class DashboardState:
         with self.log_path.open("a", encoding="utf-8") as handle:
             handle.write(line)
 
-    def local_rules(self) -> dict[str, float | bool]:
+    @staticmethod
+    def _selected_latency_probe(values: dict[str, object], *, saving: bool = False) -> str:
+        explicit = values.get("latency_probe")
+        if explicit is not None:
+            if not isinstance(explicit, str) or explicit.lower() not in {"tcp", "tls", "https"}:
+                raise ValueError("延迟测试方式必须是 TCP、TLS 或 HTTPS TTFB")
+            return explicit.lower()
+        legacy: list[str] = []
+        for key, probe in (
+            ("tcp_enabled", "tcp"),
+            ("tls_enabled", "tls"),
+            ("http_enabled", "https"),
+        ):
+            raw = values.get(key, LOCAL_RULE_DEFAULTS[key])
+            if not isinstance(raw, bool):
+                raise ValueError(f"{key} 必须是布尔值")
+            if raw:
+                legacy.append(probe)
+        if saving and not legacy:
+            raise ValueError("请选择一种延迟测试方式")
+        return "tcp" if "tcp" in legacy or not legacy else legacy[0]
+
+    def local_rules(self) -> dict[str, float | bool | str]:
         payload = self.load_json_file(self.rules_path, {})
         values = payload.get("ordinary", payload) if isinstance(payload, dict) else {}
         rules = dict(LOCAL_RULE_DEFAULTS)
         if isinstance(values, dict):
             for name, default in LOCAL_RULE_DEFAULTS.items():
                 raw = values.get(name, default)
-                if name.endswith("_enabled") and isinstance(raw, bool):
-                    rules[name] = raw
-                elif not name.endswith("_enabled") and isinstance(raw, (int, float)) and not isinstance(raw, bool):
+                if name != "latency_probe" and not name.endswith("_enabled") and isinstance(raw, (int, float)) and not isinstance(raw, bool):
                     rules[name] = float(raw)
+            try:
+                selected_probe = self._selected_latency_probe(values)
+            except ValueError:
+                selected_probe = "tcp"
+            rules["latency_probe"] = selected_probe
+            rules["tcp_enabled"] = selected_probe == "tcp"
+            rules["tls_enabled"] = selected_probe == "tls"
+            rules["http_enabled"] = selected_probe == "https"
         return rules
 
-    def save_local_rules(self, payload: object) -> dict[str, float | bool]:
+    def save_local_rules(self, payload: object) -> dict[str, float | bool | str]:
         values = payload.get("ordinary", payload) if isinstance(payload, dict) else None
         if not isinstance(values, dict):
             raise ValueError("规则内容必须是对象")
-        rules: dict[str, float | bool] = {}
-        for name in ("tcp_enabled", "tls_enabled", "http_enabled"):
-            raw = values.get(name, LOCAL_RULE_DEFAULTS[name])
-            if not isinstance(raw, bool):
-                raise ValueError(f"{name} 必须是布尔值")
-            rules[name] = raw
-        if not any(bool(rules[name]) for name in ("tcp_enabled", "tls_enabled", "http_enabled")):
-            raise ValueError("TCP、TLS、HTTPS TTFB 至少启用一项")
+        selected_probe = self._selected_latency_probe(values, saving=True)
+        rules: dict[str, float | bool | str] = {
+            "latency_probe": selected_probe,
+            "tcp_enabled": selected_probe == "tcp",
+            "tls_enabled": selected_probe == "tls",
+            "http_enabled": selected_probe == "https",
+        }
         for name, default in LOCAL_RULE_DEFAULTS.items():
-            if name.endswith("_enabled"):
+            if name == "latency_probe" or name.endswith("_enabled"):
                 continue
             raw = values.get(name, default)
             if not isinstance(raw, (int, float)) or isinstance(raw, bool):

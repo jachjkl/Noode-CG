@@ -47,9 +47,7 @@ const elements = {
   toast: $("#toast"),
   rulesForm: $("#rulesForm"),
   rulesStatus: $("#rulesStatus"),
-  ruleEnableTcp: $("#ruleEnableTcp"),
-  ruleEnableTls: $("#ruleEnableTls"),
-  ruleEnableHttp: $("#ruleEnableHttp"),
+  ruleLatencyProbe: $("#ruleLatencyProbe"),
   ruleTcp: $("#ruleTcp"),
   ruleTls: $("#ruleTls"),
   ruleHttp: $("#ruleHttp"),
@@ -76,9 +74,10 @@ let resultSource = "published-cache";
 let sortState = { key: "rank", direction: "asc" };
 
 const defaultRules = {
+  latency_probe: "tcp",
   tcp_enabled: true,
-  tls_enabled: true,
-  http_enabled: true,
+  tls_enabled: false,
+  http_enabled: false,
   tcp_max_ms: 200,
   tls_max_ms: 200,
   http_ttfb_max_ms: 200,
@@ -566,9 +565,10 @@ elements.liveTestNext.addEventListener("click", () => {
 
 function renderRules(rules) {
   const values = { ...defaultRules, ...(rules || {}) };
-  elements.ruleEnableTcp.checked = Boolean(values.tcp_enabled);
-  elements.ruleEnableTls.checked = Boolean(values.tls_enabled);
-  elements.ruleEnableHttp.checked = Boolean(values.http_enabled);
+  const legacyProbe = values.tcp_enabled ? "tcp" : values.tls_enabled ? "tls" : values.http_enabled ? "https" : "tcp";
+  elements.ruleLatencyProbe.value = ["tcp", "tls", "https"].includes(values.latency_probe)
+    ? values.latency_probe
+    : legacyProbe;
   elements.ruleTcp.value = values.tcp_max_ms;
   elements.ruleTls.value = values.tls_max_ms;
   elements.ruleHttp.value = values.http_ttfb_max_ms;
@@ -580,10 +580,11 @@ function renderRules(rules) {
 }
 
 function renderRuleAvailability() {
-  elements.ruleTcp.disabled = !elements.ruleEnableTcp.checked;
-  elements.ruleLoss.disabled = !elements.ruleEnableTcp.checked;
-  elements.ruleTls.disabled = !elements.ruleEnableTls.checked;
-  elements.ruleHttp.disabled = !elements.ruleEnableHttp.checked;
+  const selected = elements.ruleLatencyProbe.value;
+  elements.ruleTcp.disabled = selected !== "tcp";
+  elements.ruleLoss.disabled = selected !== "tcp";
+  elements.ruleTls.disabled = selected !== "tls";
+  elements.ruleHttp.disabled = selected !== "https";
 }
 
 function collectRules() {
@@ -596,14 +597,13 @@ function collectRules() {
     loss_max_percent: elements.ruleLoss,
     speed_min_mbps: elements.ruleSpeed,
   };
+  const latencyProbe = elements.ruleLatencyProbe.value;
   const rules = {
-    tcp_enabled: elements.ruleEnableTcp.checked,
-    tls_enabled: elements.ruleEnableTls.checked,
-    http_enabled: elements.ruleEnableHttp.checked,
+    latency_probe: latencyProbe,
+    tcp_enabled: latencyProbe === "tcp",
+    tls_enabled: latencyProbe === "tls",
+    http_enabled: latencyProbe === "https",
   };
-  if (!rules.tcp_enabled && !rules.tls_enabled && !rules.http_enabled) {
-    throw new Error("TCP、TLS、HTTPS TTFB 至少启用一项");
-  }
   for (const [name, input] of Object.entries(fields)) {
     if (!input.value.trim()) throw new Error(`${name} 不能为空`);
     const value = Number(input.value);
@@ -769,9 +769,7 @@ elements.closeButton.addEventListener("click", async () => {
   }
 });
 
-for (const toggle of [elements.ruleEnableTcp, elements.ruleEnableTls, elements.ruleEnableHttp]) {
-  toggle.addEventListener("change", renderRuleAvailability);
-}
+elements.ruleLatencyProbe.addEventListener("change", renderRuleAvailability);
 
 for (const input of [elements.searchInput, elements.countryFilter, elements.jpOnly]) {
   input.addEventListener(input.tagName === "INPUT" && input.type === "search" ? "input" : "change", applyFilters);

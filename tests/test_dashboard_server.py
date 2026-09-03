@@ -255,9 +255,10 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(rules["jitter_max_ms"], 200)
             self.assertEqual(rules["loss_max_percent"], 30)
             self.assertEqual(rules["speed_min_mbps"], 3)
+            self.assertEqual(rules["latency_probe"], "tcp")
             self.assertTrue(rules["tcp_enabled"])
-            self.assertTrue(rules["tls_enabled"])
-            self.assertTrue(rules["http_enabled"])
+            self.assertFalse(rules["tls_enabled"])
+            self.assertFalse(rules["http_enabled"])
 
     def test_stop_selection_finishes_current_round_without_killing_local_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -445,9 +446,7 @@ class DashboardServerTests(unittest.TestCase):
             state = DashboardState(Path(temporary), "owner/repo", "main")
             rules = state.save_local_rules({
                 "ordinary": {
-                    "tcp_enabled": False,
-                    "tls_enabled": True,
-                    "http_enabled": False,
+                    "latency_probe": "tls",
                     "tcp_max_ms": 220,
                     "tls_max_ms": 240,
                     "http_ttfb_max_ms": 260,
@@ -461,6 +460,8 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(rules["loss_max_percent"], 15)
             self.assertEqual(state.local_rules()["speed_min_mbps"], 6)
             self.assertFalse(state.local_rules()["tcp_enabled"])
+            self.assertTrue(state.local_rules()["tls_enabled"])
+            self.assertEqual(state.local_rules()["latency_probe"], "tls")
             document = json.loads(state.rules_path.read_text(encoding="utf-8"))
             self.assertTrue(document["jp_exempt"])
 
@@ -470,15 +471,29 @@ class DashboardServerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 state.save_local_rules({"ordinary": {"tcp_max_ms": float("nan")}})
 
-    def test_local_rules_require_one_enabled_metric(self) -> None:
+    def test_local_rules_reject_invalid_latency_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             state = DashboardState(Path(temporary), "owner/repo", "main")
-            with self.assertRaisesRegex(ValueError, "至少启用一项"):
+            with self.assertRaisesRegex(ValueError, "必须是 TCP"):
                 state.save_local_rules({"ordinary": {
-                    "tcp_enabled": False,
-                    "tls_enabled": False,
-                    "http_enabled": False,
+                    "latency_probe": "icmp",
                 }})
+
+    def test_legacy_multi_metric_rule_is_normalized_to_tcp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            state.rules_path.parent.mkdir(parents=True)
+            state.rules_path.write_text(json.dumps({"ordinary": {
+                "tcp_enabled": True,
+                "tls_enabled": True,
+                "http_enabled": True,
+            }}), encoding="utf-8")
+
+            rules = state.local_rules()
+            self.assertEqual(rules["latency_probe"], "tcp")
+            self.assertTrue(rules["tcp_enabled"])
+            self.assertFalse(rules["tls_enabled"])
+            self.assertFalse(rules["http_enabled"])
 
 
 if __name__ == "__main__":
