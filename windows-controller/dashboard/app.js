@@ -379,7 +379,7 @@ function competitionRowsHtml(nodes) {
         <td><span class="ip-value">${escapeHtml(endpoint)}</span></td>
         <td><span class="location-main">${escapeHtml(country)} · ${escapeHtml(node.city || "未知城市")}</span><span class="location-sub">${escapeHtml(location)}</span></td>
         <td>${escapeHtml(node.colo || "--")}</td>
-        <td class="number ${numberClass(latency.value, 150, 300)}"><span class="metric-label">${latency.label}</span> ${formatMetric(latency.value)} ms</td>
+        <td class="number ${numberClass(latency.value, 150, 300)}"><span class="probe-chip">${latency.label}</span> ${formatMetric(latency.value)} ms</td>
         <td class="number ${numberClass(node.jitter_ms, 50, 200)}">${jitter} ms</td>
         <td class="number ${numberClass(Number(node.loss_rate) * 100, 0, 10)}">${loss}</td>
         <td><span class="speed">${speed} Mbps</span></td>
