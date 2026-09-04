@@ -97,17 +97,12 @@
             <h2>当前工作流进程</h2>
           </div>
           <div class="workflow-heading-status">
-            <div id="workflowCompletion" class="round-completion idle" role="status" aria-live="polite">
-              <span class="charge-orb" aria-hidden="true"><i></i></span>
-              <span class="completion-copy">
-                <small>本轮发布状态</small>
-                <strong id="workflowCompletionLabel">等待本轮开始</strong>
-                <em id="workflowCompletionDetail">完成复测与推送后会保持显示直到下一轮</em>
-              </span>
-            </div>
             <div class="workflow-current">
-              <span id="currentStage">等待工作流</span>
-              <strong id="currentStep">尚未进入执行步骤</strong>
+              <div class="workflow-current-copy">
+                <span id="currentStage">等待工作流</span>
+                <strong id="currentStep">尚未进入执行步骤</strong>
+              </div>
+              <span class="workflow-stage-orb" aria-hidden="true"><i></i></span>
             </div>
           </div>
         </div>
@@ -116,6 +111,16 @@
         </div>
         <p id="workflowProgressText" class="progress-caption">已完成 0 / 0 个步骤</p>
         <div id="stageGrid" class="stage-grid"></div>
+        <div class="workflow-status-rail">
+          <div id="workflowCompletion" class="round-completion idle" role="status" aria-live="polite">
+            <span class="charge-orb" aria-hidden="true"><i></i></span>
+            <span class="completion-copy">
+              <small>本轮发布状态</small>
+              <strong id="workflowCompletionLabel">等待本轮开始</strong>
+              <em id="workflowCompletionDetail">完成复测与推送后会保持显示直到下一轮</em>
+            </span>
+          </div>
+        </div>
       </section>
 
       <section class="panel result-panel live-test-panel">

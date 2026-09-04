@@ -977,9 +977,49 @@ h2 { font-size: 20px; font-weight: 710; letter-spacing: -.025em; }
 .rule-note { margin-top: 15px; padding: 13px 15px; border-color: rgba(74,222,155,.18); border-radius: 13px; background: rgba(16, 93, 64, .08); color: #9db0c3; line-height: 1.6; }
 
 .workflow-heading-status { gap: 14px; }
-.round-completion { min-width: 340px; border-radius: 16px; background: rgba(10,17,29,.65); }
-.workflow-current span { font-family: var(--font-data); font-size: 10px; letter-spacing: .08em; }
-.workflow-current strong { color: #dce8f3; }
+.workflow-status-rail { display: flex; justify-content: flex-end; margin-top: 12px; }
+.round-completion { width: min(100%, 460px); min-width: 0; border-radius: 16px; background: rgba(10,17,29,.65); }
+.workflow-current {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 13px;
+}
+.workflow-current-copy { min-width: 0; text-align: right; }
+.workflow-current-copy span { font-family: var(--font-data); font-size: 10px; letter-spacing: .08em; }
+.workflow-current-copy strong { color: #dce8f3; }
+.workflow-stage-orb {
+  position: relative;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 1px solid rgba(120, 215, 255, .5);
+  border-radius: 50%;
+  background: rgba(5, 18, 35, .92);
+  box-shadow: 0 0 20px rgba(0, 196, 255, .2), inset 0 0 0 4px rgba(255,255,255,.025);
+}
+.workflow-stage-orb i {
+  position: absolute;
+  inset: 53% 0 0;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(180deg, #62e9ff, #2776ff);
+  box-shadow: 0 -5px 16px rgba(68, 204, 255, .72);
+}
+.workflow-panel.round-active .workflow-stage-orb i {
+  inset: 28% 0 0;
+  background: linear-gradient(180deg, #55f2ff, #7c50ff);
+  animation: charge-wave 1.35s ease-in-out infinite alternate;
+}
+.workflow-panel.round-complete .workflow-stage-orb {
+  border-color: rgba(178, 255, 220, .76);
+  box-shadow: 0 0 24px rgba(45, 255, 170, .45), inset 0 0 0 4px rgba(255,255,255,.06);
+}
+.workflow-panel.round-complete .workflow-stage-orb i {
+  inset: 0;
+  background: linear-gradient(145deg, #83ffc2, #00ca77);
+  animation: charged-glow 1.8s ease-in-out infinite alternate;
+}
 .progress-track { height: 6px; background: rgba(93, 117, 145, .2); box-shadow: inset 0 1px 2px rgba(0,0,0,.35); }
 .progress-fill { background: linear-gradient(90deg, #168cff, #58d0ef 55%, #a16eff); }
 .stage-grid { gap: 10px; }
@@ -1067,7 +1107,8 @@ input[type="checkbox"] { width: 16px; height: 16px; }
   .rule-actions { grid-column: auto; justify-self: stretch; min-width: 0; }
   .workflow-heading-status { align-items: stretch; width: 100%; }
   .round-completion { min-width: 0; width: 100%; }
-  .workflow-current { max-width: none; text-align: left; }
+  .workflow-current { max-width: none; }
+  .workflow-current-copy { text-align: left; }
   .stage-grid { grid-template-columns: 1fr; }
   .filters { grid-template-columns: 1fr; }
   .result-actions { flex-wrap: wrap; }
@@ -1230,19 +1271,6 @@ body::after {
   box-shadow: 0 0 16px rgba(var(--panel-rgb), .75);
 }
 
-.panel::after {
-  content: "";
-  position: absolute;
-  top: 22px;
-  right: 22px;
-  width: 62px;
-  height: 62px;
-  border-top: 1px solid rgba(var(--panel-rgb), .17);
-  border-right: 1px solid rgba(var(--panel-rgb), .17);
-  border-radius: 0 16px 0 0;
-  pointer-events: none;
-}
-
 .rules-panel { --panel-rgb: 0, 220, 255; }
 .workflow-panel { --panel-rgb: 137, 92, 255; }
 .live-test-panel { --panel-rgb: 0, 196, 255; }
@@ -1362,7 +1390,8 @@ tbody tr:hover {
 @media (max-width: 760px) {
   .topbar { background: linear-gradient(145deg, rgba(11,35,58,.96), rgba(17,15,42,.95)); }
   .metric-card { min-height: 112px; }
-  .panel::after { top: 16px; right: 16px; width: 42px; height: 42px; }
+  .workflow-status-rail { justify-content: stretch; }
+  .round-completion { width: 100%; }
   .ambient-particles { display: block; opacity: .68; }
 }
 
