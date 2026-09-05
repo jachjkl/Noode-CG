@@ -7,6 +7,20 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <aside class="workspace-nav" aria-label="控制台导航">
+    <a class="workspace-logo" href="#overview"><span>N</span> Noode<span class="logo-suffix">/ CG</span></a>
+    <p class="nav-caption">工作空间</p>
+    <nav>
+      <a href="#overview"><span>01</span>运行总览</a>
+      <a href="#rulesPanel"><span>02</span>优选规则</a>
+      <a href="#workflowPanel"><span>03</span>工作流进程</a>
+      <a href="#testPanel"><span>04</span>实时测速</a>
+      <a href="#sessionResults"><span>05</span>优选与复测</a>
+      <a href="#publishedPanel"><span>06</span>云端结果</a>
+      <a href="#logsPanel"><span>07</span>运行日志</a>
+    </nav>
+    <div class="nav-footer"><span class="local-dot"></span>本地网络控制台<small>测量 · 筛选 · 发布</small></div>
+  </aside>
   <div class="shell">
     <header class="topbar">
       <div class="brand-lockup">
@@ -40,7 +54,7 @@
       </div>
     </header>
 
-    <main>
+    <main id="overview">
       <section class="summary-grid" aria-label="运行概览">
         <article class="metric-card accent status-metric">
           <span class="metric-label">当前状态</span>
@@ -64,7 +78,7 @@
         </article>
       </section>
 
-      <section class="panel rules-panel">
+      <section id="rulesPanel" class="panel rules-panel">
         <div class="panel-heading">
           <div>
             <p class="section-kicker">LOCAL RULE MATRIX</p>
@@ -123,7 +137,7 @@
         </div>
       </section>
 
-      <section class="panel result-panel live-test-panel">
+      <section id="testPanel" class="panel result-panel live-test-panel">
         <div class="panel-heading result-heading">
           <div>
             <p class="section-kicker">LIVE TEST STREAM</p>
@@ -165,7 +179,7 @@
         </div>
       </section>
 
-      <div class="result-dual-grid">
+      <div id="sessionResults" class="result-dual-grid">
         <section class="panel result-panel live-result-panel">
           <div class="panel-heading result-heading">
             <div>
@@ -216,7 +230,7 @@
         </section>
       </div>
 
-      <section class="panel result-panel">
+      <section id="publishedPanel" class="panel result-panel">
         <div class="panel-heading result-heading">
           <div>
             <p class="section-kicker">RESULTS</p>
@@ -270,7 +284,7 @@
         </div>
       </section>
 
-      <section class="panel log-panel">
+      <section id="logsPanel" class="panel log-panel">
         <div class="panel-heading">
           <div>
             <p class="section-kicker">LIVE LOG</p>
