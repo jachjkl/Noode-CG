@@ -17,6 +17,22 @@ from dashboard_server import DashboardState, main  # noqa: E402
 
 
 class DashboardServerTests(unittest.TestCase):
+    def test_relaunch_running_dashboard_does_not_open_duplicate_browser(self) -> None:
+        from dashboard_server import serve
+        with tempfile.TemporaryDirectory() as temporary:
+            with (patch("dashboard_server.ThreadingHTTPServer", side_effect=OSError("in use")),
+                  patch("dashboard_server.dashboard_is_healthy", return_value=True),
+                  patch("dashboard_server.open_dashboard_url") as browser):
+                self.assertEqual(serve(Path(temporary), "127.0.0.1", 13336, "owner/repo", "main", False, True), 0)
+                browser.assert_not_called()
+
+    def test_rules_reject_fractional_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            for key in ("latency_max_ms", "jitter_max_ms", "loss_max_percent", "speed_min_mbps"):
+                with self.subTest(key=key), self.assertRaises(ValueError):
+                    state.save_local_rules({"ordinary": {key: 3.5}})
+
     def test_browser_reload_cancels_close_and_last_tab_must_close(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             state = DashboardState(Path(temporary), "owner/repo", "main")

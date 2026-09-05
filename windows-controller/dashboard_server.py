@@ -73,7 +73,8 @@ def open_dashboard_url(url: str) -> bool:
                 profile = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Noode-CG" / "dashboard-browser"
                 MANAGED_BROWSER = subprocess.Popen([
                     str(edge), f"--app={url}", f"--user-data-dir={profile}",
-                    "--no-first-run", "--disable-background-mode",
+                    "--no-first-run", "--no-default-browser-check", "--disable-background-mode",
+                    "--disable-extensions", "--disable-features=Translate",
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 os.startfile(url)  # type: ignore[attr-defined]
@@ -598,6 +599,8 @@ class DashboardState:
         latency_limit = float(raw_limit)
         if not math.isfinite(latency_limit) or latency_limit <= 0:
             raise ValueError("latency_max_ms 必须是大于 0 的有限数字")
+        if not latency_limit.is_integer():
+            raise ValueError("延迟上限必须是整数")
         rules["latency_max_ms"] = latency_limit
         for name in ("jitter_max_ms", "loss_max_percent", "speed_min_mbps"):
             default = LOCAL_RULE_DEFAULTS[name]
@@ -607,6 +610,8 @@ class DashboardState:
             rules[name] = float(raw)
             if not math.isfinite(rules[name]):
                 raise ValueError(f"{name} 必须是有限数字")
+            if not rules[name].is_integer():
+                raise ValueError(f"{name} 必须是整数")
         for name in ("tcp_max_ms", "tls_max_ms", "http_ttfb_max_ms", "average_max_ms"):
             rules[name] = latency_limit
         if rules["jitter_max_ms"] < 0:
@@ -1568,8 +1573,6 @@ def serve(
         server = ThreadingHTTPServer((host, port), make_handler(state, server_ref))
     except OSError as exc:
         if dashboard_is_healthy(url):
-            if open_browser:
-                open_dashboard_url(url)
             print(f"Noode-CG 可视化面板已经运行：{url}")
             return 0
         print(f"Noode-CG 可视化面板无法监听 {host}:{port}：{exc}", file=sys.stderr)

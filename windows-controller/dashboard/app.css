@@ -1620,3 +1620,11 @@ th[aria-sort] .result-sort-header { color:#F5F53F; }
 th[aria-sort=ascending] .result-sort-header::after { content:' ↑'; }
 th[aria-sort=descending] .result-sort-header::after { content:' ↓'; }
 @media(max-width:760px) { .round-completion { max-width:100%; } }
+
+/* In-field arrow controls: no extra row below the numeric input. */
+.input-unit { position:relative; display:block; }
+.input-unit input { min-height:66px; padding-right:88px; }
+.input-unit > b { right:48px; top:25px; }
+.field .number-controls { position:absolute; right:8px; top:4px; bottom:4px; width:28px; display:flex; flex-direction:column; justify-content:center; gap:8px; }
+.number-controls button { width:28px; height:24px; min-height:24px; padding:3px; display:grid; place-items:center; border-radius:6px; background:#252521; border-color:#48483b; }
+.number-controls svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }

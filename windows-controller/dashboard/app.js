@@ -966,12 +966,27 @@ for (const [tableId, keys] of Object.entries({
 }
 document.querySelectorAll(".input-unit input[type=number]").forEach(input => {
   input.step = "1";
+  input.inputMode = "numeric";
+  const validateInteger = () => {
+    input.setCustomValidity(input.value !== "" && !/^\d+$/.test(input.value) ? "请输入整数，不支持小数或科学计数法" : "");
+  };
+  input.addEventListener("beforeinput", event => {
+    if (event.data && !/^\d+$/.test(event.data)) event.preventDefault();
+  });
+  input.addEventListener("paste", event => {
+    if (!/^\d+$/.test(event.clipboardData.getData("text").trim())) {
+      event.preventDefault();
+      showToast("这里只能输入整数");
+    }
+  });
+  input.addEventListener("input", validateInteger);
+  input.addEventListener("change", validateInteger);
   const controls = document.createElement("span");
   controls.className = "number-controls";
-  for (const [label, delta] of [["减少", -1], ["增加", 1]]) {
+  for (const [label, delta] of [["增加", 1], ["减少", -1]]) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = delta < 0 ? "−" : "+";
+    button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 16 16"><path d="${delta > 0 ? "M4 10 L8 6 L12 10" : "M4 6 L8 10 L12 6"}"/></svg>`;
     button.setAttribute("aria-label", input.closest("label").querySelector("span").textContent + label + "1");
     button.addEventListener("click", () => {
       const next = Math.round(Number(input.value) || 0) + delta;
@@ -985,6 +1000,9 @@ document.querySelectorAll(".input-unit input[type=number]").forEach(input => {
 });
 
 createAmbientParticles();
+elements.runLink.addEventListener("click", event => {
+  if (!lastState?.run_url) event.preventDefault();
+});
 // Decorative only: one lightweight particle layer per hovered card, no timers.
 function addCardAtmosphere(card) {
   if (!card || card.querySelector(":scope > .card-atmosphere")) return;
