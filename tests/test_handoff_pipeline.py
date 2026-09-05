@@ -35,6 +35,33 @@ def qualified(node: NodeResult, *, country: str = "US") -> NodeResult:
 
 
 class HandoffPipelineTests(unittest.TestCase):
+    def test_official_history_excludes_previous_five_across_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = {
+                "_base_dir": str(root), "paths": {"output": "output"},
+                "rolling": {"snapshot_path": "previous.json", "official_snapshot_path": "official.txt.gz"},
+                "sources": {"cloudflare_ranges": {"official_batch_size": 1}},
+                "handoff": {"pool_path": "pool.gz", "health_path": "health.json", "target": 1},
+            }
+            batches = []
+            def collect(_config, *, exclude_ips, round_index):
+                for ip in batches[-5:]:
+                    self.assertIn(ip, exclude_ips)
+                ip = f"203.0.113.{len(batches) + 1}"
+                batches.append(ip)
+                return [NodeResult(ip=ip)], []
+            with (patch("core.handoff.load_previous_top", return_value=([], [])),
+                  patch("core.handoff.collect_source_candidates", return_value=([], [])) as sources,
+                  patch("core.handoff.collect_official_batch", side_effect=collect)):
+                for index in range(8):
+                    with patch.dict(os.environ, {"NOODE_CONTINUATION": "true" if index % 2 else "false", "NOODE_PUBLISH_ONLY": "false"}):
+                        prepare_cloud_handoff(config)
+                self.assertEqual(sources.call_count, 4)
+            history = json.loads((root / "official-batch-history.json").read_text())
+            self.assertEqual(len(history), 6)
+            self.assertEqual(history, [[ip] for ip in batches[-6:]])
+
     def test_publish_competition_clears_first_pass_live_test_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "live-tests.json.gz"
@@ -241,7 +268,7 @@ class HandoffPipelineTests(unittest.TestCase):
             self.assertEqual(report["attempted_excluded"], 0)
             self.assertEqual(report["prior_official_excluded"], 1)
             snapshot = set(gzip.decompress(prior.read_bytes()).decode().splitlines())
-            self.assertEqual(snapshot, {fresh.ip})
+            self.assertEqual(snapshot, {fresh.ip, "198.51.100.2"})
 
     def test_new_cycle_clears_stale_accumulator_before_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -405,6 +405,20 @@ def _write_ip_set(path: Path, values: set[str]) -> None:
     atomic_write_bytes(path, payload)
 
 
+def _official_history(path: Path) -> list[list[str]]:
+    history_path = path.with_name("official-batch-history.json")
+    if history_path.is_file():
+        payload = json.loads(history_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, list) or any(
+            not isinstance(batch, list) or any(not isinstance(ip, str) for ip in batch)
+            for batch in payload
+        ):
+            raise ValueError("官方候选历史损坏，停止获取以避免重复")
+        return payload[-5:]
+    legacy = _load_ip_set(path)
+    return [sorted(legacy)] if legacy else []
+
+
 def _rank_with_colo_diversity(
     records: Iterable[NodeResult],
     *,
@@ -486,7 +500,8 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     )
     official_value = config.get("rolling", {}).get("official_snapshot_path")
     official_path = resolve_path(config, official_value) if official_value else None
-    loaded_prior_official_ips = _load_ip_set(official_path) if official_path else set()
+    official_history = _official_history(official_path) if official_path else []
+    loaded_prior_official_ips = {ip for batch in official_history for ip in batch}
     continuation = (
         os.getenv("NOODE_CONTINUATION", "").strip().lower()
         in {"1", "true", "yes", "on"}
@@ -580,9 +595,10 @@ def prepare_cloud_handoff(config: dict[str, Any]) -> dict[str, Any]:
     else:
         report["warnings"].append("官方候选不足 10000 个，保留上一版云端交接文件")
     atomic_write_json(health_path, report)
-    if official_path and not publish_only:
-        snapshot = prior_official_ips | official_ips if continuation else official_ips
-        _write_ip_set(official_path, snapshot)
+    if official_path and not publish_only and official_ips:
+        batches = [*official_history, sorted(official_ips)][-6:]
+        atomic_write_json(official_path.with_name("official-batch-history.json"), batches)
+        _write_ip_set(official_path, {ip for batch in batches for ip in batch})
     return report
 
 

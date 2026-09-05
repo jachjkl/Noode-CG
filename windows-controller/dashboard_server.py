@@ -50,6 +50,8 @@ LOCAL_OPTION_DEFAULTS = {
     "continuous_three_rounds": False,
 }
 
+MANAGED_BROWSER: subprocess.Popen | None = None
+
 
 def utc_timestamp() -> float:
     return time.time()
@@ -63,9 +65,18 @@ def iso_timestamp(value: object) -> float:
 
 
 def open_dashboard_url(url: str) -> bool:
+    global MANAGED_BROWSER
     try:
         if os.name == "nt":
-            os.startfile(url)  # type: ignore[attr-defined]
+            edge = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft/Edge/Application/msedge.exe"
+            if edge.is_file():
+                profile = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Noode-CG" / "dashboard-browser"
+                MANAGED_BROWSER = subprocess.Popen([
+                    str(edge), f"--app={url}", f"--user-data-dir={profile}",
+                    "--no-first-run", "--disable-background-mode",
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                os.startfile(url)  # type: ignore[attr-defined]
         else:
             webbrowser.open(url, new=2)
         return True
@@ -87,6 +98,8 @@ def dashboard_is_healthy(url: str) -> bool:
 class DashboardState:
     def __init__(self, root: Path, repository: str, branch: str) -> None:
         self.root = root
+        self.browser_clients: dict[str, float | None] = {}
+        self.close_when_idle = False
         self.repository = repository
         self.branch = branch
         self.dashboard_dir = root / "dashboard"
@@ -152,6 +165,9 @@ class DashboardState:
 
     def start_controller(self) -> bool:
         with self.lock:
+            if self.close_when_idle:
+                self.last_error = "面板正在完成关闭收尾，不能开始新任务。"
+                return False
             if self.cycle_started:
                 self.last_error = "本次面板会话已经开始；需要增加候选时请点击“继续优选并重排”。"
                 return False
@@ -181,8 +197,7 @@ class DashboardState:
             # once. Later continuation rounds append to the same live result.
             self._clear_cycle_state()
             self._reset_round_status()
-            self.log_path.unlink(missing_ok=True)
-            self.latest_log_path.unlink(missing_ok=True)
+            self._append_dashboard_log("开始本会话优选，后续日志持续追加。")
             self.process = subprocess.Popen(
                 [
                     str(powershell),
@@ -297,6 +312,40 @@ class DashboardState:
             self._rotate_successful_logs("run-*.log", keep=2)
         self.refresh_remote_outputs(force=True)
         self.refresh_github(force=True)
+
+    def browser_presence(self, client: str, closed: bool = False) -> None:
+        if not client or len(client) > 80:
+            raise ValueError("invalid browser client")
+        with self.lock:
+            self.browser_clients[client] = utc_timestamp() + 8 if closed else None
+
+    def browser_has_closed(self) -> bool:
+        with self.lock:
+            return bool(self.browser_clients) and all(
+                deadline is not None and deadline <= utc_timestamp()
+                for deadline in self.browser_clients.values()
+            )
+
+    def request_close(self) -> None:
+        with self.lock:
+            if self.close_when_idle:
+                return
+            self.close_when_idle = True
+        self._append_dashboard_log("面板已请求关闭：停止新增优选，等待竞赛复测与发布收尾后退出后台。")
+        try:
+            self.stop_selection()
+        except Exception:
+            with self.lock:
+                self.close_when_idle = False
+            raise
+
+    def ready_to_close(self) -> bool:
+        if not self.close_when_idle:
+            return False
+        self.refresh_github(force=True)
+        with self.lock:
+            controller_active = self.process is not None and self.process.poll() is None
+        return not (controller_active or self._workflow_active() or self._local_selection_pids())
 
     def stop_monitor(self) -> None:
         with self.lock:
@@ -628,6 +677,8 @@ class DashboardState:
 
     def request_continue(self) -> dict[str, object]:
         with self.lock:
+            if self.close_when_idle:
+                return {"started": False, "queued": False, "reason": "正在关闭收尾，不能继续优选。"}
             if not self.cycle_started:
                 return {
                     "started": False,
@@ -666,6 +717,8 @@ class DashboardState:
 
     def request_publish(self) -> dict[str, object]:
         with self.lock:
+            if self.close_when_idle:
+                return {"started": False, "queued": False, "reason": "正在关闭收尾，不能重复推送。"}
             if not self.cycle_started:
                 return {
                     "started": False,
@@ -1451,6 +1504,14 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                 result = state.request_continue()
                 self._json(result)
                 return
+            if route == "/api/browser-presence":
+                try:
+                    payload = self._read_json()
+                    state.browser_presence(str(payload.get("client", "")), payload.get("closed") is True)
+                    self._json({"ok": True})
+                except (ValueError, TypeError, AttributeError):
+                    self._json({"error": "invalid presence"}, HTTPStatus.BAD_REQUEST)
+                return
             if route == "/api/publish":
                 self._json(state.request_publish())
                 return
@@ -1480,23 +1541,8 @@ def make_handler(state: DashboardState, server_ref: dict[str, ThreadingHTTPServe
                 self._json({"stopped": True})
                 return
             if route == "/api/shutdown":
-                state.refresh_github(force=True)
-                local_active = bool(state._local_selection_pids())
-                with state.lock:
-                    controller_active = (
-                        state.process is not None and state.process.poll() is None
-                    )
-                if state._workflow_active() or local_active or controller_active:
-                    self._json({
-                        "closing": False,
-                        "error": "当前优选或 GitHub 工作流仍在运行，请等待本轮完成后再关闭。",
-                    }, HTTPStatus.CONFLICT)
-                    return
-                state.clear_session_state()
-                self._json({"closing": True})
-                server = server_ref.get("server")
-                if server:
-                    threading.Thread(target=server.shutdown, daemon=True).start()
+                state.request_close()
+                self._json({"closing": True, "finishing": True})
                 return
             self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -1530,6 +1576,7 @@ def serve(
         return 1
     server.daemon_threads = True
     server_ref["server"] = server
+    state._append_dashboard_log("本地面板已启动；等待手动开始。关闭页面后自动停止并完成收尾。")
 
     def open_dashboard() -> None:
         time.sleep(0.8)
@@ -1538,6 +1585,15 @@ def serve(
     def watchdog() -> None:
         while True:
             time.sleep(1)
+            try:
+                if state.browser_has_closed() and not state.close_when_idle:
+                    state.request_close()
+                if state.ready_to_close():
+                    state._append_dashboard_log("本轮收尾已结束，关闭本地面板后台。")
+                    server.shutdown()
+                    return
+            except Exception as exc:
+                state._append_dashboard_log(f"关闭收尾检查失败，将继续等待：{exc}")
             if state.shutdown_at:
                 state.refresh_github()
                 workflow_status = str(state.gh_state.get("status") or "")
@@ -1580,6 +1636,12 @@ def serve(
     except KeyboardInterrupt:
         pass
     finally:
+        if MANAGED_BROWSER is not None and MANAGED_BROWSER.poll() is None:
+            subprocess.run(
+                ["taskkill", "/PID", str(MANAGED_BROWSER.pid), "/T", "/F"],
+                capture_output=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
         process = state.process
         if process is not None and process.poll() is None:
             try:

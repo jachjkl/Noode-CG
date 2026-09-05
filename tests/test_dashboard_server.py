@@ -17,6 +17,36 @@ from dashboard_server import DashboardState, main  # noqa: E402
 
 
 class DashboardServerTests(unittest.TestCase):
+    def test_browser_reload_cancels_close_and_last_tab_must_close(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            with patch("dashboard_server.utc_timestamp", return_value=100):
+                state.browser_presence("first", closed=True)
+            with patch("dashboard_server.utc_timestamp", return_value=104):
+                self.assertFalse(state.browser_has_closed())
+                state.browser_presence("first")
+            with patch("dashboard_server.utc_timestamp", return_value=120):
+                self.assertFalse(state.browser_has_closed())
+                state.browser_presence("second")
+                state.browser_presence("first", closed=True)
+            with patch("dashboard_server.utc_timestamp", return_value=140):
+                self.assertFalse(state.browser_has_closed())
+                state.browser_presence("second", closed=True)
+            with patch("dashboard_server.utc_timestamp", return_value=150):
+                self.assertTrue(state.browser_has_closed())
+
+    def test_close_requests_stop_once_and_waits_for_controller(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            with patch.object(state, "stop_selection") as stop:
+                state.request_close()
+                state.request_close()
+                stop.assert_called_once()
+            with (patch.object(state, "refresh_github"),
+                  patch.object(state, "_workflow_active", return_value=True),
+                  patch.object(state, "_local_selection_pids", return_value=[])):
+                self.assertFalse(state.ready_to_close())
+
     def test_dashboard_cli_defaults_to_manual_start(self) -> None:
         with (
             patch.object(sys, "argv", ["dashboard_server.py", "--no-browser"]),

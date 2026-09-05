@@ -47,7 +47,7 @@ try {
         if ($null -ne $existing) {
             Write-LaunchLog "Dashboard is already running. Opening $url"
             if (-not $NoBrowser) {
-                Start-Process -FilePath $url | Out-Null
+                & $python $dashboard --root $resolvedRoot --port $Port --no-start
             }
             Remove-OldSuccessfulLogs
             exit 0
@@ -57,7 +57,7 @@ try {
         Write-LaunchLog "No existing dashboard responded on port $Port. Starting a new server."
     }
 
-    Write-LaunchLog "Starting dashboard server in this window. Selection waits for the Start button."
+    Write-LaunchLog "Starting hidden dashboard server. Selection waits for the Start button."
     $serverArguments = @(
         $dashboard,
         "--root", $resolvedRoot,
@@ -69,7 +69,7 @@ try {
     if ($NoBrowser) {
         $serverArguments += "--no-browser"
     }
-    & $python @serverArguments
+    & $python -u @serverArguments 2>&1 | ForEach-Object { Write-LaunchLog ([string]$_) }
     $exitCode = $LASTEXITCODE
     Write-LaunchLog "Dashboard server exited with code $exitCode."
     if ($exitCode -eq 0) { Remove-OldSuccessfulLogs }

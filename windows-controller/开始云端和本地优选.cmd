@@ -16,7 +16,7 @@ if not exist "%NOODE_LAUNCHER%" (
     exit /b 1
 )
 
-"%NOODE_POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%NOODE_LAUNCHER%" -Root "%NOODE_ROOT%"
+"%NOODE_POWERSHELL%" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Start-Process -FilePath $env:NOODE_POWERSHELL -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',([char]34 + $env:NOODE_LAUNCHER + [char]34),'-Root',([char]34 + $env:NOODE_ROOT + [char]34))"
 set "NOODE_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%NOODE_EXIT_CODE%"=="0" (

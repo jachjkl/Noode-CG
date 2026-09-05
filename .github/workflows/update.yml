@@ -218,6 +218,7 @@ jobs:
             output \
             data/previous-top100.json
           for optional in \
+            data/official-batch-history.json \
             data/handoff/local-qualified.json.gz \
             data/handoff/local-attempted-ips.txt.gz; do
             if [ -e "$optional" ] || git ls-files --error-unmatch -- "$optional" >/dev/null 2>&1; then

@@ -17,7 +17,9 @@ $workflow = "update.yml"
 
 try { $Host.UI.RawUI.WindowTitle = "Noode-CG 手动优选 - 可在任务管理器结束" } catch { }
 
-Set-Content -LiteralPath $log -Value "" -Encoding UTF8
+if (-not (Test-Path -LiteralPath $log)) {
+    Set-Content -LiteralPath $log -Value "" -Encoding UTF8
+}
 
 function Sync-LatestLog {
     if ([IO.Path]::GetFullPath($log) -ne [IO.Path]::GetFullPath($latestLog)) {

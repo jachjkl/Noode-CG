@@ -144,6 +144,9 @@ function statusClass(status, conclusion) {
 }
 
 function renderStages(stages) {
+  const signature = JSON.stringify(stages);
+  if (elements.stageGrid.dataset.signature === signature) return;
+  elements.stageGrid.dataset.signature = signature;
   elements.stageGrid.innerHTML = stages.map((stage, index) => {
     const klass = statusClass(stage.status, stage.conclusion);
     const currentStep = (stage.steps || []).find((step) => step.status === "in_progress");
@@ -163,6 +166,7 @@ function renderStages(stages) {
         <p title="${escapeHtml(detail)}">${escapeHtml(detail)}</p>
       </article>`;
   }).join("");
+  elements.stageGrid.querySelectorAll(".done").forEach(addCardAtmosphere);
 }
 
 function renderRoundCompletion(state) {
@@ -353,7 +357,7 @@ function renderLiveNodes() {
     ? `本会话已实时优选 ${liveNodes.length} 条；后续手动续选只追加去重，关闭软件后下次运行才清空；日本节点独立豁免`
     : "本轮尚无合格结果；测速通过一个，这里立即增加一个";
   elements.liveNodeRows.innerHTML = liveNodes.length
-    ? nodeRowsHtml(liveNodes)
+    ? nodeRowsHtml(sortResultNodes(liveNodes, "liveNodeTable"))
     : '<tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>';
 }
 
@@ -402,7 +406,7 @@ function renderCompetitionNodes() {
     elements.competitionResultSummary.textContent = "等待合并云端与本轮合格 IP 后开始完整复测";
   }
   elements.competitionNodeRows.innerHTML = competitionNodes.length
-    ? competitionRowsHtml(competitionNodes)
+    ? competitionRowsHtml(sortResultNodes(competitionNodes, "competitionNodeTable"))
     : '<tr><td class="empty" colspan="9">等待发布前竞赛复测结果</td></tr>';
 }
 
@@ -824,7 +828,7 @@ elements.resetRules.addEventListener("click", () => {
 elements.closeButton.addEventListener("click", async () => {
   try {
     await post("/api/shutdown");
-    showToast("正在关闭浏览器页面和本地 CMD 窗口");
+    showToast("已请求关闭：后台将完成复测与推送收尾后退出");
     elements.closeButton.disabled = true;
     setTimeout(() => window.close(), 250);
   } catch (error) {
@@ -920,8 +924,98 @@ function createAmbientParticles() {
   }
 }
 
+
+const resultSorts = {};
+function sortResultNodes(nodes, tableId) {
+  const sort = resultSorts[tableId];
+  if (!sort) return nodes;
+  const value = node => sort.key === "selected" ? selectedLatency(node).value : node[sort.key];
+  return [...nodes].sort((a, b) => {
+    const left = value(a), right = value(b);
+    const missing = v => v === null || v === undefined || !Number.isFinite(Number(v));
+    if (missing(left)) return missing(right) ? a._rank - b._rank : 1;
+    if (missing(right)) return -1;
+    return (Number(left) - Number(right)) * sort.direction || a._rank - b._rank;
+  });
+}
+for (const [tableId, keys] of Object.entries({
+  liveNodeTable: ["_rank", null, null, null, "tcp_latency_ms", "tls_latency_ms", "http_latency_ms", "average_latency_ms", "jitter_ms", "loss_rate", "speed_mbps"],
+  competitionNodeTable: ["_rank", null, null, null, "selected", "jitter_ms", "loss_rate", "speed_mbps"],
+})) {
+  const table = document.getElementById(tableId);
+  table.querySelectorAll("th").forEach((th, index) => {
+    const key = keys[index];
+    if (!key) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "result-sort-header";
+    const label = th.textContent;
+    button.textContent = label + " ↕";
+    th.replaceChildren(button);
+    button.addEventListener("click", () => {
+      const old = resultSorts[tableId];
+      const direction = old?.key === key ? -old.direction : 1;
+      resultSorts[tableId] = {key, direction};
+      table.querySelectorAll("th").forEach(cell => cell.removeAttribute("aria-sort"));
+      th.setAttribute("aria-sort", direction === 1 ? "ascending" : "descending");
+      button.setAttribute("aria-label", label + (direction === 1 ? "，升序" : "，降序"));
+      renderLiveNodes();
+      renderCompetitionNodes();
+    });
+  });
+}
+document.querySelectorAll(".input-unit input[type=number]").forEach(input => {
+  input.step = "1";
+  const controls = document.createElement("span");
+  controls.className = "number-controls";
+  for (const [label, delta] of [["减少", -1], ["增加", 1]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = delta < 0 ? "−" : "+";
+    button.setAttribute("aria-label", input.closest("label").querySelector("span").textContent + label + "1");
+    button.addEventListener("click", () => {
+      const next = Math.round(Number(input.value) || 0) + delta;
+      input.value = String(Math.min(input.max === "" ? Infinity : Number(input.max), Math.max(input.min === "" ? -Infinity : Number(input.min), next)));
+      input.dispatchEvent(new Event("input", {bubbles:true}));
+      input.dispatchEvent(new Event("change", {bubbles:true}));
+    });
+    controls.appendChild(button);
+  }
+  input.parentElement.appendChild(controls);
+});
+
 createAmbientParticles();
+// Decorative only: one lightweight particle layer per hovered card, no timers.
+function addCardAtmosphere(card) {
+  if (!card || card.querySelector(":scope > .card-atmosphere")) return;
+  const layer = document.createElement("span");
+  layer.className = "card-atmosphere";
+  layer.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < 32; index += 1) {
+    const spark = document.createElement("i");
+    spark.style.setProperty("--px", `${7 + (index * 31) % 86}%`);
+    spark.style.setProperty("--pd", `${2.8 + index % 4 * .4}s`);
+    spark.style.setProperty("--pl", `${-index * .31}s`);
+    spark.style.setProperty("--sway", `${index % 2 ? 24 : -24}px`);
+    layer.appendChild(spark);
+  }
+  card.appendChild(layer);
+}
+document.addEventListener("pointerover", (event) => {
+  addCardAtmosphere(event.target.closest(".panel, .metric-card, .stage-card"));
+});
 fetchState();
+const browserClient = sessionStorage.getItem("noodeBrowserClient") || crypto.randomUUID();
+sessionStorage.setItem("noodeBrowserClient", browserClient);
+function browserPresence(closed = false) {
+  const body = JSON.stringify({client: browserClient, closed});
+  if (closed) navigator.sendBeacon("/api/browser-presence", new Blob([body], {type:"application/json"}));
+  else fetch("/api/browser-presence", {method:"POST", headers:{"Content-Type":"application/json"}, body}).catch(() => {});
+}
+browserPresence();
+window.addEventListener("pageshow", () => browserPresence());
+window.addEventListener("pagehide", () => browserPresence(true));
+setInterval(() => browserPresence(), 5000);
 fetchNodes();
 fetchLiveNodes();
 fetchCompetitionNodes();
