@@ -35,6 +35,25 @@ def qualified(node: NodeResult, *, country: str = "US") -> NodeResult:
 
 
 class HandoffPipelineTests(unittest.TestCase):
+    def test_competition_all_records_terminal_before_publish(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "live.gz"
+            recorder = LiveTestRecorder(path)
+            nodes = [NodeResult(ip=f"198.18.{i // 256}.{i % 256}") for i in range(811)]
+            recorder.reset_for_competition(nodes)
+            recorder.start_stage(nodes, "下载测速")
+            recorder.complete_batch(nodes[:673], {node.ip for node in nodes[:424]})
+            with self.assertRaisesRegex(RuntimeError, "138"):
+                recorder.require_complete()
+            recorder.complete_batch(nodes[673:], {node.ip for node in nodes[673:700]})
+            recorder.require_complete()
+            recorder.finish()
+            payload = json.loads(gzip.decompress(path.read_bytes()))
+            self.assertEqual(payload["report"]["total"], 811)
+            self.assertEqual(payload["report"]["processed"], 811)
+            self.assertEqual(payload["report"]["testing"], 0)
+            self.assertEqual(payload["report"]["queued"], 0)
+
     def test_official_history_excludes_previous_five_across_sessions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

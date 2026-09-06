@@ -28,7 +28,6 @@ STAGE_LABELS = {
     "pre-publish-test": "发布前竞赛复测",
     "cloud-publish": "推送到 GitHub",
     "local-cleanup": "清理本地缓存",
-    "replenish-cloud-pool": "自动补充候选池",
 }
 
 LOCAL_RULE_DEFAULTS = {
@@ -99,6 +98,8 @@ def dashboard_is_healthy(url: str) -> bool:
 class DashboardState:
     def __init__(self, root: Path, repository: str, branch: str) -> None:
         self.root = root
+        self.session_started_at = utc_timestamp()
+        self.live_payload_cache = None
         self.browser_clients: dict[str, float | None] = {}
         self.close_when_idle = False
         self.repository = repository
@@ -837,6 +838,8 @@ class DashboardState:
             self.run_url = ""
             self.gh_state = {}
             self.dispatch_pending_until = utc_timestamp() + 90
+            self.process_started_at = utc_timestamp()
+            self.process_ended_at = None
             if not publish_only:
                 self.cloud_round_count += 1
             self.round_status_cleared = False
@@ -895,11 +898,25 @@ class DashboardState:
         if not self.log_path.is_file():
             return "等待控制器写入日志……"
         try:
-            text = self.log_path.read_text(encoding="utf-8-sig", errors="replace")
+            with self.log_path.open("rb") as handle:
+                handle.seek(max(0, self.log_path.stat().st_size - 65536))
+                text = handle.read().decode("utf-8-sig", errors="replace")
         except OSError as exc:
             return f"读取日志失败：{exc}"
         lines = text.splitlines()
         return "\n".join(lines[-350:])
+
+    def read_flow_log(self) -> str:
+        lines = [line for line in self.read_log().splitlines()
+                 if line.startswith("[") and re.search(r"[\u4e00-\u9fff]", line)]
+        paths = sorted((self.root / "logs").glob("local-flow-*.log"), key=lambda p: p.stat().st_mtime)
+        for path in paths[-3:]:
+            if path.stat().st_mtime < self.session_started_at:
+                continue
+            with path.open("rb") as handle:
+                handle.seek(max(0, path.stat().st_size - 32768))
+                lines.extend(handle.read().decode("utf-8", errors="replace").splitlines())
+        return "\n".join(sorted(lines)[-250:]) or "等待本轮手动开始；运行后实时显示中文流程日志。"
 
     def _discover_run(self, log_text: str) -> None:
         matches = re.findall(r"(?:运行编号\s*#|actions/runs/)(\d+)", log_text)
@@ -979,6 +996,18 @@ class DashboardState:
             if result.returncode == 0 and result.stdout.strip():
                 data = json.loads(result.stdout)
                 with self.lock:
+                    previous_jobs = {j.get("name"): (j.get("status"), j.get("conclusion"))
+                                     for j in self.gh_state.get("jobs", [])}
+                    for job in data.get("jobs", []):
+                        name = job.get("name")
+                        state_pair = (job.get("status"), job.get("conclusion"))
+                        if name in STAGE_LABELS and previous_jobs.get(name) != state_pair:
+                            detail = {"queued": "等待执行", "in_progress": "正在执行", "completed": "已结束"}.get(job.get("status"), "等待执行")
+                            if job.get("conclusion") == "success":
+                                detail = "已完成"
+                            elif job.get("conclusion") in {"failure", "cancelled", "timed_out"}:
+                                detail = "失败或已停止，请查看原始运行日志"
+                            self._append_dashboard_log(f"{STAGE_LABELS[name]}：{detail}")
                     self.gh_state = data
                     self.run_url = str(data.get("url") or self.run_url)
                     if str(data.get("status") or "") == "completed":
@@ -1112,7 +1141,14 @@ class DashboardState:
         if not path.is_file():
             return empty_report, [], "live-test-stream", None
         try:
-            payload = json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+            stat = path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_size)
+            cached = self.live_payload_cache
+            if cached is not None and stamp == cached[0]:
+                payload = cached[1]
+            else:
+                payload = json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+                self.live_payload_cache = (stamp, payload)
         except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
             return empty_report, [], "live-test-stream", path
         if not isinstance(payload, dict):
@@ -1272,6 +1308,8 @@ class DashboardState:
                 )
             started = self.process_started_at
             ended = self.process_ended_at
+            if gh_status in {"queued", "in_progress", "waiting", "pending"}:
+                ended = None
             elapsed = int(max(0, (ended or utc_timestamp()) - started)) if started else 0
             shutdown_in = max(0, int(self.shutdown_at - utc_timestamp())) if self.shutdown_at else None
             workflow_active = gh_status in {"queued", "in_progress", "waiting", "pending"}
@@ -1366,7 +1404,7 @@ class DashboardState:
                     "detail": pretest_detail,
                 },
                 "round_completion": round_completion,
-                "log": self.read_log(),
+                "log": self.read_flow_log(),
                 "last_error": self.last_error,
                 "continuation_queued": self.continue_queue_path.is_file(),
                 "publish_queued": self.publish_queue_path.is_file(),
@@ -1615,8 +1653,6 @@ def serve(
         while True:
             try:
                 state.refresh_github()
-                state.check_cloud_connection()
-                state.refresh_remote_outputs()
                 state.process_publish_queue()
                 if not state.publish_queue_path.is_file():
                     state.process_continue_queue()
@@ -1625,10 +1661,20 @@ def serve(
                     state.last_error = f"后台状态刷新失败：{exc}"
             time.sleep(3)
 
+    def refresh_auxiliary(callback) -> None:
+        while True:
+            try:
+                callback()
+            except Exception as exc:
+                state._append_dashboard_log(f"云端同步暂时失败，稍后重试：{exc}")
+            time.sleep(15)
+
     if open_browser:
         threading.Thread(target=open_dashboard, daemon=True).start()
     threading.Thread(target=watchdog, daemon=True).start()
     threading.Thread(target=background_refresh, daemon=True).start()
+    threading.Thread(target=refresh_auxiliary, args=(state.check_cloud_connection,), daemon=True).start()
+    threading.Thread(target=refresh_auxiliary, args=(state.refresh_remote_outputs,), daemon=True).start()
     if auto_start:
         state.start_controller()
     print("Noode-CG 本地可视化面板")

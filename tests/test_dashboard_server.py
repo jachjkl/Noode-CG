@@ -17,6 +17,28 @@ from dashboard_server import DashboardState, main  # noqa: E402
 
 
 class DashboardServerTests(unittest.TestCase):
+    def test_active_workflow_timer_ignores_old_controller_end(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state = DashboardState(Path(temporary), "owner/repo", "main")
+            state.process_started_at = 100
+            state.process_ended_at = 110
+            state.gh_state = {"status": "in_progress", "jobs": []}
+            with patch("dashboard_server.utc_timestamp", return_value=150):
+                snapshot = state.snapshot()
+            self.assertEqual(snapshot["elapsed_seconds"], 50)
+            self.assertEqual(len(snapshot["stages"]), 5)
+            self.assertNotIn("replenish-cloud-pool", [s["name"] for s in snapshot["stages"]])
+
+    def test_flow_log_includes_local_measurement_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = DashboardState(root, "owner/repo", "main")
+            state.session_started_at = 0
+            (root / "logs").mkdir()
+            (root / "logs/local-flow-20260906-120000.log").write_text(
+                "[2026-09-06 12:00:00] 下载测速：已处理 673/811\n", encoding="utf-8")
+            self.assertIn("673/811", state.read_flow_log())
+
     def test_relaunch_running_dashboard_does_not_open_duplicate_browser(self) -> None:
         from dashboard_server import serve
         with tempfile.TemporaryDirectory() as temporary:

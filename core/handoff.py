@@ -184,6 +184,8 @@ class LiveTestRecorder:
         self.started_at = datetime.now(UTC).isoformat()
         self.last_write = 0.0
         self.write_error = ""
+        self.flow_path: Path | None = None
+        self.last_flow_write = 0.0
         if load_existing:
             self._load_existing()
 
@@ -274,9 +276,17 @@ class LiveTestRecorder:
         }
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         try:
-            atomic_write_bytes(self.path, gzip.compress(encoded, compresslevel=6, mtime=0))
+            atomic_write_bytes(self.path, gzip.compress(encoded, compresslevel=1, mtime=0))
             self.last_write = now
             self.write_error = ""
+            if self.flow_path and (force or now - self.last_flow_write >= 1):
+                report = payload["report"]
+                self.flow_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.flow_path.open("a", encoding="utf-8") as log:
+                    log.write(f"[{datetime.now().astimezone():%Y-%m-%d %H:%M:%S}] {self.stage or '准备候选'}："
+                              f"已处理 {report['processed']}/{report['total']}，合格 {report['passed']}，"
+                              f"淘汰 {report['eliminated']}，待测 {report['queued']}，测试中 {report['testing']}\n")
+                self.last_flow_write = now
         except OSError as exc:
             self.write_error = str(exc)[:240]
 
@@ -299,6 +309,9 @@ class LiveTestRecorder:
     def reset_for_competition(self, nodes: Iterable[NodeResult]) -> None:
         """Replace the live-test card with the de-duplicated publish pool."""
         with self.lock:
+            if self.flow_path:
+                self._write_locked(force=True)
+                self.archive_snapshot("initial")
             self.records.clear()
             self.stage = "发布前竞赛复测 · 等待测试"
             self.status = "running"
@@ -364,6 +377,35 @@ class LiveTestRecorder:
                         atomic_write_bytes(self.path, gzip.compress(encoded, compresslevel=6, mtime=0))
                 except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError):
                     pass
+            if self.flow_path and self.path.is_file():
+                self.archive_snapshot("competition")
+
+    def archive_snapshot(self, phase: str) -> None:
+        if self.flow_path is None:
+            return
+        try:
+            atomic_write_bytes(self.flow_path.with_suffix(f".{phase}.json.gz"), self.path.read_bytes())
+        except OSError as exc:
+            self.write_error = f"日志快照保存失败：{exc}"
+
+    def complete_batch(self, nodes: Iterable[NodeResult], qualified: set[str]) -> None:
+        """Close every measured candidate, including final rule rejections."""
+        with self.lock:
+            for node in nodes:
+                record = self.records[node.key]
+                passed = node.ip in qualified
+                record.update(self._snapshot(node, str(record.get("lane") or "ordinary")))
+                record.update(status="passed" if passed else "eliminated",
+                              stage="发布前竞赛复测 · 已完成",
+                              updated_at=datetime.now(UTC).isoformat(),
+                              reason="" if passed else self._reason(node, "未通过本地完整规则"))
+            self._write_locked(force=True)
+
+    def require_complete(self) -> None:
+        with self.lock:
+            pending = sum(r.get("status") in {"queued", "testing"} for r in self.records.values())
+            if pending:
+                raise RuntimeError(f"竞赛复测还有 {pending} 个 IP 未结束，禁止发布")
 
     def synchronize_results(
         self,
@@ -655,6 +697,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         if live_tests_path
         else None
     )
+    if live_tests is not None:
+        base = Path(config.get("_base_dir", ".")).resolve()
+        log_root = (base.parent if base.name == "app" else base) / "logs"
+        live_tests.flow_path = log_root / f"local-flow-{datetime.now():%Y%m%d-%H%M%S}.log"
     attempted_value = handoff.get("attempted_path")
     attempted_path = resolve_path(config, attempted_value) if attempted_value else None
     accumulated: list[NodeResult] = []
@@ -868,9 +914,10 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     last_live_write = 0.0
 
     def current_live_preview() -> list[NodeResult]:
+        eligible = current_eligible_general()
         ordinary_preview = _rank_with_colo_diversity(
-            current_eligible_general(),
-            count=general_target,
+            eligible,
+            count=len(eligible),
             max_per_colo=max_per_colo,
             latency_speed_first=force_rerank,
         )
@@ -913,7 +960,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
 
     def accept_live_speed_result(node: NodeResult) -> None:
         speed_qualified[node.ip] = node
-        write_live_preview()
+        write_live_preview(force=True)
 
     def ordinary_tcp_result(node: NodeResult) -> None:
         if live_tests is None:
@@ -1230,6 +1277,12 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
             for node in qualified:
                 competition_qualified[node.ip] = node
             write_competition_preview(force=True)
+        if live_tests is not None:
+            live_tests.complete_batch(chunk, {
+                ip for ip, node in competition_qualified.items()
+                if _final_country_allowed(node, pipeline=pipeline, source_country=source_country)
+                and _final_ordinary_quality_allowed(node, pipeline=pipeline, source_country=source_country)
+            })
         print(
             f"[PUBLISH-RETEST] {competition_batches}/"
             f"{max(1, (len(competition_candidates) + probe_batch_size - 1) // probe_batch_size)} "
@@ -1247,6 +1300,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
         )
     ]
     if live_tests is not None:
+        live_tests.require_complete()
         live_tests.start_stage([], "发布前竞赛复测完成 · 等待推送")
     # Only measurements produced by this mandatory competition pass may enter
     # the new ranking. The local winners and all published ordinary nodes were
@@ -1406,10 +1460,8 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
     final_report = publish_outputs(output_dir, selected, report, publish_options)
     write_live_preview(force=True)
     if live_tests is not None:
-        live_tests.synchronize_results(
-            current_live_preview(),
-            exempt_country=source_country,
-        )
+        # This recorder now contains only competition candidates, not session history.
+        live_tests.require_complete()
         live_tests.finish(
             "completed" if final_report.get("published") else "degraded",
             selection_status=final_report.get("status", ""),

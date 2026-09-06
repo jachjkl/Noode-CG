@@ -213,7 +213,9 @@ function renderState(state) {
   elements.cloudConnectionBadge.title = cloud.detail || "尚未完成云端连接检查";
   elements.statusValue.textContent = labels[state.status] || state.status;
   elements.statusDetail.textContent = state.last_error || (state.gh_status ? `GitHub 状态：${statusLabel(state.gh_status, state.gh_conclusion)}` : "本地服务已连接");
-  elements.elapsedValue.textContent = formatElapsed(state.elapsed_seconds);
+  elapsedClock = {seconds:Number(state.elapsed_seconds) || 0, at:performance.now(), running:Boolean(state.running)};
+  updateElapsedClock();
+  elements.workflowProgress.parentElement.classList.toggle("charging", Boolean(state.running));
   elements.processValue.textContent = state.pid ? `本地监控 PID ${state.pid}` : state.exit_code === 0 ? "本地监控已正常退出" : "本地监控进程未运行";
   elements.startButton.disabled = Boolean(state.running || state.cycle_started);
   elements.startButton.textContent = state.running
@@ -573,15 +575,25 @@ function exportCsv() {
   showToast(`已导出 ${filteredNodes.length} 条结果`);
 }
 
+let elapsedClock = {seconds:0, at:performance.now(), running:false};
+function updateElapsedClock() {
+  elements.elapsedValue.textContent = formatElapsed(elapsedClock.seconds + (elapsedClock.running ? (performance.now()-elapsedClock.at)/1000 : 0));
+}
+setInterval(updateElapsedClock, 250);
+const pollInFlight = new Set();
 async function fetchState() {
+  if (pollInFlight.has("state")) return;
+  pollInFlight.add("state");
   try {
-    const response = await fetch("/api/state", { cache: "no-store" });
+    const response = await fetch("/api/state", { cache: "no-store", signal:AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     renderState(await response.json());
   } catch (error) {
     elements.connectionBadge.className = "badge failure";
     elements.connectionBadge.textContent = "连接中断";
     elements.statusDetail.textContent = `本地面板连接失败：${error.message}`;
+  } finally {
+    pollInFlight.delete("state");
   }
 }
 
@@ -600,14 +612,18 @@ async function fetchNodes() {
 }
 
 async function fetchLiveNodes() {
+  if (pollInFlight.has("live")) return;
+  pollInFlight.add("live");
   try {
-    const response = await fetch("/api/live-nodes", { cache: "no-store" });
+    const response = await fetch("/api/live-nodes", { cache: "no-store", signal:AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     liveNodes = (data.nodes || []).map((node, index) => ({ ...node, _rank: index + 1 }));
     renderLiveNodes();
   } catch (error) {
     elements.liveResultSummary.textContent = `实时结果读取失败：${error.message}`;
+  } finally {
+    pollInFlight.delete("live");
   }
 }
 
@@ -625,13 +641,19 @@ async function fetchCompetitionNodes() {
 }
 
 async function fetchLiveTests() {
+  if (pollInFlight.has("tests")) return;
+  pollInFlight.add("tests");
   try {
     const offset = (liveTestPage - 1) * liveTestPageSize;
-    const response = await fetch(`/api/live-tests?limit=${liveTestPageSize}&offset=${offset}`, { cache: "no-store" });
+    const response = await fetch(`/api/live-tests?limit=${liveTestPageSize}&offset=${offset}`, { cache: "no-store", signal:AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    renderLiveTests(await response.json());
+    const data = await response.json();
+    if (offset === (liveTestPage - 1) * liveTestPageSize) renderLiveTests(data);
+    elements.liveTestProgress.parentElement.classList.toggle("charging", data.report?.status === "running");
   } catch (error) {
     elements.liveTestSummary.textContent = `实时测速面板读取失败：${error.message}`;
+  } finally {
+    pollInFlight.delete("tests");
   }
 }
 
@@ -1039,8 +1061,8 @@ fetchLiveNodes();
 fetchCompetitionNodes();
 fetchLiveTests();
 fetchRules();
-setInterval(fetchState, 2500);
+setInterval(fetchState, 1000);
 setInterval(fetchNodes, 5000);
-setInterval(fetchLiveNodes, 1000);
+setInterval(fetchLiveNodes, 500);
 setInterval(fetchCompetitionNodes, 1000);
 setInterval(fetchLiveTests, 1000);

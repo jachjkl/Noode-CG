@@ -1628,3 +1628,28 @@ th[aria-sort=descending] .result-sort-header::after { content:' ↓'; }
 .field .number-controls { position:absolute; right:8px; top:4px; bottom:4px; width:28px; display:flex; flex-direction:column; justify-content:center; gap:8px; }
 .number-controls button { width:28px; height:24px; min-height:24px; padding:3px; display:grid; place-items:center; border-radius:6px; background:#252521; border-color:#48483b; }
 .number-controls svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Equal-width rule controls with smaller in-field chevrons. */
+.rule-grid { grid-template-columns:repeat(6,minmax(0,1fr)); align-items:end; }
+.rule-actions { display:contents; }
+.rule-actions .button { width:100%; min-width:0; height:60px; padding-inline:10px; }
+.input-unit input { min-height:60px; height:60px; }
+.input-unit > b { top:22px; right:40px; }
+.field .number-controls { right:6px; top:2px; bottom:2px; width:24px; gap:8px; }
+.number-controls button { width:24px; height:24px; min-height:24px; padding:7px; border:0; border-radius:4px; background:transparent; }
+.number-controls button:hover { background:#ffffff0c; }
+.number-controls svg { width:10px; height:10px; stroke-width:1.8; }
+@media(max-width:1300px) { .rule-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:760px) { .rule-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:440px) { .rule-grid { grid-template-columns:1fr; } }
+
+/* Five actual workflow stages and a segmented charging indicator. */
+.stage-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+.progress-track { height:12px; border-radius:6px; background:#303127; border:1px solid #444632; overflow:hidden; }
+.progress-fill { height:100%; position:relative; overflow:hidden; border-radius:4px; background:linear-gradient(90deg,#96ba36,#F5F53F); transition:width .35s ease-out; }
+.progress-fill::after { content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent 0 22px,#08080866 22px 25px); }
+.progress-track.charging .progress-fill::before { content:""; position:absolute; inset:0; background:linear-gradient(100deg,transparent 25%,#fff9 50%,transparent 75%); width:40%; animation:energy-flow 2s linear infinite; }
+@keyframes energy-flow { from { transform:translateX(-100%); } to { transform:translateX(350%); } }
+@media(max-width:1300px) { .stage-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:760px) { .stage-grid { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .progress-track.charging .progress-fill::before { animation:none; } .progress-fill { transition:none; } }

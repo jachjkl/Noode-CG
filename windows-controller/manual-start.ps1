@@ -6,6 +6,8 @@
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = [Console]::OutputEncoding
 $logDirectory = Join-Path $LocalRoot "logs"
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $latestLog = Join-Path $logDirectory "manual-last.log"
