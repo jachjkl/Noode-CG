@@ -1,50 +1,50 @@
 {
   "status": "ok",
   "stage": "local-self-hosted-selection",
-  "started_at": "2026-09-09T02:07:06.053903+00:00",
-  "generated_at": "2026-09-09T02:12:26.810349+00:00",
+  "started_at": "2026-09-09T02:14:08.115873+00:00",
+  "generated_at": "2026-09-09T02:28:43.464624+00:00",
   "vantage": "windows-self-hosted-local-network",
-  "handoff_generated_at": "2026-09-09T02:03:20.424924+00:00",
-  "cycle_round": 1,
+  "handoff_generated_at": "2026-09-09T02:13:52.301132+00:00",
+  "cycle_round": 2,
   "max_replenishment_rounds": 1,
   "counts": {
-    "cloud_pool": 26646,
-    "previous_loaded": 100,
-    "combined_unique": 26496,
-    "new_unique_tested": 26486,
-    "accumulated_loaded": 0,
-    "jp_candidates": 657,
+    "cloud_pool": 10000,
+    "previous_loaded": 65,
+    "combined_unique": 9901,
+    "new_unique_tested": 9879,
+    "accumulated_loaded": 22,
+    "jp_candidates": 0,
     "jp_selected": 10,
-    "general_candidates": 25823,
-    "ordinary_probe_input_tested": 700,
-    "tcp_qualified": 46,
-    "metric_qualified": 46,
-    "speed_tested": 46,
-    "speed_qualified": 12,
-    "ordinary_current_rules_qualified": 12,
-    "prepublish_competition_input": 173,
-    "prepublish_competition_qualified": 55,
+    "general_candidates": 9879,
+    "ordinary_probe_input_tested": 7500,
+    "tcp_qualified": 1944,
+    "metric_qualified": 1944,
+    "speed_tested": 1944,
+    "speed_qualified": 1042,
+    "ordinary_current_rules_qualified": 1042,
+    "prepublish_competition_input": 1090,
+    "prepublish_competition_qualified": 173,
     "prepublish_fallback_retained": 0,
-    "qualified_accumulated": 22,
+    "qualified_accumulated": 1052,
     "fixed_source_ips_retained": 0,
     "general_target": 300,
     "general_minimum": 50,
-    "ordinary_selected": 55,
-    "ordinary_replacements": 7,
-    "previous_ordinary_retained": 48,
+    "ordinary_selected": 173,
+    "ordinary_replacements": 152,
+    "previous_ordinary_retained": 21,
     "final_target": 310,
     "minimum_publish_target": 60,
-    "final_selected": 65
+    "final_selected": 183
   },
   "jp_measurements": {
-    "input_endpoints": 657,
-    "input_unique_ips": 657,
+    "input_endpoints": 0,
+    "input_unique_ips": 0,
     "tcping_attempts_per_endpoint": 3,
-    "tcping_measured": 533,
-    "download_tested_once": 657,
-    "download_measured": 457,
-    "selected_unique_ips": 10,
-    "duration_seconds": 182.907
+    "tcping_measured": 0,
+    "download_tested_once": 0,
+    "download_measured": 0,
+    "selected_unique_ips": 0,
+    "duration_seconds": 0.078
   },
   "metric_measurements": {
     "enabled_metrics": [
@@ -52,77 +52,613 @@
     ],
     "tls_three_pass_success": null,
     "https_ttfb_three_pass_success": null,
-    "foreign_combined_latency_qualified": 46,
-    "tls_and_https_duration_seconds": 0.0,
+    "foreign_combined_latency_qualified": 1944,
+    "tls_and_https_duration_seconds": 0.016,
     "probe_batch_size": 100,
-    "probe_batches": 7
+    "probe_batches": 75
   },
   "publish_retest": {
     "status": "completed",
-    "input": 173,
-    "tcp_tested": 173,
-    "metric_tested": 158,
-    "speed_tested": 158,
-    "qualified": 55,
-    "selected": 55,
-    "batches": 2
+    "input": 1090,
+    "tcp_tested": 1090,
+    "metric_tested": 438,
+    "speed_tested": 438,
+    "qualified": 173,
+    "selected": 173,
+    "batches": 11
   },
   "speed_batches": [
     {
-      "speed_tested_once": 16,
-      "speed_duration_seconds": 13.593,
-      "speed_at_least_minimum": 1,
-      "input": 16,
-      "qualified_total": 1,
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 4.672,
+      "speed_at_least_minimum": 11,
+      "input": 14,
+      "qualified_total": 23,
       "probe_batch": 1
     },
     {
-      "speed_tested_once": 6,
-      "speed_duration_seconds": 4.719,
-      "speed_at_least_minimum": 1,
-      "input": 6,
-      "qualified_total": 2,
+      "speed_tested_once": 5,
+      "speed_duration_seconds": 1.515,
+      "speed_at_least_minimum": 5,
+      "input": 5,
+      "qualified_total": 28,
       "probe_batch": 2
     },
     {
-      "speed_tested_once": 3,
-      "speed_duration_seconds": 1.938,
-      "speed_at_least_minimum": 2,
-      "input": 3,
-      "qualified_total": 4,
+      "speed_tested_once": 4,
+      "speed_duration_seconds": 3.61,
+      "speed_at_least_minimum": 0,
+      "input": 4,
+      "qualified_total": 28,
       "probe_batch": 3
     },
     {
-      "speed_tested_once": 1,
-      "speed_duration_seconds": 1.782,
-      "speed_at_least_minimum": 1,
-      "input": 1,
-      "qualified_total": 5,
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 1.609,
+      "speed_at_least_minimum": 14,
+      "input": 14,
+      "qualified_total": 42,
       "probe_batch": 4
     },
     {
-      "speed_tested_once": 1,
-      "speed_duration_seconds": 1.704,
-      "speed_at_least_minimum": 1,
-      "input": 1,
-      "qualified_total": 6,
+      "speed_tested_once": 15,
+      "speed_duration_seconds": 1.719,
+      "speed_at_least_minimum": 15,
+      "input": 15,
+      "qualified_total": 57,
       "probe_batch": 5
     },
     {
-      "speed_tested_once": 8,
-      "speed_duration_seconds": 4.906,
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.469,
       "speed_at_least_minimum": 1,
-      "input": 8,
-      "qualified_total": 7,
+      "input": 1,
+      "qualified_total": 58,
       "probe_batch": 6
     },
     {
-      "speed_tested_once": 11,
-      "speed_duration_seconds": 3.265,
-      "speed_at_least_minimum": 5,
-      "input": 11,
-      "qualified_total": 12,
+      "speed_tested_once": 19,
+      "speed_duration_seconds": 4.032,
+      "speed_at_least_minimum": 17,
+      "input": 19,
+      "qualified_total": 75,
       "probe_batch": 7
+    },
+    {
+      "speed_tested_once": 18,
+      "speed_duration_seconds": 3.375,
+      "speed_at_least_minimum": 0,
+      "input": 18,
+      "qualified_total": 75,
+      "probe_batch": 8
+    },
+    {
+      "speed_tested_once": 18,
+      "speed_duration_seconds": 4.266,
+      "speed_at_least_minimum": 2,
+      "input": 18,
+      "qualified_total": 77,
+      "probe_batch": 9
+    },
+    {
+      "speed_tested_once": 18,
+      "speed_duration_seconds": 6.75,
+      "speed_at_least_minimum": 1,
+      "input": 18,
+      "qualified_total": 78,
+      "probe_batch": 10
+    },
+    {
+      "speed_tested_once": 15,
+      "speed_duration_seconds": 8.203,
+      "speed_at_least_minimum": 4,
+      "input": 15,
+      "qualified_total": 82,
+      "probe_batch": 11
+    },
+    {
+      "speed_tested_once": 20,
+      "speed_duration_seconds": 7.938,
+      "speed_at_least_minimum": 16,
+      "input": 20,
+      "qualified_total": 98,
+      "probe_batch": 12
+    },
+    {
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 37.531,
+      "speed_at_least_minimum": 5,
+      "input": 14,
+      "qualified_total": 103,
+      "probe_batch": 13
+    },
+    {
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 10.359,
+      "speed_at_least_minimum": 7,
+      "input": 14,
+      "qualified_total": 110,
+      "probe_batch": 14
+    },
+    {
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 30.078,
+      "speed_at_least_minimum": 8,
+      "input": 14,
+      "qualified_total": 118,
+      "probe_batch": 15
+    },
+    {
+      "speed_tested_once": 15,
+      "speed_duration_seconds": 8.078,
+      "speed_at_least_minimum": 13,
+      "input": 15,
+      "qualified_total": 131,
+      "probe_batch": 16
+    },
+    {
+      "speed_tested_once": 17,
+      "speed_duration_seconds": 14.61,
+      "speed_at_least_minimum": 14,
+      "input": 17,
+      "qualified_total": 145,
+      "probe_batch": 17
+    },
+    {
+      "speed_tested_once": 10,
+      "speed_duration_seconds": 1.516,
+      "speed_at_least_minimum": 8,
+      "input": 10,
+      "qualified_total": 153,
+      "probe_batch": 18
+    },
+    {
+      "speed_tested_once": 16,
+      "speed_duration_seconds": 15.172,
+      "speed_at_least_minimum": 10,
+      "input": 16,
+      "qualified_total": 163,
+      "probe_batch": 19
+    },
+    {
+      "speed_tested_once": 18,
+      "speed_duration_seconds": 8.406,
+      "speed_at_least_minimum": 14,
+      "input": 18,
+      "qualified_total": 177,
+      "probe_batch": 20
+    },
+    {
+      "speed_tested_once": 19,
+      "speed_duration_seconds": 14.047,
+      "speed_at_least_minimum": 0,
+      "input": 19,
+      "qualified_total": 177,
+      "probe_batch": 21
+    },
+    {
+      "speed_tested_once": 19,
+      "speed_duration_seconds": 8.547,
+      "speed_at_least_minimum": 10,
+      "input": 19,
+      "qualified_total": 187,
+      "probe_batch": 22
+    },
+    {
+      "speed_tested_once": 15,
+      "speed_duration_seconds": 8.985,
+      "speed_at_least_minimum": 2,
+      "input": 15,
+      "qualified_total": 189,
+      "probe_batch": 24
+    },
+    {
+      "speed_tested_once": 14,
+      "speed_duration_seconds": 3.75,
+      "speed_at_least_minimum": 0,
+      "input": 14,
+      "qualified_total": 189,
+      "probe_batch": 25
+    },
+    {
+      "speed_tested_once": 28,
+      "speed_duration_seconds": 9.766,
+      "speed_at_least_minimum": 8,
+      "input": 28,
+      "qualified_total": 197,
+      "probe_batch": 26
+    },
+    {
+      "speed_tested_once": 41,
+      "speed_duration_seconds": 6.235,
+      "speed_at_least_minimum": 22,
+      "input": 41,
+      "qualified_total": 219,
+      "probe_batch": 27
+    },
+    {
+      "speed_tested_once": 41,
+      "speed_duration_seconds": 7.671,
+      "speed_at_least_minimum": 37,
+      "input": 41,
+      "qualified_total": 256,
+      "probe_batch": 28
+    },
+    {
+      "speed_tested_once": 28,
+      "speed_duration_seconds": 5.078,
+      "speed_at_least_minimum": 17,
+      "input": 28,
+      "qualified_total": 273,
+      "probe_batch": 29
+    },
+    {
+      "speed_tested_once": 34,
+      "speed_duration_seconds": 4.797,
+      "speed_at_least_minimum": 32,
+      "input": 34,
+      "qualified_total": 305,
+      "probe_batch": 30
+    },
+    {
+      "speed_tested_once": 33,
+      "speed_duration_seconds": 5.734,
+      "speed_at_least_minimum": 23,
+      "input": 33,
+      "qualified_total": 328,
+      "probe_batch": 31
+    },
+    {
+      "speed_tested_once": 35,
+      "speed_duration_seconds": 24.953,
+      "speed_at_least_minimum": 12,
+      "input": 35,
+      "qualified_total": 340,
+      "probe_batch": 32
+    },
+    {
+      "speed_tested_once": 38,
+      "speed_duration_seconds": 3.5,
+      "speed_at_least_minimum": 38,
+      "input": 38,
+      "qualified_total": 378,
+      "probe_batch": 33
+    },
+    {
+      "speed_tested_once": 39,
+      "speed_duration_seconds": 8.079,
+      "speed_at_least_minimum": 19,
+      "input": 39,
+      "qualified_total": 397,
+      "probe_batch": 34
+    },
+    {
+      "speed_tested_once": 32,
+      "speed_duration_seconds": 7.625,
+      "speed_at_least_minimum": 23,
+      "input": 32,
+      "qualified_total": 420,
+      "probe_batch": 35
+    },
+    {
+      "speed_tested_once": 33,
+      "speed_duration_seconds": 5.656,
+      "speed_at_least_minimum": 14,
+      "input": 33,
+      "qualified_total": 434,
+      "probe_batch": 36
+    },
+    {
+      "speed_tested_once": 43,
+      "speed_duration_seconds": 8.485,
+      "speed_at_least_minimum": 11,
+      "input": 43,
+      "qualified_total": 445,
+      "probe_batch": 37
+    },
+    {
+      "speed_tested_once": 36,
+      "speed_duration_seconds": 4.5,
+      "speed_at_least_minimum": 25,
+      "input": 36,
+      "qualified_total": 470,
+      "probe_batch": 38
+    },
+    {
+      "speed_tested_once": 36,
+      "speed_duration_seconds": 4.844,
+      "speed_at_least_minimum": 34,
+      "input": 36,
+      "qualified_total": 504,
+      "probe_batch": 39
+    },
+    {
+      "speed_tested_once": 38,
+      "speed_duration_seconds": 7.484,
+      "speed_at_least_minimum": 14,
+      "input": 38,
+      "qualified_total": 518,
+      "probe_batch": 40
+    },
+    {
+      "speed_tested_once": 38,
+      "speed_duration_seconds": 7.391,
+      "speed_at_least_minimum": 23,
+      "input": 38,
+      "qualified_total": 541,
+      "probe_batch": 41
+    },
+    {
+      "speed_tested_once": 34,
+      "speed_duration_seconds": 8.265,
+      "speed_at_least_minimum": 14,
+      "input": 34,
+      "qualified_total": 555,
+      "probe_batch": 42
+    },
+    {
+      "speed_tested_once": 40,
+      "speed_duration_seconds": 5.891,
+      "speed_at_least_minimum": 22,
+      "input": 40,
+      "qualified_total": 577,
+      "probe_batch": 43
+    },
+    {
+      "speed_tested_once": 31,
+      "speed_duration_seconds": 4.313,
+      "speed_at_least_minimum": 31,
+      "input": 31,
+      "qualified_total": 608,
+      "probe_batch": 44
+    },
+    {
+      "speed_tested_once": 35,
+      "speed_duration_seconds": 8.094,
+      "speed_at_least_minimum": 13,
+      "input": 35,
+      "qualified_total": 621,
+      "probe_batch": 45
+    },
+    {
+      "speed_tested_once": 27,
+      "speed_duration_seconds": 6.157,
+      "speed_at_least_minimum": 3,
+      "input": 27,
+      "qualified_total": 624,
+      "probe_batch": 46
+    },
+    {
+      "speed_tested_once": 37,
+      "speed_duration_seconds": 10.578,
+      "speed_at_least_minimum": 23,
+      "input": 37,
+      "qualified_total": 647,
+      "probe_batch": 47
+    },
+    {
+      "speed_tested_once": 18,
+      "speed_duration_seconds": 4.39,
+      "speed_at_least_minimum": 1,
+      "input": 18,
+      "qualified_total": 648,
+      "probe_batch": 48
+    },
+    {
+      "speed_tested_once": 43,
+      "speed_duration_seconds": 8.078,
+      "speed_at_least_minimum": 12,
+      "input": 43,
+      "qualified_total": 660,
+      "probe_batch": 49
+    },
+    {
+      "speed_tested_once": 38,
+      "speed_duration_seconds": 5.25,
+      "speed_at_least_minimum": 27,
+      "input": 38,
+      "qualified_total": 687,
+      "probe_batch": 50
+    },
+    {
+      "speed_tested_once": 45,
+      "speed_duration_seconds": 8.875,
+      "speed_at_least_minimum": 20,
+      "input": 45,
+      "qualified_total": 707,
+      "probe_batch": 51
+    },
+    {
+      "speed_tested_once": 7,
+      "speed_duration_seconds": 3.734,
+      "speed_at_least_minimum": 3,
+      "input": 7,
+      "qualified_total": 710,
+      "probe_batch": 52
+    },
+    {
+      "speed_tested_once": 31,
+      "speed_duration_seconds": 6.359,
+      "speed_at_least_minimum": 14,
+      "input": 31,
+      "qualified_total": 724,
+      "probe_batch": 53
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.547,
+      "speed_at_least_minimum": 1,
+      "input": 1,
+      "qualified_total": 725,
+      "probe_batch": 54
+    },
+    {
+      "speed_tested_once": 32,
+      "speed_duration_seconds": 6.187,
+      "speed_at_least_minimum": 17,
+      "input": 32,
+      "qualified_total": 742,
+      "probe_batch": 55
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.296,
+      "speed_at_least_minimum": 1,
+      "input": 1,
+      "qualified_total": 743,
+      "probe_batch": 56
+    },
+    {
+      "speed_tested_once": 39,
+      "speed_duration_seconds": 9.0,
+      "speed_at_least_minimum": 6,
+      "input": 39,
+      "qualified_total": 749,
+      "probe_batch": 57
+    },
+    {
+      "speed_tested_once": 37,
+      "speed_duration_seconds": 6.156,
+      "speed_at_least_minimum": 26,
+      "input": 37,
+      "qualified_total": 775,
+      "probe_batch": 58
+    },
+    {
+      "speed_tested_once": 26,
+      "speed_duration_seconds": 4.719,
+      "speed_at_least_minimum": 12,
+      "input": 26,
+      "qualified_total": 787,
+      "probe_batch": 59
+    },
+    {
+      "speed_tested_once": 15,
+      "speed_duration_seconds": 3.094,
+      "speed_at_least_minimum": 11,
+      "input": 15,
+      "qualified_total": 798,
+      "probe_batch": 60
+    },
+    {
+      "speed_tested_once": 39,
+      "speed_duration_seconds": 9.406,
+      "speed_at_least_minimum": 6,
+      "input": 39,
+      "qualified_total": 804,
+      "probe_batch": 61
+    },
+    {
+      "speed_tested_once": 43,
+      "speed_duration_seconds": 9.657,
+      "speed_at_least_minimum": 42,
+      "input": 43,
+      "qualified_total": 846,
+      "probe_batch": 62
+    },
+    {
+      "speed_tested_once": 32,
+      "speed_duration_seconds": 4.297,
+      "speed_at_least_minimum": 23,
+      "input": 32,
+      "qualified_total": 869,
+      "probe_batch": 63
+    },
+    {
+      "speed_tested_once": 38,
+      "speed_duration_seconds": 7.203,
+      "speed_at_least_minimum": 19,
+      "input": 38,
+      "qualified_total": 888,
+      "probe_batch": 64
+    },
+    {
+      "speed_tested_once": 40,
+      "speed_duration_seconds": 6.86,
+      "speed_at_least_minimum": 17,
+      "input": 40,
+      "qualified_total": 905,
+      "probe_batch": 65
+    },
+    {
+      "speed_tested_once": 41,
+      "speed_duration_seconds": 7.468,
+      "speed_at_least_minimum": 9,
+      "input": 41,
+      "qualified_total": 914,
+      "probe_batch": 66
+    },
+    {
+      "speed_tested_once": 23,
+      "speed_duration_seconds": 3.75,
+      "speed_at_least_minimum": 18,
+      "input": 23,
+      "qualified_total": 932,
+      "probe_batch": 67
+    },
+    {
+      "speed_tested_once": 33,
+      "speed_duration_seconds": 6.578,
+      "speed_at_least_minimum": 13,
+      "input": 33,
+      "qualified_total": 945,
+      "probe_batch": 68
+    },
+    {
+      "speed_tested_once": 33,
+      "speed_duration_seconds": 6.265,
+      "speed_at_least_minimum": 14,
+      "input": 33,
+      "qualified_total": 959,
+      "probe_batch": 69
+    },
+    {
+      "speed_tested_once": 37,
+      "speed_duration_seconds": 9.5,
+      "speed_at_least_minimum": 18,
+      "input": 37,
+      "qualified_total": 977,
+      "probe_batch": 70
+    },
+    {
+      "speed_tested_once": 39,
+      "speed_duration_seconds": 4.937,
+      "speed_at_least_minimum": 27,
+      "input": 39,
+      "qualified_total": 1004,
+      "probe_batch": 71
+    },
+    {
+      "speed_tested_once": 35,
+      "speed_duration_seconds": 6.39,
+      "speed_at_least_minimum": 23,
+      "input": 35,
+      "qualified_total": 1027,
+      "probe_batch": 72
+    },
+    {
+      "speed_tested_once": 30,
+      "speed_duration_seconds": 8.547,
+      "speed_at_least_minimum": 5,
+      "input": 30,
+      "qualified_total": 1032,
+      "probe_batch": 73
+    },
+    {
+      "speed_tested_once": 1,
+      "speed_duration_seconds": 1.437,
+      "speed_at_least_minimum": 1,
+      "input": 1,
+      "qualified_total": 1033,
+      "probe_batch": 74
+    },
+    {
+      "speed_tested_once": 24,
+      "speed_duration_seconds": 7.39,
+      "speed_at_least_minimum": 9,
+      "input": 24,
+      "qualified_total": 1042,
+      "probe_batch": 75
     }
   ],
   "warnings": [
@@ -130,8 +666,8 @@
   ],
   "needs_more": false,
   "stopped_after_current": true,
-  "scan_stopped_at_batch": 7,
-  "forced_rerank": false,
+  "scan_stopped_at_batch": 75,
+  "forced_rerank": true,
   "continuous_three_rounds": false,
   "local_rules": {
     "latency_probe": "tcp",
@@ -147,7 +683,7 @@
     "loss_max_percent": 20.0,
     "speed_min_mbps": 3.0
   },
-  "selected": 65,
+  "selected": 183,
   "minimum_publish": 1,
   "published": true,
   "preserved_previous_output": false
