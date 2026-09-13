@@ -21,11 +21,13 @@ class WindowsLocalControlTests(unittest.TestCase):
             encoding="utf-8-sig"
         )
         self.assertIn("ExpectedSha256", script)
-        self.assertIn("Get-FileHash", script)
-        self.assertIn("gh-proxy.com", script)
-        self.assertIn("ghfast.top", script)
-        self.assertIn("gh.ddlc.top", script)
-        self.assertNotIn("ghproxy.net", script)
+        self.assertIn("--sha256 $ExpectedSha256", script)
+        downloader = (ROOT / "scripts" / "sync_cloud_handoff.py").read_text(encoding="utf-8")
+        self.assertIn("hashlib.sha256", downloader)
+        self.assertIn("ghfast.top", downloader)
+        self.assertIn("gh.ddlc.top", downloader)
+        self.assertIn("cors.isteed.cc", downloader)
+        self.assertIn("cdn.jsdelivr.net/gh/", downloader)
 
         workflow = (ROOT / ".github" / "workflows" / "update.yml").read_text(
             encoding="utf-8"

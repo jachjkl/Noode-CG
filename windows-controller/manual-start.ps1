@@ -1,8 +1,9 @@
-﻿param(
+param(
     [string]$Repository = "jachjkl/Noode-CG",
     [string]$Branch = "main",
     [string]$LocalRoot = "D:\桌面\软件\Noode-CG-Local",
-    [string]$LogPath = ""
+    [string]$LogPath = "",
+    [switch]$ManagedLog
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,11 +20,12 @@ $workflow = "update.yml"
 
 try { $Host.UI.RawUI.WindowTitle = "Noode-CG 手动优选 - 可在任务管理器结束" } catch { }
 
-if (-not (Test-Path -LiteralPath $log)) {
+if (-not $ManagedLog -and -not (Test-Path -LiteralPath $log)) {
     Set-Content -LiteralPath $log -Value "" -Encoding UTF8
 }
 
 function Sync-LatestLog {
+    if ($ManagedLog) { return }
     if ([IO.Path]::GetFullPath($log) -ne [IO.Path]::GetFullPath($latestLog)) {
         Copy-Item -LiteralPath $log -Destination $latestLog -Force
     }
@@ -34,7 +36,7 @@ function Invoke-GhLogged {
     & $script:gh.Source @Arguments 2>&1 | ForEach-Object {
         $text = [string]$_
         Write-Host $text
-        Add-Content -LiteralPath $log -Value $text -Encoding UTF8
+        if (-not $ManagedLog) { Add-Content -LiteralPath $log -Value $text -Encoding UTF8 }
     }
     return $LASTEXITCODE
 }
@@ -43,14 +45,16 @@ function Write-Status {
     param([string]$Message, [ConsoleColor]$Color = [ConsoleColor]::Gray)
     $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
     Write-Host $line -ForegroundColor $Color
-    $line | Add-Content -LiteralPath $log -Encoding UTF8
+    if (-not $ManagedLog) { $line | Add-Content -LiteralPath $log -Encoding UTF8 }
 }
 
 function Notify {
     param([string]$Title, [string]$Message, [string]$Level = "Info")
     if (Test-Path -LiteralPath $notifier) {
-        & $notifier -Title $Title -Message $Message -Level $Level -LocalRoot $LocalRoot |
-            Add-Content -LiteralPath $log -Encoding UTF8
+        & $notifier -Title $Title -Message $Message -Level $Level -LocalRoot $LocalRoot | ForEach-Object {
+            Write-Host ([string]$_)
+            if (-not $ManagedLog) { Add-Content -LiteralPath $log -Value ([string]$_) -Encoding UTF8 }
+        }
     }
 }
 
@@ -59,7 +63,10 @@ function Get-Runs {
         --json databaseId,status,conclusion,url,createdAt,event 2>&1
     $code = $LASTEXITCODE
     if ($code -ne 0) {
-        @($output) | ForEach-Object { Add-Content -LiteralPath $log -Value ([string]$_) -Encoding UTF8 }
+        @($output) | ForEach-Object {
+            Write-Host ([string]$_)
+            if (-not $ManagedLog) { Add-Content -LiteralPath $log -Value ([string]$_) -Encoding UTF8 }
+        }
         throw "无法读取 GitHub Actions 运行列表。"
     }
     if (-not $output) { return @() }
@@ -143,7 +150,8 @@ try {
 catch {
     $message = $_.Exception.Message
     Write-Status "启动或运行失败：$message" Red
-    $_ | Out-String | Add-Content -LiteralPath $log -Encoding UTF8
+    Write-Host ($_ | Out-String)
+    if (-not $ManagedLog) { $_ | Out-String | Add-Content -LiteralPath $log -Encoding UTF8 }
     Notify -Title "Noode-CG 启动失败" -Message $message -Level "Error"
     Write-Status "错误窗口会保留；按任意键后关闭。" Yellow
     Sync-LatestLog

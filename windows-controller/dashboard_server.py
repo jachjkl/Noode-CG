@@ -216,6 +216,7 @@ class DashboardState:
                     str(self.root),
                     "-LogPath",
                     str(self.log_path),
+                    "-ManagedLog",
                 ],
                 cwd=str(self.root),
                 stdout=subprocess.PIPE,
@@ -297,8 +298,8 @@ class DashboardState:
             return
         try:
             if process.stdout is not None:
-                for _ in process.stdout:
-                    pass
+                for line in process.stdout:
+                    self._append_run_log(line)
             code = process.wait()
         except Exception as exc:  # pragma: no cover - defensive Windows process handling
             code = 1
@@ -514,12 +515,19 @@ class DashboardState:
             }
 
     def _append_dashboard_log(self, message: str) -> None:
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
         line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
-        with self.log_path.open("a", encoding="utf-8") as handle:
-            handle.write(line)
-        with self.latest_log_path.open("a", encoding="utf-8") as handle:
-            handle.write(line)
+        self._append_run_log(line)
+
+    def _append_run_log(self, line: str) -> None:
+        # Managed PowerShell only emits stdout. This process owns both files.
+        with self.lock:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            for path in (self.log_path, self.latest_log_path):
+                try:
+                    with path.open("a", encoding="utf-8") as handle:
+                        handle.write(line)
+                except OSError as exc:
+                    self.last_error = f"日志写入失败：{exc}"
 
     @staticmethod
     def _selected_latency_probe(values: dict[str, object], *, saving: bool = False) -> str:
@@ -1393,7 +1401,12 @@ class DashboardState:
                     "completed_steps": completed_steps,
                     "total_steps": len(all_steps),
                     "current_stage": current_stage.get("label") if current_stage else "",
-                    "current_step": current_step.get("name") if current_step else "",
+                    "current_step": {
+                        "Validate or download cloud handoff through checked mirrors": "正在下载并校验云端候选 · 单地址最多30秒，失败自动切换",
+                        "Require direct local network": "正在检查本地直连网络",
+                        "Validate configuration": "正在校验本地优选规则",
+                        "Run local selection": "正在执行本地网络测速与筛选",
+                    }.get(current_step.get("name"), current_step.get("name")) if current_step else "",
                     "round": self.cloud_round_count,
                 },
                 "health": health_data,

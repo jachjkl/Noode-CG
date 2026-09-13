@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +15,37 @@ CONTROLLER_ROOT = ROOT / "windows-controller"
 sys.path.insert(0, str(CONTROLLER_ROOT))
 
 from dashboard_server import DashboardState, main  # noqa: E402
+
+
+class ControllerLogTests(unittest.TestCase):
+    def test_parallel_log_messages_are_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            state = DashboardState(Path(folder), "owner/repo", "main")
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                list(pool.map(lambda i: state._append_run_log(f"line-{i}\n"), range(200)))
+            lines = state.log_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 200)
+            self.assertEqual(len(set(lines)), 200)
+            self.assertEqual(state.log_path.read_bytes(), state.latest_log_path.read_bytes())
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell file sharing")
+    def test_managed_controller_does_not_write_locked_log(self):
+        # Execute only the real Write-Status function, never dispatch a workflow.
+        with tempfile.TemporaryDirectory() as folder:
+            script = str(CONTROLLER_ROOT / "manual-start.ps1").replace("'", "''")
+            logfile = str(Path(folder) / "locked.log").replace("'", "''")
+            command = f"""
+$ErrorActionPreference = 'Stop'
+$ast = [System.Management.Automation.Language.Parser]::ParseFile('{script}', [ref]$null, [ref]$null)
+$function = $ast.Find({{param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Write-Status'}}, $true)
+Invoke-Expression $function.Extent.Text
+$ManagedLog = $true
+$log = '{logfile}'
+$held = [IO.File]::Open($log, 'Create', 'ReadWrite', 'None')
+try {{ Write-Status 'test managed log'; if ($held.Length -ne 0) {{ throw 'unexpected log writer' }} }} finally {{ $held.Dispose() }}
+"""
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-Command", command], capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
 
 
 class DashboardServerTests(unittest.TestCase):
