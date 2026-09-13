@@ -57,11 +57,9 @@ async def _probe_once(
         )
     finally:
         if writer is not None:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except Exception:
-                pass
+            # The measurement is complete (or failed). Do not hold a worker
+            # slot waiting for the peer's TLS close_notify handshake.
+            writer.transport.abort()
 
 
 async def check_tls(

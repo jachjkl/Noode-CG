@@ -130,11 +130,9 @@ async def test_speed(
                 "minimum_mbps": float(options.get("minimum_mbps", 0)),
             }
             if writer is not None:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except Exception:
-                    pass
+                # The measurement is complete (or failed). Do not hold a worker
+                # slot waiting for the peer's TLS close_notify handshake.
+                writer.transport.abort()
             if on_result is not None:
                 try:
                     on_result(node)
