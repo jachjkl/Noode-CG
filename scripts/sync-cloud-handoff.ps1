@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^[A-Fa-f0-9]{64}$")]
     [string]$ExpectedSha256,

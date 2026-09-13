@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Repository = "jachjkl/Noode-CG",
     [string]$Branch = "main",
     [string]$LocalRoot = "D:\桌面\软件\Noode-CG-Local",
