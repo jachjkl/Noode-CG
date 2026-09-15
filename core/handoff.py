@@ -152,7 +152,8 @@ def _write_handoff(
     *,
     state: dict[str, Any] | None = None,
     compression_level: int = 9,
-) -> None:
+    best_effort: bool = False,
+) -> bool:
     payload = {
         "schema": HANDOFF_SCHEMA,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -162,7 +163,14 @@ def _write_handoff(
     if state:
         payload["state"] = state
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    atomic_write_bytes(path, gzip.compress(encoded, compresslevel=compression_level, mtime=0))
+    try:
+        atomic_write_bytes(path, gzip.compress(encoded, compresslevel=compression_level, mtime=0))
+    except OSError as exc:
+        if not best_effort:
+            raise
+        print(f"[UI-PREVIEW] 实时预览暂时写入失败，测速继续，下次刷新重试：{exc}", flush=True)
+        return False
+    return True
 
 
 class LiveTestRecorder:
@@ -957,6 +965,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 "local_rules": config.get("_local_rules", {}),
             },
             compression_level=1,
+            best_effort=True,
         )
         last_live_write = now
 
@@ -1181,6 +1190,7 @@ def run_local_selection(config: dict[str, Any]) -> dict[str, Any]:
                 "local_rules": config.get("_local_rules", {}),
             },
             compression_level=1,
+            best_effort=True,
         )
         last_competition_write = now
 

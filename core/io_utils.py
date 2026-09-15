@@ -3,11 +3,24 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from .models import NodeResult
+
+
+def _replace_with_retry(source: str, destination: Path) -> None:
+    # Windows readers/antivirus can briefly deny rename/delete sharing.
+    for attempt in range(6):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError as exc:
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 5:
+                raise
+            time.sleep(0.02 * (attempt + 1))
 
 
 def atomic_write_bytes(path: str | Path, content: bytes) -> None:
@@ -17,7 +30,7 @@ def atomic_write_bytes(path: str | Path, content: bytes) -> None:
     try:
         with os.fdopen(fd, "wb") as handle:
             handle.write(content)
-        os.replace(temporary, destination)
+        _replace_with_retry(temporary, destination)
     except BaseException:
         try:
             os.unlink(temporary)
@@ -33,7 +46,7 @@ def atomic_write_text(path: str | Path, content: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(content)
-        os.replace(temporary, destination)
+        _replace_with_retry(temporary, destination)
     except BaseException:
         try:
             os.unlink(temporary)

@@ -1653,3 +1653,9 @@ th[aria-sort=descending] .result-sort-header::after { content:' ↓'; }
 @media(max-width:1300px) { .stage-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:760px) { .stage-grid { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .progress-track.charging .progress-fill::before { animation:none; } .progress-fill { transition:none; } }
+
+/* Pause decorative work outside the visible viewport without changing its look. */
+.motion-offscreen > .card-atmosphere i,
+.page-hidden .card-atmosphere i,
+.page-hidden .ambient-particle { animation-play-state:paused !important; }
+.page-hidden .progress-fill::before { animation-play-state:paused !important; }

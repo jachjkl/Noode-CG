@@ -18,6 +18,22 @@ from dashboard_server import DashboardState, main  # noqa: E402
 
 
 class ControllerLogTests(unittest.TestCase):
+    def test_reopen_preserves_running_selection_stop_marker_and_results(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            handoff = root / "app/data/handoff"
+            handoff.mkdir(parents=True)
+            marker = handoff / "stop-after-current.json"
+            marker.write_text('{}', encoding='utf-8')
+            preview = handoff / "local-live-results.json.gz"
+            preview.write_bytes(b"active preview")
+            with patch.object(DashboardState, "_local_selection_pids", return_value=[123]):
+                state = DashboardState(root, "owner/repo", "main")
+            self.assertTrue(marker.exists())
+            self.assertEqual(preview.read_bytes(), b"active preview")
+            self.assertTrue(state.cycle_started)
+            self.assertTrue(state.stop_requested)
+
     def test_parallel_log_messages_are_preserved(self):
         with tempfile.TemporaryDirectory() as folder:
             state = DashboardState(Path(folder), "owner/repo", "main")

@@ -353,14 +353,35 @@ function nodeRowsHtml(nodes) {
   }).join("");
 }
 
+const tableMarkupCache = new WeakMap();
+function setTableMarkup(body, markup) {
+  const previous = tableMarkupCache.get(body);
+  if (previous === markup) return;
+  const nextRows = markup.match(/<tr[\s\S]*?<\/tr>/g) || [];
+  const oldRows = previous?.match(/<tr[\s\S]*?<\/tr>/g) || [];
+  if (!previous || Math.abs(nextRows.length - oldRows.length) > 100) {
+    body.innerHTML = markup;
+  } else {
+    nextRows.forEach((row, index) => {
+      if (oldRows[index] === row) return;
+      const template = document.createElement("template");
+      template.innerHTML = row;
+      if (body.children[index]) body.children[index].replaceWith(template.content.firstElementChild);
+      else body.appendChild(template.content.firstElementChild);
+    });
+    while (body.children.length > nextRows.length) body.lastElementChild.remove();
+  }
+  tableMarkupCache.set(body, markup);
+}
+
 function renderLiveNodes() {
   elements.copyLiveResults.disabled = liveNodes.length === 0;
   elements.liveResultSummary.textContent = liveNodes.length
     ? `本会话已实时优选 ${liveNodes.length} 条；后续手动续选只追加去重，关闭软件后下次运行才清空；日本节点独立豁免`
     : "本轮尚无合格结果；测速通过一个，这里立即增加一个";
-  elements.liveNodeRows.innerHTML = liveNodes.length
+setTableMarkup(elements.liveNodeRows, liveNodes.length
     ? nodeRowsHtml(sortResultNodes(liveNodes, "liveNodeTable"))
-    : '<tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>';
+    : '<tr><td class="empty" colspan="12">等待本轮实时优选结果</td></tr>');
 }
 
 function selectedLatency(node) {
@@ -407,9 +428,9 @@ function renderCompetitionNodes() {
   } else {
     elements.competitionResultSummary.textContent = "等待合并云端与本轮合格 IP 后开始完整复测";
   }
-  elements.competitionNodeRows.innerHTML = competitionNodes.length
+setTableMarkup(elements.competitionNodeRows, competitionNodes.length
     ? competitionRowsHtml(sortResultNodes(competitionNodes, "competitionNodeTable"))
-    : '<tr><td class="empty" colspan="9">等待发布前竞赛复测结果</td></tr>';
+    : '<tr><td class="empty" colspan="9">等待发布前竞赛复测结果</td></tr>');
 }
 
 function liveTestStatusLabel(status) {
@@ -495,9 +516,9 @@ function renderLiveTests(data) {
   const badgeClass = reportStatus === "running" ? "running" : reportStatus === "completed" ? "success" : reportStatus === "degraded" ? "failure" : "neutral";
   elements.liveTestStage.className = `badge ${badgeClass}`;
   elements.liveTestStage.textContent = report.stage || (reportStatus === "completed" ? "本轮已完成" : "尚未开始");
-  elements.liveTestRows.innerHTML = liveTestRecords.length
+setTableMarkup(elements.liveTestRows, liveTestRecords.length
     ? liveTestRowsHtml(liveTestRecords, offset)
-    : '<tr><td class="empty" colspan="14">等待本地测试数据</td></tr>';
+    : '<tr><td class="empty" colspan="14">等待本地测试数据</td></tr>');
 }
 
 function renderNodes() {
@@ -512,10 +533,10 @@ function renderNodes() {
   elements.copyFiltered.disabled = filteredNodes.length === 0;
   elements.exportCsv.disabled = filteredNodes.length === 0;
   if (!filteredNodes.length) {
-    elements.nodeRows.innerHTML = '<tr><td class="empty" colspan="12">没有符合当前筛选条件的 IP</td></tr>';
+setTableMarkup(elements.nodeRows, '<tr><td class="empty" colspan="12">没有符合当前筛选条件的 IP</td></tr>');
     return;
   }
-  elements.nodeRows.innerHTML = nodeRowsHtml(filteredNodes);
+setTableMarkup(elements.nodeRows, nodeRowsHtml(filteredNodes));
 }
 
 function updateCountries() {
@@ -1026,6 +1047,14 @@ elements.runLink.addEventListener("click", event => {
   if (!lastState?.run_url) event.preventDefault();
 });
 // Decorative only: one lightweight particle layer per hovered card, no timers.
+const cardMotionObserver = new IntersectionObserver(entries => {
+  entries.forEach(entry => entry.target.classList.toggle("motion-offscreen", !entry.isIntersecting));
+});
+function updateMotionVisibility() {
+  document.body.classList.toggle("page-hidden", document.hidden);
+}
+document.addEventListener("visibilitychange", updateMotionVisibility);
+updateMotionVisibility();
 function addCardAtmosphere(card) {
   if (!card || card.querySelector(":scope > .card-atmosphere")) return;
   const layer = document.createElement("span");
@@ -1040,6 +1069,7 @@ function addCardAtmosphere(card) {
     layer.appendChild(spark);
   }
   card.appendChild(layer);
+  cardMotionObserver.observe(card);
 }
 document.addEventListener("pointerover", (event) => {
   addCardAtmosphere(event.target.closest(".panel, .metric-card, .stage-card"));
@@ -1061,8 +1091,9 @@ fetchLiveNodes();
 fetchCompetitionNodes();
 fetchLiveTests();
 fetchRules();
-setInterval(fetchState, 1000);
-setInterval(fetchNodes, 5000);
-setInterval(fetchLiveNodes, 500);
-setInterval(fetchCompetitionNodes, 1000);
-setInterval(fetchLiveTests, 1000);
+// Keep the browser-presence heartbeat alive; only suspend invisible UI polling.
+setInterval(() => { if (!document.hidden) fetchState(); }, 1000);
+setInterval(() => { if (!document.hidden) fetchNodes(); }, 5000);
+setInterval(() => { if (!document.hidden) fetchLiveNodes(); }, 500);
+setInterval(() => { if (!document.hidden) fetchCompetitionNodes(); }, 1000);
+setInterval(() => { if (!document.hidden) fetchLiveTests(); }, 1000);

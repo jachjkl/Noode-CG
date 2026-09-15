@@ -151,7 +151,18 @@ class DashboardState:
         # A newly opened controller is always a fresh local UI session. Clear
         # stale workflow/test/result latches left by an older CMD process now,
         # while preserving the saved rules and verified published-node cache.
-        self.clear_session_state()
+        try:
+            active_selection = bool(self._local_selection_pids())
+        except (OSError, subprocess.SubprocessError) as exc:
+            # If ownership cannot be determined, never erase a live stop signal.
+            active_selection = True
+            self.last_error = f"后台任务检查失败，暂时保留运行缓存：{exc}"
+        if active_selection:
+            self.cycle_started = True
+            self.stop_requested = self.stop_after_current_path.exists()
+            self._append_dashboard_log("检测到上一轮本地任务仍在运行：保留停止请求和结果，重新连接监控。")
+        else:
+            self.clear_session_state()
 
     def _run_command(self, args: list[str], timeout: int = 25) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -369,7 +380,10 @@ class DashboardState:
         powershell = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
         if not powershell.is_file():
             return []
-        runtime = str((self.root / "runtime" / "python" / "python.exe").resolve()).replace("'", "''")
+        runtime_path = self.root / "runtime" / "python" / "python.exe"
+        if not runtime_path.is_file():
+            return []
+        runtime = str(runtime_path.resolve()).replace("'", "''")
         script = (
             f"$runtime = '{runtime}'; "
             "$items = @(Get-CimInstance Win32_Process | Where-Object { "
