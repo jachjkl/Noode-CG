@@ -1,10 +1,10 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-23T05:27:02.559226+00:00",
-  "generated_at": "2026-09-23T05:27:06.127231+00:00",
+  "started_at": "2026-09-24T05:50:06.257944+00:00",
+  "generated_at": "2026-09-24T05:50:07.327497+00:00",
   "target": 10000,
-  "selected": 23838,
+  "selected": 23695,
   "official_target": 10000,
   "previous_excluded": 100,
   "attempted_excluded": 0,
@@ -13,7 +13,7 @@
   "publish_only": false,
   "stale_attempted_ignored": 0,
   "stale_official_ignored": 0,
-  "source_candidates": 17067,
+  "source_candidates": 16921,
   "links_included": true,
   "cloud_prefilter_skipped": true,
   "official_sampled": 10000,
@@ -22,8 +22,8 @@
     {
       "round": 1,
       "official_unique": 10000,
-      "link_unique": 17067,
-      "handoff_total": 23838
+      "link_unique": 16921,
+      "handoff_total": 23695
     }
   ],
   "warnings": []
