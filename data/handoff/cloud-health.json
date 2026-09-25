@@ -1,8 +1,8 @@
 {
   "status": "ok",
   "stage": "cloud-prepare",
-  "started_at": "2026-09-25T08:49:17.331503+00:00",
-  "generated_at": "2026-09-25T08:49:18.529375+00:00",
+  "started_at": "2026-09-25T09:05:43.073300+00:00",
+  "generated_at": "2026-09-25T09:05:44.156076+00:00",
   "target": 10000,
   "selected": 23390,
   "official_target": 10000,
